@@ -39,6 +39,9 @@ if [[ "$TUNER_TYPE" == lora ]]; then
 else
   LR="${LR:-1e-6}"                       # full-FT GRPO 는 낮은 LR
 fi
+# 추론모드 강제: qwen3_5 는 하이브리드 thinking. enable_thinking=true 로 롤아웃 추론 템플릿 보장 +
+#   format_think 보상(빈 <think></think> 는 0점)으로 비추론 지름길 reward-hacking 차단.
+#   추론이 길어 2048 에서 83% 잘림 → max_completion_length 4096 (prompt~2k+4k<max_length 8192).
 # vLLM colocate: vLLM이 학습 GPU 공유, sleep_level로 교대. LoRA 는 full 옵티마이저 없어 메모리 여유.
 
 run_py swift rlhf \
@@ -50,10 +53,11 @@ run_py swift rlhf \
   --tuner_type "$TUNER_TYPE" $EXTRA_TUNER \
   --torch_dtype bfloat16 \
   --external_plugins "$PROJ_DIR/configs/accuracy.py" \
-  --reward_funcs accuracy_mix format \
+  --reward_funcs accuracy_mix format_think \
   --reward_weights 1.0 0.2 \
+  --enable_thinking true \
   --num_generations 8 \
-  --max_completion_length 2048 \
+  --max_completion_length 4096 \
   --per_device_train_batch_size 1 \
   --gradient_accumulation_steps 4 \
   --learning_rate "$LR" \

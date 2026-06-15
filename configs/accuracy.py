@@ -10,8 +10,14 @@ accuracy.py — stage-2(DeepVision) 용 커스텀 정확도 보상 'accuracy_mix
   - 객관식 letter(A~H) → letter 정규화 후 일치 비교
   - 기타 짧은 문자열 → 정규화 문자열 일치
 
+또한 'format_think': 내장 Format(r'^<think>.*?</think>\s*<answer>.*?</answer>')은 .*? 라
+  빈 <think></think>(비추론 지름길)도 1.0 을 줌 → 하이브리드 thinking 모델이 추론을 건너뛰고
+  형식 보상만 챙기는 reward-hacking 발생. format_think 는 think 내부에 실질 추론(>=
+  _MIN_THINK_CHARS)이 있어야만 1.0 → RL 이 항상-추론 모드로 수렴하도록 강제.
+
 ms-swift 4.x 등록: from swift.rewards import ORM, orms; orms['accuracy_mix']=Cls
-  사용: --external_plugins configs/accuracy.py --reward_funcs accuracy_mix format
+  사용: --external_plugins configs/accuracy.py --reward_funcs accuracy_mix format_think
+       (+ --enable_thinking true 로 롤아웃 추론 템플릿 보장)
 """
 import re
 from typing import List
@@ -84,3 +90,33 @@ class AccuracyMix(ORM):
 
 
 orms['accuracy_mix'] = AccuracyMix
+
+
+# === 추론-강제 format 보상 ============================================
+# 롤아웃 시 템플릿이 thinking_prefix '<think>\n' 를 강제로 앞에 붙임. 보상 스코어링은
+# 이 프리픽스를 포함한 텍스트로 평가됨(빈 think 가 내장 Format 에서 1.0 나오는 이유).
+# 따라서 여기서도 동일 전제로, 프리픽스가 없으면 방어적으로 보강해 구조를 평가.
+_THINK_RE = re.compile(r'<think>(.*?)</think>', re.DOTALL)
+_FULL_RE = re.compile(r'^<think>.*?</think>\s*<answer>.*?</answer>(?![\s\S])',
+                      re.DOTALL | re.MULTILINE)
+_MIN_THINK_CHARS = 16        # think 내부 실질 추론 최소 길이(공백 제외). 빈/사소한 think 차단.
+
+
+class FormatThink(ORM):
+    """<think>(실질추론)</think><answer>...</answer> 구조 + 비어있지 않은 think 만 1.0."""
+
+    def __call__(self, completions, **kwargs) -> List[float]:
+        rewards = []
+        for content in completions:
+            text = content if content.lstrip().startswith('<think>') else '<think>\n' + content
+            if not _FULL_RE.match(text):
+                rewards.append(0.0)
+                continue
+            m = _THINK_RE.search(text)
+            think = (m.group(1) if m else '')
+            think = re.sub(r'\s+', '', think)        # 공백 제외 실질 길이
+            rewards.append(1.0 if len(think) >= _MIN_THINK_CHARS else 0.0)
+        return rewards
+
+
+orms['format_think'] = FormatThink

@@ -22,11 +22,23 @@ source /home01/k252a01/kbds_project/scripts/00_common.sh
 # 호스트 모듈은 conda 폴백 시에만 필요(컨테이너는 자체 cuda/gcc 보유)
 if [[ "$ENV_MODE" == conda ]]; then module load compilers/cuda/12.4 compilers/gcc/10.2.0; fi
 
-# SFT 생략(R1-zero) → 베이스 모델에서 바로 GRPO. (SFT 도입 시 INIT_MODEL 로 체크포인트 지정)
+# 베이스(또는 cold-start 병합 모델)에서 GRPO. cold-start LoRA 병합본을 INIT_MODEL 로 지정 권장.
 INIT_MODEL="${INIT_MODEL:-$BASE_MODEL}"
 DATASET_FILE="${DATASET_FILE:-$DATA_DIR/deepvision103k_train.jsonl}"
 EXTRA_ARGS="${EXTRA_ARGS:-}"            # 스모크 테스트: EXTRA_ARGS="--max_steps 3"
-# vLLM rollout 를 별도 GPU에 두는 colocate 모드(vLLM이 학습 GPU 공유, sleep_level로 교대). server 모드는 외부 vLLM 서버 필요.
+
+# ⚠️ 이 클러스터는 NVLink 없음(PCIe A100, NCCL→SHM) → full-FT 멀티GPU 통신병목(375~660s/step).
+#   LoRA 로 통신량을 줄여 우회(권장 기본값). full 은 INIT 시 TUNER_TYPE=full 로 override(느림).
+TUNER_TYPE="${TUNER_TYPE:-lora}"        # lora | full
+EXTRA_TUNER=""
+DS_ARG="--deepspeed $PROJ_DIR/configs/ds_zero3_offload.json"   # full 용(옵티마이저 CPU offload)
+LR="${LR:-1e-6}"
+if [[ "$TUNER_TYPE" == lora ]]; then
+  EXTRA_TUNER="--lora_rank ${LORA_RANK:-16} --lora_alpha ${LORA_ALPHA:-32} --target_modules all-linear"
+  LR="${LR:-1e-5}"                       # LoRA 는 더 높은 LR
+  DS_ARG=""                              # LoRA: base 동결 → DDP(통신 최소), DeepSpeed 불필요
+fi
+# vLLM colocate: vLLM이 학습 GPU 공유, sleep_level로 교대. LoRA 는 full 옵티마이저 없어 메모리 여유.
 
 run_py swift rlhf \
   --rlhf_type grpo \
@@ -34,25 +46,29 @@ run_py swift rlhf \
   --model_type "$MODEL_TYPE" \
   --system "$SYSTEM_PROMPT" \
   --dataset "$DATASET_FILE" \
-  --tuner_type full \
+  --tuner_type "$TUNER_TYPE" $EXTRA_TUNER \
   --torch_dtype bfloat16 \
-  --reward_funcs accuracy format \
+  --external_plugins "$PROJ_DIR/configs/accuracy.py" \
+  --reward_funcs accuracy_mix format \
+  --reward_weights 1.0 0.2 \
   --num_generations 8 \
   --max_completion_length 2048 \
   --per_device_train_batch_size 1 \
-  --gradient_accumulation_steps 8 \
-  --learning_rate 1e-6 \
+  --gradient_accumulation_steps 4 \
+  --learning_rate "$LR" \
   --max_length 8192 \
   --max_pixels "$MAX_PIXELS" \
   --gradient_checkpointing true \
-  --deepspeed "$PROJ_DIR/configs/ds_zero3.json" \
+  $DS_ARG \
   --attn_impl "$ATTN_IMPL" \
   --use_vllm true \
   --vllm_mode colocate \
-  --vllm_gpu_memory_utilization 0.6 \
+  --vllm_mm_processor_cache_gb 0 \
+  --vllm_gpu_memory_utilization 0.4 \
   --sleep_level 1 \
-  --save_strategy steps --save_steps 200 --save_total_limit 3 \
-  --logging_steps 5 \
+  --log_completions true \
+  --save_strategy steps --save_steps 50 --save_total_limit 3 \
+  --logging_steps 1 \
   --output_dir "${OUTPUT_DIR:-$CKPT_DIR/grpo_general}" \
   --report_to tensorboard \
   $EXTRA_ARGS

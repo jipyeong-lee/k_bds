@@ -25,9 +25,10 @@ mkdir -p "$WORK_DIR" "$DATA_DIR" "$CKPT_DIR" "$HF_HOME" "$MODELSCOPE_CACHE" "$PR
 export BASE_MODEL="${BASE_MODEL:-Qwen/Qwen3.5-9B}"
 export MODEL_TYPE="${MODEL_TYPE:-qwen3_5}"
 
-# 출력 형식 시스템 프롬프트 (전 단계 통일: <think>추론</think><answer>\boxed{답}</answer>)
-#  - 내장 format 보상이 이 구조를 검사, accuracy 보상이 <answer> 내 \boxed{} 를 파싱.
-export SYSTEM_PROMPT="${SYSTEM_PROMPT:-You are a multimodal reasoning assistant. Carefully examine the image(s) and reason step by step INSIDE <think> </think>. Then give ONLY the final answer INSIDE <answer> </answer>, wrapped in \\boxed{}. For multiple-choice, put only the letter, e.g. <answer>\\boxed{A}</answer>.}"
+# 출력 형식 시스템 프롬프트 (전 단계 통일: <think>추론</think><answer>답</answer>)
+#  - 내장 format 보상이 이 구조를 검사, accuracy(math_verify) 가 <answer> 내 평문답을 파싱.
+#  - \boxed 미사용(컨벤션 결정): math_verify 가 평문 숫자답 정상 검증. "concise" 로 장황/truncation 억제.
+export SYSTEM_PROMPT="${SYSTEM_PROMPT:-You are a multimodal reasoning assistant. Carefully examine the image(s) and reason step by step INSIDE <think> </think>, keeping the reasoning concise. Then give ONLY the final answer INSIDE <answer> </answer>. For multiple-choice, put only the letter, e.g. <answer>A</answer>.}"
 
 # ---- 환경 방식 선택: container(권장) | conda -------------------------------
 #  glibc 2.17 때문에 vLLM 은 conda/pip 설치 불가 → 컨테이너가 기본. (자세히: 메모리 env-glibc-container)

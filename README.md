@@ -1,7 +1,18 @@
-# K-BDS 의료 멀티모달 교차추론 — 학습 파이프라인 (초안)
+# K-BDS 의료 멀티모달 교차추론 — 학습 파이프라인
 
-계획서(`plan.hwp`) 기반, **ms-swift**로 SFT → 범용 RLVR/GRPO → 의료 특화 RL → 평가
-4단계를 현재 KISTI Slurm 클러스터 환경에 맞춰 구성한 초안.
+계획서(`plan.hwp`) 기반, **ms-swift**로 (format cold-start) SFT → 범용 RLVR/GRPO → 의료 특화 RL → 평가
+4단계를 KISTI Slurm 클러스터 환경에 맞춰 구성. 일별 진행 기록은 `docs/worklog_*.md` 참고.
+
+## 현황 (2026-06-15)
+- ✅ 환경(컨테이너)·베이스모델(Qwen3.5-9B)·데이터(DeepVision/medix) 확정·검증
+- ✅ **format cold-start SFT(LoRA)** 완료 — VLAA clevr_math, loss 0.89→0.46, 병합본 `sft_coldstart_merged`
+- ✅ **커스텀 정확도 보상 `accuracy_mix`** — 객관식 letter 정답 점수화(내장 accuracy의 치명 누락 보완)
+- ✅ **GRPO LoRA 파일럿 검증** — 128초/step, Format 0→0.156, OOM無
+- ▶ **Stage-2 GRPO LoRA 본실행 중** (DeepVision, `work/checkpoints/grpo_general`)
+- ⏳ Stage-3(의료, LLM judge) — judge 구현 후 진행
+
+> **⚠️ 이 클러스터는 NVLink가 없어(PCIe A100·가상화) full-FT 멀티GPU가 통신병목(SHM, 375~660초/step).
+> 전 단계를 LoRA로 수행한다(~5배 빠름). 상세: 아래 "학습 방식" 절.**
 
 ## 환경: Singularity 컨테이너 (확정·검증 완료)
 - 노드 OS가 **CentOS 7.9 / glibc 2.17**이라 최신 ML 패키지(특히 **vLLM·xformers**)는
@@ -34,14 +45,34 @@
   `swift.rewards`(`ORM`/`AsyncORM`/`orms`) API 사용(configs/medical_reward.py 갱신됨).
   첫 실전 작업 전 `singularity exec --nv $CONTAINER_IMG swift sft --help` 로 인자 최종 확인 권장.
 
+## 학습 방식: LoRA (하드웨어 제약 대응)
+- **GPU 인터커넥트에 NVLink가 없음**(실측 2026-06-15): 8gpu 노드 = **A100 80GB PCIe**, OpenStack 가상화
+  (`gpu-8-00x.novalocal`). `nvidia-smi topo -m` 전부 **PHB**(단일 CPU 호스트브리지 경유), PCIe passthrough라
+  **GPU P2P 차단** → NCCL이 **SHM(호스트 RAM 경유)** 로 폴백(`Channel 00 : 0[0]->1[1] via SHM`).
+- 결과: **full-FT 멀티GPU는 18GB gradient all-reduce가 통신병목** → 9B·짧은 시퀀스인데도 **375~660초/step**.
+  하이퍼바이저 ACS 영역이라 사용자가 못 고침.
+- **대응 = 전 단계 LoRA**: adapter grad(수십 MB)만 통신 → SHM에서도 **~128초/step(GRPO), ~5초/step(SFT)** 로
+  ~5~75배 빠름. base 동결이라 LoRA SFT는 **DeepSpeed 없이 DDP**로 충분.
+  - `10_sft.slurm` / `20_rlvr_grpo.slurm` 모두 **`TUNER_TYPE` 분기**: `lora`(기본, DDP) / `full`(느림, ZeRO-2 or ZeRO-3+offload).
+  - cold-start LoRA → `swift export --merge_lora`로 base 병합(`sft_coldstart_merged`) → GRPO의 `INIT_MODEL`로 사용.
+
+## 보상 설계 (stage 2)
+- **출력 형식**: `<think>간결한 추론</think><answer>최종답</answer>` (`\boxed{}` 미사용 — math_verify가 평문 검증).
+- **`accuracy_mix`**(`configs/accuracy.py`): 내장 `accuracy`는 객관식 letter("B")·기호를 파싱못해 정답이어도 0점
+  (DeepVision의 ~48%가 letter라 보상 절반이 죽음) → 커스텀 보상으로 **수식=math_verify / letter=정규화일치 /
+  문자열=정규화일치** 분기. `--external_plugins configs/accuracy.py --reward_funcs accuracy_mix format`.
+- **format**(내장): 위 구조 정규식 매치. 가중치 `accuracy_mix 1.0 : format 0.2`.
+- **vLLM colocate** 디버깅: `--vllm_mode colocate`(단일노드), `--vllm_mm_processor_cache_gb 0`(멀티모달 mm_hash
+  AssertionError 회피), `--sleep_level 1`(2는 ZeRO-3와 비호환). full-FT OOM 시 `ds_zero3_offload.json`(옵티마이저 CPU).
+
 ## 자원 정합성 (가이드 확인 완료)
 - 계획서의 **8×A100-80GB·896GB·128core 노드** = 일반 **`8gpu` 파티션**(가이드 공식표상
   4gpu·8gpu는 A100 **80GB**, 1gpu·2gpu만 40GB). `bdata_user`로 **바로 사용 가능**,
   diba 계정 불필요. 노드시간 ×8 차감 계수도 8gpu 기준으로 계획서 산정과 일치.
 - ⚠️ 가이드 상세스펙 페이지엔 "40GB" 표기 모순이 있으니, **첫 8gpu 작업에서
   `nvidia-smi`로 80GB를 실측 확인**할 것 (40GB로 판명되면 batch/length 하향 필요).
-- GRPO(2·3단계)는 정책+참조+vLLM 심판 모델 동시 적재로 VRAM 압박이 큼 → server 모드
-  (학습/생성 GPU 분리)를 기본값으로 둠. 80GB에서 7B는 colocate도 가능.
+- GRPO는 **colocate 모드**(vLLM이 학습 GPU 공유, sleep_level로 교대) 사용 — server 모드는 외부 vLLM 서버 필요.
+  LoRA라 full 옵티마이저가 없어 메모리 여유(파일럿 59.6GiB). 80GB 실측 확인 완료.
 
 ## 운영 정책 (가이드 §4)
 - **wall-clock 5일(120h)**: 70h 단일 작업 OK. 단 `--resume_from_checkpoint` 권장.
@@ -69,14 +100,24 @@ kbds_project/
 │   ├── setup_conda.sh      # (폴백) conda env — SFT만 가능, vLLM 불가
 │   └── constraints.txt     # conda 폴백용 glibc 2.17 호환 버전 핀
 ├── configs/
+│   ├── accuracy.py         # ★ stage-2 커스텀 정확도 보상 accuracy_mix (math+letter+문자열)
+│   ├── ds_zero2.json       # ZeRO-2 (full-FT SFT용)
 │   ├── ds_zero3.json       # DeepSpeed ZeRO-3
+│   ├── ds_zero3_offload.json # ZeRO-3 + 옵티마이저 CPU 오프로드 (full-FT GRPO OOM 대비)
 │   └── medical_reward.py   # 3단계 LLM-as-judge 복합보상 plugin (스텁)
 ├── scripts/
 │   ├── 00_common.sh        # 공통 경로/환경/실행 래퍼 (모든 단계가 source)
-│   ├── 10_sft.slurm        # 1단계 SFT
-│   ├── 20_rlvr_grpo.slurm  # 2단계 범용 RLVR/GRPO (DeepVision-103K)
+│   ├── 10_sft.slurm        # 1단계 (format cold-start) SFT — TUNER_TYPE 분기
+│   ├── 20_rlvr_grpo.slurm  # 2단계 범용 RLVR/GRPO (DeepVision-103K) — TUNER_TYPE 분기
 │   ├── 30_medical_rl.slurm # 3단계 의료 특화 RL (medix-rl-data)
-│   └── 40_eval.slurm       # 4단계 벤치마크 평가
+│   ├── 40_eval.slurm       # 4단계 벤치마크 평가
+│   ├── build_coldstart_sft.py # VLAA clevr_math → cold-start SFT jsonl
+│   ├── build_sft.py        # (구) RL jsonl → SFT jsonl
+│   ├── convert_to_swift.py # parquet → ms-swift GRPO jsonl
+│   └── download_{model,dataset}.py
+├── docs/
+│   ├── medical_reward_spec.md  # 3단계 judge 보상 스펙
+│   └── worklog_*.md            # 일별 작업 일지
 └── logs/                   # Slurm 출력
 ```
 
@@ -139,20 +180,20 @@ singularity exec --bind $PWD/work --env HF_HUB_OFFLINE=1 $SB python scripts/conv
 - ⚠️ parquet 의 `List` feature 가 컨테이너 datasets 구버전과 충돌 → 변환기는 **pyarrow 스트리밍** 사용(저메모리).
 - ⚠️ 전체 변환은 이미지 ~154K개 추출(디스크·inode 큼) → 배치/백그라운드 권장. 샘플 50건씩은 검증 완료.
 
-## TODO (실데이터 연동 시 채울 것)
+## TODO / 진행 상태
 - [x] 환경 구축 — 컨테이너(swift4.1.3) 빌드 + 계산노드 검증 완료
 - [x] `BASE_MODEL` = `Qwen/Qwen3.5-9B` (멀티모달, 다운로드+로드 검증 완료)
-- [x] 데이터 소스 확정(DeepVision=skylenage-ai, medix=MBZUAI) + 다운로드 + 변환기 샘플 검증
-- [~] **전체 변환** 진행 중(백그라운드): DeepVision→`deepvision103k_train.jsonl`(~103K),
-      medix→`medix_rl_train.jsonl`(~51K, 의료영상이라 느림). 로그인노드 IO 경합으로 느려 — 향후엔 cpu32 잡 권장.
-- [x] **SFT 데이터 구성**(`scripts/build_sft.py`): DeepVision 15K subset → `sft_train.jsonl`(14,700)/`sft_val.jsonl`(300).
-      형식: system(추론 어시스턴트)+user(`<image>`+질문)+assistant(`\boxed{답}`).
-      ⚠️ **답만 있는 format cold-start**(gold CoT 없음) — 본격 추론 cold-start 원하면 CoT 데이터셋
-      (`UCSC-VLAA/VLAA-Thinking` 등)을 convert 후 style=cot 로 추가. SFT 크기/구성은 build_sft 인자로 조정.
-- [ ] `medical_reward.py` 의 LLM-as-judge 실제 호출 구현 + judge vLLM 서버 기동
-- [ ] 첫 8gpu 작업에서 `nvidia-smi`로 VRAM 80GB 실측 확인
-- [ ] `ATTN_IMPL` — 컨테이너에 flash-attn 포함 시 `flash_attn` 으로(없으면 기본 `sdpa`)
-- [ ] 평가 벤치마크 명(`EVAL_DATASETS`)을 실제 의료 멀티모달 벤치마크로 교체
+- [x] 데이터 소스 확정 + 전체 변환: `deepvision103k_train.jsonl`(103K) / `medix_rl_train.jsonl`(51K)
+- [x] 8gpu VRAM **80GB 실측 확인** (+ NVLink 없음·SHM 폴백 발견 → LoRA 전환)
+- [x] **format cold-start SFT(LoRA)**: VLAA clevr_math → `sft_coldstart_{train,val}.jsonl`(2913/60),
+      학습 loss 0.89→0.46, 병합본 `sft_coldstart_merged` 생성
+- [x] **`accuracy_mix` 보상**(`configs/accuracy.py`) — 객관식 letter 정답 점수화(9/9 검증)
+- [x] **GRPO LoRA 파일럿 검증** — 128초/step, Format 0→0.156, OOM無
+- [▶] **Stage-2 GRPO LoRA 본실행** (job 57220, DeepVision, 70h) → `work/checkpoints/grpo_general`
+- [ ] `medical_reward.py` LLM-as-judge 실제 구현 + judge 기동 (Stage 3 전제)
+- [ ] **Stage 3**: medix + DeepVision 일부 혼합 LoRA RL (judge 보상, 망각 방지)
+- [ ] 평가 벤치마크(`EVAL_DATASETS`)를 실제 의료 멀티모달 벤치마크로 교체
+- [ ] 하이퍼파라미터 튜닝(num_generations·lora_rank 등 — 메모리 여유 있음)
 
 ## 과제 종료 의무 (가이드 §7)
 - 종료 후 **1주 내** 데이터 다운로드(이후 접속 차단·삭제) · **1개월 내** 결과보고서 +

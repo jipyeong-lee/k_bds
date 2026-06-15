@@ -43,9 +43,9 @@ run_py swift rlhf \
   --max_length 12288 \
   --max_pixels "$MAX_PIXELS" \
   --gradient_checkpointing true \
-  --deepspeed "$PROJ_DIR/configs/ds_zero3.json" \
+  --deepspeed "$PROJ_DIR/configs/ds_zero3_offload.json" \
   --attn_impl "$ATTN_IMPL" \
-  --use_vllm true --vllm_mode colocate --vllm_gpu_memory_utilization 0.6 \
+  --use_vllm true --vllm_mode colocate --vllm_mm_processor_cache_gb 0 --vllm_gpu_memory_utilization 0.6 \
   --sleep_level 1 \
   --save_strategy steps --save_steps 200 --save_total_limit 3 \
   --logging_steps 5 \

@@ -1,0 +1,8 @@
+# glibc 2.17 (CentOS 7.9) 호환 상한 — 이 버전들이 manylinux_2_17 wheel 제공.
+# 최신 버전은 manylinux_2_28 wheel 만 있어 소스 빌드로 빠지고 실패하므로 캡.
+# pip install -c constraints.txt 로 전체 의존성 해석에 강제 적용.
+pandas==2.2.3
+pyarrow==17.0.0        # datasets 가 21+ 요구하나 21+는 2_17 wheel 없음 → datasets 자동 다운그레이드 유도
+libcst==1.5.0          # 1.8+ 는 소스(Rust) 빌드 필요
+tiktoken==0.9.0        # 0.12+ 는 소스(Rust) 빌드 필요
+sentencepiece==0.2.0   # 0.2.1+ 는 소스(cmake) 빌드 필요

@@ -1,0 +1,25 @@
+# ── 대용량 산출물 (모델/데이터/이미지/체크포인트/캐시) — 절대 커밋 금지 ──
+work/
+*.sif
+*-sandbox/
+
+# ── 로그 ──
+logs/
+*.log
+
+# ── 연구계획서/가이드 (비공개 가능성) ──
+plan.hwp
+plan.txt
+plan_clean.txt
+plan_html/
+guide.pdf
+
+# ── python 캐시 ──
+__pycache__/
+*.pyc
+*.pyo
+
+# ── 기타 ──
+.DS_Store
+core.*
+*.tmp

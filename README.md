@@ -55,6 +55,7 @@
   ~5~75배 빠름. base 동결이라 LoRA SFT는 **DeepSpeed 없이 DDP**로 충분.
   - `10_sft.slurm` / `20_rlvr_grpo.slurm` 모두 **`TUNER_TYPE` 분기**: `lora`(기본, DDP) / `full`(느림, ZeRO-2 or ZeRO-3+offload).
   - cold-start LoRA → `swift export --merge_lora`로 base 병합(`sft_coldstart_merged`) → GRPO의 `INIT_MODEL`로 사용.
+  - **LR 기본값(LoRA가 더 높음)**: SFT lora `1e-4`/full `1e-5`, GRPO lora `1e-5`/full `1e-6`. `LR=` 환경변수로 override.
 
 ## 보상 설계 (stage 2)
 - **출력 형식**: `<think>간결한 추론</think><answer>최종답</answer>` (`\boxed{}` 미사용 — math_verify가 평문 검증).
@@ -189,7 +190,7 @@ singularity exec --bind $PWD/work --env HF_HUB_OFFLINE=1 $SB python scripts/conv
       학습 loss 0.89→0.46, 병합본 `sft_coldstart_merged` 생성
 - [x] **`accuracy_mix` 보상**(`configs/accuracy.py`) — 객관식 letter 정답 점수화(9/9 검증)
 - [x] **GRPO LoRA 파일럿 검증** — 128초/step, Format 0→0.156, OOM無
-- [▶] **Stage-2 GRPO LoRA 본실행** (job 57220, DeepVision, 70h) → `work/checkpoints/grpo_general`
+- [▶] **Stage-2 GRPO LoRA 본실행** (DeepVision, LoRA LR 1e-5, 70h) → `work/checkpoints/grpo_general`
 - [ ] `medical_reward.py` LLM-as-judge 실제 구현 + judge 기동 (Stage 3 전제)
 - [ ] **Stage 3**: medix + DeepVision 일부 혼합 LoRA RL (judge 보상, 망각 방지)
 - [ ] 평가 벤치마크(`EVAL_DATASETS`)를 실제 의료 멀티모달 벤치마크로 교체

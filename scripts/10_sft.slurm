@@ -33,11 +33,12 @@ SFT_OUT="${SFT_OUT:-$CKPT_DIR/sft_coldstart_$TUNER_TYPE}"
 # tuner 별 분기: LoRA 는 base 동결 → 단일GPU 적재, DeepSpeed 없이 DDP(통신 최소). full 은 ZeRO-2.
 EXTRA_TUNER=""
 DS_ARG="--deepspeed $PROJ_DIR/configs/ds_zero2.json"
-LR="${LR:-1e-5}"
 if [[ "$TUNER_TYPE" == lora ]]; then
   EXTRA_TUNER="--lora_rank ${LORA_RANK:-16} --lora_alpha ${LORA_ALPHA:-32} --target_modules all-linear"
-  LR="${LR:-1e-4}"
+  LR="${LR:-1e-4}"                              # LoRA 는 더 높은 LR
   [[ "${LORA_NO_DS:-1}" == 1 ]] && DS_ARG=""    # LoRA 는 DDP (DeepSpeed 생략)
+else
+  LR="${LR:-1e-5}"                              # full-FT SFT
 fi
 
 # A100 80GB ×8 기준. VRAM 여유로 batch/length 상향 가능(아래는 안정 기본값).

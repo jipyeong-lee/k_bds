@@ -32,11 +32,12 @@ EXTRA_ARGS="${EXTRA_ARGS:-}"            # 스모크 테스트: EXTRA_ARGS="--max
 TUNER_TYPE="${TUNER_TYPE:-lora}"        # lora | full
 EXTRA_TUNER=""
 DS_ARG="--deepspeed $PROJ_DIR/configs/ds_zero3_offload.json"   # full 용(옵티마이저 CPU offload)
-LR="${LR:-1e-6}"
 if [[ "$TUNER_TYPE" == lora ]]; then
   EXTRA_TUNER="--lora_rank ${LORA_RANK:-16} --lora_alpha ${LORA_ALPHA:-32} --target_modules all-linear"
-  LR="${LR:-1e-5}"                       # LoRA 는 더 높은 LR
+  LR="${LR:-1e-5}"                       # LoRA 는 더 높은 LR(GRPO 기준)
   DS_ARG=""                              # LoRA: base 동결 → DDP(통신 최소), DeepSpeed 불필요
+else
+  LR="${LR:-1e-6}"                       # full-FT GRPO 는 낮은 LR
 fi
 # vLLM colocate: vLLM이 학습 GPU 공유, sleep_level로 교대. LoRA 는 full 옵티마이저 없어 메모리 여유.
 

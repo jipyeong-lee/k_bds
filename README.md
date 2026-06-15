@@ -3,12 +3,16 @@
 계획서(`plan.hwp`) 기반, **ms-swift**로 (format cold-start) SFT → 범용 RLVR/GRPO → 의료 특화 RL → 평가
 4단계를 KISTI Slurm 클러스터 환경에 맞춰 구성. 일별 진행 기록은 `docs/worklog_*.md` 참고.
 
-## 현황 (2026-06-15)
+## 현황 (2026-06-16)
 - ✅ 환경(컨테이너)·베이스모델(Qwen3.5-9B)·데이터(DeepVision/medix) 확정·검증
 - ✅ **format cold-start SFT(LoRA)** 완료 — VLAA clevr_math, loss 0.89→0.46, 병합본 `sft_coldstart_merged`
 - ✅ **커스텀 정확도 보상 `accuracy_mix`** — 객관식 letter 정답 점수화(내장 accuracy의 치명 누락 보완)
 - ✅ **GRPO LoRA 파일럿 검증** — 128초/step, Format 0→0.156, OOM無
-- ▶ **Stage-2 GRPO LoRA 본실행 중** (DeepVision, `work/checkpoints/grpo_general`)
+- ▶ **Stage-2 GRPO LoRA 본실행 중** (job 57221, DeepVision, LR 1e-5, ~126초/step, `work/checkpoints/grpo_general`)
+  - 8h+ 경과·step 240·mem 64.6GiB(OOM無). **건강한 학습 추세**: Format 보상 0.03→0.19↑,
+    clip(과대생성) 0.81→0.74↓, reward 0.18→0.23↑. checkpoint-200까지 저장.
+  - ⚠️ 70h 벽시계로 max_steps(3 epoch=77625) 도달 불가 → ~1,900 step(≈1 epoch 미만)까지.
+    full epoch 필요 시 마지막 체크포인트에서 `--resume_from_checkpoint`로 이어받기.
 - ⏳ Stage-3(의료, LLM judge) — judge 구현 후 진행
 
 > **⚠️ 이 클러스터는 NVLink가 없어(PCIe A100·가상화) full-FT 멀티GPU가 통신병목(SHM, 375~660초/step).
@@ -190,7 +194,8 @@ singularity exec --bind $PWD/work --env HF_HUB_OFFLINE=1 $SB python scripts/conv
       학습 loss 0.89→0.46, 병합본 `sft_coldstart_merged` 생성
 - [x] **`accuracy_mix` 보상**(`configs/accuracy.py`) — 객관식 letter 정답 점수화(9/9 검증)
 - [x] **GRPO LoRA 파일럿 검증** — 128초/step, Format 0→0.156, OOM無
-- [▶] **Stage-2 GRPO LoRA 본실행** (DeepVision, LoRA LR 1e-5, 70h) → `work/checkpoints/grpo_general`
+- [▶] **Stage-2 GRPO LoRA 본실행**(job 57221, DeepVision, LR 1e-5, 70h) → `work/checkpoints/grpo_general`
+      — step 240, Format 0.03→0.19↑·clip 0.81→0.74↓, 정상 추세(70h로 ~1 epoch 미만, 필요 시 resume)
 - [ ] `medical_reward.py` LLM-as-judge 실제 구현 + judge 기동 (Stage 3 전제)
 - [ ] **Stage 3**: medix + DeepVision 일부 혼합 LoRA RL (judge 보상, 망각 방지)
 - [ ] 평가 벤치마크(`EVAL_DATASETS`)를 실제 의료 멀티모달 벤치마크로 교체

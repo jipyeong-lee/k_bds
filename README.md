@@ -5,15 +5,21 @@
 
 ## 현황 (2026-06-16)
 - ✅ 환경(컨테이너)·베이스모델(Qwen3.5-9B)·데이터(DeepVision/medix) 확정·검증
-- ✅ **format cold-start SFT(LoRA)** 완료 — VLAA clevr_math, loss 0.89→0.46, 병합본 `sft_coldstart_merged`
+- ✅ **format cold-start SFT(LoRA)** — VLAA clevr_math, 병합본 `sft_coldstart_merged`
 - ✅ **커스텀 정확도 보상 `accuracy_mix`** — 객관식 letter 정답 점수화(내장 accuracy의 치명 누락 보완)
-- ✅ **GRPO LoRA 파일럿 검증** — 128초/step, Format 0→0.156, OOM無
-- ▶ **Stage-2 GRPO LoRA 본실행 중** (job 57221, DeepVision, LR 1e-5, ~126초/step, `work/checkpoints/grpo_general`)
-  - 8h+ 경과·step 240·mem 64.6GiB(OOM無). **건강한 학습 추세**: Format 보상 0.03→0.19↑,
-    clip(과대생성) 0.81→0.74↓, reward 0.18→0.23↑. checkpoint-200까지 저장.
-  - ⚠️ 70h 벽시계로 max_steps(3 epoch=77625) 도달 불가 → ~1,900 step(≈1 epoch 미만)까지.
-    full epoch 필요 시 마지막 체크포인트에서 `--resume_from_checkpoint`로 이어받기.
+- ✅ **추론모드 강제** — `enable_thinking=true` + `format_think` 보상(빈 `<think></think>`=0점, reward-hacking 차단)
+- ✅ **flash_attn** 적용(sdpa→flash_attn). vllm_util↑는 무익(생성 병목·KV-bound 아님) 확인 후 원복.
+- ⚠️ **[핵심 진단] 추론 길이 폭주** — base Qwen3.5-VL이 어려운 시각/기하 문제에 본래 3.5~4.6K토큰 추론.
+  2048→4096→6144 budget 늘려도 50~80% 잘림(=무답=0점). `enable_thinking` on/off·콜드스타트(clevr_math
+  760자)와 무관(일반화 실패). `soft_overlong` 보상도 "다 잘리면 그룹 내 분산=0"이라 약함.
+- ▶ **[대응] rejection-sampling 간결 콜드스타트(STaR/ReST)** — 자기 롤아웃의 정답+마감+간결 완성문 767개
+  (질문 336, p50 2.8K자)로 LoRA SFT(`sft_rft_coldstart_lora`) → 병합 → **이 init에서 GRPO 재시작 예정**.
+  현재 병합+길이검증 인퍼런스 진행 중(옛 콜드스타트 p50 5.1K자 대비 단축 확인).
+- ⏳ Stage-2 GRPO 본실행 — 간결 콜드스타트 검증 후 재개
 - ⏳ Stage-3(의료, LLM judge) — judge 구현 후 진행
+
+> **길이 전략**: 잘림=무답=0점이라 ① budget 확대(수용, 메모리 천장 6144) ② 간결화(rejection-sampling
+> 콜드스타트)를 병행. 진단 도구 `scripts/probe_coldstart_infer.slurm`(enable_thinking on/off 길이 비교).
 
 > **⚠️ 이 클러스터는 NVLink가 없어(PCIe A100·가상화) full-FT 멀티GPU가 통신병목(SHM, 375~660초/step).
 > 전 단계를 LoRA로 수행한다(~5배 빠름). 상세: 아래 "학습 방식" 절.**
@@ -105,7 +111,7 @@ kbds_project/
 │   ├── setup_conda.sh      # (폴백) conda env — SFT만 가능, vLLM 불가
 │   └── constraints.txt     # conda 폴백용 glibc 2.17 호환 버전 핀
 ├── configs/
-│   ├── accuracy.py         # ★ stage-2 커스텀 정확도 보상 accuracy_mix (math+letter+문자열)
+│   ├── accuracy.py         # ★ stage-2 커스텀 보상 accuracy_mix(math+letter+문자열) + format_think(빈 think=0)
 │   ├── ds_zero2.json       # ZeRO-2 (full-FT SFT용)
 │   ├── ds_zero3.json       # DeepSpeed ZeRO-3
 │   ├── ds_zero3_offload.json # ZeRO-3 + 옵티마이저 CPU 오프로드 (full-FT GRPO OOM 대비)
@@ -116,7 +122,11 @@ kbds_project/
 │   ├── 20_rlvr_grpo.slurm  # 2단계 범용 RLVR/GRPO (DeepVision-103K) — TUNER_TYPE 분기
 │   ├── 30_medical_rl.slurm # 3단계 의료 특화 RL (medix-rl-data)
 │   ├── 40_eval.slurm       # 4단계 벤치마크 평가
-│   ├── build_coldstart_sft.py # VLAA clevr_math → cold-start SFT jsonl
+│   ├── build_coldstart_sft.py # VLAA clevr_math → (format) cold-start SFT jsonl
+│   ├── build_rft_coldstart.py # ★ rejection-sampling 간결 콜드스타트: 롤아웃 정답+간결 완성문 → SFT
+│   ├── probe_coldstart_infer.slurm # ★ 콜드스타트 격리 인퍼런스 진단(enable_thinking on/off 길이)
+│   ├── merge_probe_rft.slurm  # ★ RFT 콜드스타트 LoRA 병합 + 길이검증 인퍼런스
+│   ├── watch_train.sh      # 학습 라이브 모니터(tmux)
 │   ├── build_sft.py        # (구) RL jsonl → SFT jsonl
 │   ├── convert_to_swift.py # parquet → ms-swift GRPO jsonl
 │   └── download_{model,dataset}.py
@@ -194,8 +204,13 @@ singularity exec --bind $PWD/work --env HF_HUB_OFFLINE=1 $SB python scripts/conv
       학습 loss 0.89→0.46, 병합본 `sft_coldstart_merged` 생성
 - [x] **`accuracy_mix` 보상**(`configs/accuracy.py`) — 객관식 letter 정답 점수화(9/9 검증)
 - [x] **GRPO LoRA 파일럿 검증** — 128초/step, Format 0→0.156, OOM無
-- [▶] **Stage-2 GRPO LoRA 본실행**(job 57221, DeepVision, LR 1e-5, 70h) → `work/checkpoints/grpo_general`
-      — step 240, Format 0.03→0.19↑·clip 0.81→0.74↓, 정상 추세(70h로 ~1 epoch 미만, 필요 시 resume)
+- [x] **추론모드 강제 + 보상 정비**: `enable_thinking=true`, `format_think`(빈 think=0점), `soft_overlong`(길이),
+      `flash_attn`. GRPO 여러 사이클 시행(57221~57241)하며 설정 수렴.
+- [x] **[핵심 진단] 추론 길이 폭주** 규명: base가 본래 장문 추론(3.5~4.6K토큰) → budget·RL·enable_thinking로
+      못 잡음(`probe_coldstart_infer.slurm`로 검증). 잘림=0점이 학습 정체 원인.
+- [▶] **rejection-sampling 간결 콜드스타트**(`build_rft_coldstart.py`): 자기 롤아웃 정답+간결 767예시 SFT
+      (`sft_rft_coldstart_lora`) → 병합·길이검증(`merge_probe_rft.slurm`) → **검증 후 GRPO 재시작**
+- [ ] Stage-2 GRPO 본실행(간결 init에서) — 길이 단축 확인 후
 - [ ] `medical_reward.py` LLM-as-judge 실제 구현 + judge 기동 (Stage 3 전제)
 - [ ] **Stage 3**: medix + DeepVision 일부 혼합 LoRA RL (judge 보상, 망각 방지)
 - [ ] 평가 벤치마크(`EVAL_DATASETS`)를 실제 의료 멀티모달 벤치마크로 교체

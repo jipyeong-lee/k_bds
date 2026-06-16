@@ -35,7 +35,13 @@ DS_ARG="--deepspeed $PROJ_DIR/configs/ds_zero3_offload.json"   # full 용(옵티
 if [[ "$TUNER_TYPE" == lora ]]; then
   EXTRA_TUNER="--lora_rank ${LORA_RANK:-16} --lora_alpha ${LORA_ALPHA:-32} --target_modules all-linear"
   LR="${LR:-1e-5}"                       # LoRA 는 더 높은 LR(GRPO 기준)
-  DS_ARG=""                              # LoRA: base 동결 → DDP(통신 최소), DeepSpeed 불필요
+  DS_ARG=""                              # LoRA 기본: base 동결 → DDP(통신 최소), DeepSpeed 불필요
+  # 길이 확대용 ZeRO-3: 18GB base 를 샤딩해 학습-phase 메모리 확보 → max_completion 8192 가능.
+  #  ms-swift 72B LoRA VLM 예시 레시피(zero3 + offload + move_model_batches). no-NVLink 라 param
+  #  all-gather 통신비용 있음 → 속도 측정 필수. USE_ZERO3=1 로 활성화.
+  if [[ "${USE_ZERO3:-0}" == 1 ]]; then
+    DS_ARG="--deepspeed zero3 --offload_optimizer true --offload_model true --move_model_batches ${MOVE_BATCHES:-40}"
+  fi
 else
   LR="${LR:-1e-6}"                       # full-FT GRPO 는 낮은 LR
 fi
@@ -60,23 +66,24 @@ run_py swift rlhf \
   --external_plugins "$PROJ_DIR/configs/accuracy.py" \
   --reward_funcs accuracy_mix format_think soft_overlong \
   --reward_weights 1.0 0.2 0.2 \
-  --soft_max_length 6144 \
+  --soft_max_length "${MAX_COMPLETION:-6144}" \
   --soft_cache_length 2048 \
   --enable_thinking true \
-  --num_generations 4 \
-  --max_completion_length 6144 \
+  --num_generations "${NUM_GEN:-4}" \
+  --max_completion_length "${MAX_COMPLETION:-6144}" \
   --per_device_train_batch_size 1 \
   --gradient_accumulation_steps 4 \
   --learning_rate "$LR" \
-  --max_length 10240 \
+  --max_length "${MAX_LEN:-10240}" \
   --max_pixels "$MAX_PIXELS" \
   --gradient_checkpointing true \
   $DS_ARG \
   --attn_impl "$ATTN_IMPL" \
   --use_vllm true \
   --vllm_mode colocate \
+  --vllm_tensor_parallel_size "${VLLM_TP:-1}" \
   --vllm_mm_processor_cache_gb 0 \
-  --vllm_gpu_memory_utilization 0.4 \
+  --vllm_gpu_memory_utilization "${VLLM_UTIL:-0.4}" \
   --sleep_level 1 \
   --log_completions true \
   --save_strategy steps --save_steps 50 --save_total_limit 3 \

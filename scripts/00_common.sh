@@ -65,8 +65,9 @@ export NCCL_IB_DISABLE="${NCCL_IB_DISABLE:-0}"
 export OMP_NUM_THREADS="${OMP_NUM_THREADS:-8}"
 # ms-swift 멀티모달 최대 픽셀 (VRAM 절약 핵심 노브)
 export MAX_PIXELS="${MAX_PIXELS:-1003520}"
-# attention 구현: 기본 sdpa(추가설치 불필요). flash-attn 을 계산노드에서 빌드했다면 flash_attn.
-export ATTN_IMPL="${ATTN_IMPL:-sdpa}"
+# attention 구현: 컨테이너에 flash_attn 2.8.3 내장 → flash_attn(forward 가속 + 메모리 절감).
+#   문제 시 sdpa 로 폴백(ATTN_IMPL=sdpa). vLLM 생성은 자체 커널이라 무관, HF forward 에만 효과.
+export ATTN_IMPL="${ATTN_IMPL:-flash_attn}"
 
 echo "[common] ENV_MODE=$ENV_MODE  BASE_MODEL=$BASE_MODEL  WORK_DIR=$WORK_DIR"
 echo "[common] node=$(hostname)  GPUs=$(nvidia-smi -L 2>/dev/null | wc -l)"

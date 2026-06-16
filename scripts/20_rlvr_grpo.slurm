@@ -41,10 +41,12 @@ else
 fi
 # 추론모드 강제: qwen3_5 는 하이브리드 thinking. enable_thinking=true 로 롤아웃 추론 템플릿 보장 +
 #   format_think 보상(빈 <think></think> 는 0점)으로 비추론 지름길 reward-hacking 차단.
-#   추론이 길어 2048 에서 83% 잘림 → max_completion_length 4096 (prompt~2k+4k<max_length 8192).
-# 길이 압박: 4096 에서도 ~72% 잘림(추론 폭주) → soft_overlong 보상(DAPO식). 0~2048토큰 무페널티,
-#   2048~4096 선형 -0→-1. weight 0.2 라 accuracy(1.0) 우세 유지 → 어려운 문제는 길게 풀어도 OK,
-#   "길어도 정답에 도움 안 될 때"만 페널티. GRPO 그룹 상대보상으로 "짧고 정답" 쪽 수렴.
+# 길이 전략 = 수용(accommodate). 진단(probe_coldstart_infer)으로 base Qwen3.5-VL 이 어려운
+#   시각/기하 문제에 본래 3.5~4.6K토큰 길게 추론함을 확인(enable_thinking on/off 무관, 콜드스타트
+#   clevr_math 760자가 일반화 안 됨). 잘림=무답=0점 순손해라, budget 을 늘려 "마감"되게 함:
+#   max_completion 6144 + max_length 10240(prompt~2k+6k). num_generations 8→4 로 메모리/속도 상쇄.
+#   soft_overlong(soft_max 6144/cache 2048): 0~4096 무페널티, 4096~6144 완만 nudge("닫을 수 있으면
+#   닫아라"). 6144 도 부족(여전히 다량 잘림)하면 8192 로 상향 검토.
 # vLLM colocate: vLLM이 학습 GPU 공유, sleep_level로 교대. LoRA 는 full 옵티마이저 없어 메모리 여유.
 
 run_py swift rlhf \
@@ -58,15 +60,15 @@ run_py swift rlhf \
   --external_plugins "$PROJ_DIR/configs/accuracy.py" \
   --reward_funcs accuracy_mix format_think soft_overlong \
   --reward_weights 1.0 0.2 0.2 \
-  --soft_max_length 4096 \
+  --soft_max_length 6144 \
   --soft_cache_length 2048 \
   --enable_thinking true \
-  --num_generations 8 \
-  --max_completion_length 4096 \
+  --num_generations 4 \
+  --max_completion_length 6144 \
   --per_device_train_batch_size 1 \
   --gradient_accumulation_steps 4 \
   --learning_rate "$LR" \
-  --max_length 8192 \
+  --max_length 10240 \
   --max_pixels "$MAX_PIXELS" \
   --gradient_checkpointing true \
   $DS_ARG \

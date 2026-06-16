@@ -53,7 +53,7 @@ run_py swift sft \
   --per_device_train_batch_size 1 \
   --gradient_accumulation_steps 8 \
   --learning_rate "$LR" \
-  --max_length 2048 \
+  --max_length "${SFT_MAX_LEN:-2048}" \
   --max_pixels "$MAX_PIXELS" \
   --gradient_checkpointing false \
   $DS_ARG \

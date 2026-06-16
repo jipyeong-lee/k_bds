@@ -42,6 +42,9 @@ fi
 # 추론모드 강제: qwen3_5 는 하이브리드 thinking. enable_thinking=true 로 롤아웃 추론 템플릿 보장 +
 #   format_think 보상(빈 <think></think> 는 0점)으로 비추론 지름길 reward-hacking 차단.
 #   추론이 길어 2048 에서 83% 잘림 → max_completion_length 4096 (prompt~2k+4k<max_length 8192).
+# 길이 압박: 4096 에서도 ~72% 잘림(추론 폭주) → soft_overlong 보상(DAPO식). 0~2048토큰 무페널티,
+#   2048~4096 선형 -0→-1. weight 0.2 라 accuracy(1.0) 우세 유지 → 어려운 문제는 길게 풀어도 OK,
+#   "길어도 정답에 도움 안 될 때"만 페널티. GRPO 그룹 상대보상으로 "짧고 정답" 쪽 수렴.
 # vLLM colocate: vLLM이 학습 GPU 공유, sleep_level로 교대. LoRA 는 full 옵티마이저 없어 메모리 여유.
 
 run_py swift rlhf \
@@ -53,8 +56,10 @@ run_py swift rlhf \
   --tuner_type "$TUNER_TYPE" $EXTRA_TUNER \
   --torch_dtype bfloat16 \
   --external_plugins "$PROJ_DIR/configs/accuracy.py" \
-  --reward_funcs accuracy_mix format_think \
-  --reward_weights 1.0 0.2 \
+  --reward_funcs accuracy_mix format_think soft_overlong \
+  --reward_weights 1.0 0.2 0.2 \
+  --soft_max_length 4096 \
+  --soft_cache_length 2048 \
   --enable_thinking true \
   --num_generations 8 \
   --max_completion_length 4096 \

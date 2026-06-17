@@ -3,22 +3,32 @@
 계획서(`plan.hwp`) 기반, **ms-swift**로 (format cold-start) SFT → 범용 RLVR/GRPO → 의료 특화 RL → 평가
 4단계를 KISTI Slurm 클러스터 환경에 맞춰 구성. 일별 진행 기록은 `docs/worklog_*.md` 참고.
 
-## 현황 (2026-06-17)
-- ✅ 환경(컨테이너)·베이스모델(Qwen3.5-9B)·데이터(DeepVision/medix) 확정·검증
-- ✅ **format cold-start SFT(LoRA)** — VLAA clevr_math, 병합본 `sft_coldstart_merged`
-- ✅ **커스텀 정확도 보상 `accuracy_mix`** — 객관식 letter 정답 점수화(내장 accuracy의 치명 누락 보완)
-- ✅ **추론모드 강제** — `enable_thinking=true` + `format_think` 보상(빈 `<think></think>`=0점, reward-hacking 차단)
+## 현황 (2026-06-17 기준) — 날짜별 진행
+
+### 2026-06-15 — 환경 구축 & Stage-2 착수
+- ✅ 환경(Singularity 컨테이너 swift4.1.3)·베이스모델(Qwen3.5-9B)·데이터(DeepVision 103K/medix 51K) 확정·검증.
+- ⚠️ **[핵심 발견] NVLink 없음**(8gpu = PCIe A100·가상화) → full-FT 멀티GPU가 SHM 통신병목(375~660초/step).
+  **대응: 전 단계 LoRA 전환**(adapter grad만 통신 → ~5배 빠름).
+- ✅ **format cold-start SFT(LoRA)** — VLAA clevr_math, 병합본 `sft_coldstart_merged`(이후 RFT판으로 대체).
+- ✅ **커스텀 정확도 보상 `accuracy_mix`**(`configs/accuracy.py`) — 객관식 letter 정답 점수화(내장 accuracy 누락 보완).
+- ✅ **GRPO LoRA 파일럿 검증** — 128초/step, Format 0→0.156, OOM無.
+
+### 2026-06-16 — 추론모드·길이 전략 정립
+- ✅ **추론모드 강제** — `enable_thinking=true` + `format_think` 보상(빈 `<think></think>`=0점, reward-hacking 차단).
 - ✅ **flash_attn** 적용(sdpa→flash_attn). vllm_util↑는 무익(생성 병목·KV-bound 아님) 확인 후 원복.
+- ✅ **soft_overlong** 길이 보상 추가(DAPO식). 단 "다 잘리면 그룹 내 분산=0"이라 보조 신호로 한정(가중치 0.2).
 - ✅ **[핵심 진단] 추론 길이 폭주 규명** — base Qwen3.5-VL이 어려운 시각/기하 문제에 본래 3.5~4.6K토큰 추론.
   budget 늘려도(2048→6144) 50~80% 잘림(=무답=0점). `enable_thinking` on/off·콜드스타트(clevr_math 760자)와
-  무관(일반화 실패), `soft_overlong`도 "다 잘리면 그룹 내 분산=0"이라 약함. (`probe_coldstart_infer.slurm`)
+  무관(일반화 실패). (`probe_coldstart_infer.slurm`)
 - ✅ **[ZeRO-3 실험·불채택]** 길이 확대 위해 zero3+offload 시도 → 메모리 77.6→48GiB·8192 길이로 clip 0.5→0.25
   **성공하나 s/it 220→1,111(5배 느림)**. no-NVLink param all-gather 비용. 유효 학습량 LoRA-DDP 우세 → **불채택**.
 - ✅ **[해결] rejection-sampling 간결 콜드스타트(STaR/ReST)** — 자기 롤아웃 정답+마감+간결 767예시(질문 336,
   p50 2.8K자)로 LoRA SFT→병합(`sft_rft_coldstart_merged`). **GRPO에서 FormatThink 0.05→0.27(5배)·clip↓ 검증**.
-- ▶ **Stage-2 GRPO 본실행 중** (job 57249, ~17h·step 298/38811) — **LoRA-DDP + 6144 + RFT 간결 콜드스타트 init**.
+- ▶ **Stage-2 GRPO 본실행 시작**(job 57249) — **LoRA-DDP + 6144 + RFT 간결 콜드스타트 init**.
   보상 accuracy_mix+format_think+soft_overlong(1.0/0.2/0.2), flash_attn, s/it~202, mem 95GiB(reserved watermark·안정).
-  **50-step 구간평균 추세(노이즈 제거)** — 일관 우상향, 발산/붕괴 없음:
+
+### 2026-06-17 — Stage-2 추세 확인 & 운영 정리
+- ▶ **Stage-2 GRPO 진행 중**(job 57249, ~17h·step ~300/38811). **50-step 구간평균 추세(노이즈 제거)** — 일관 우상향, 발산/붕괴 없음:
 
   | 구간 | Acc | FormatThink | clip(잘림) | mean_len | reward |
   |------|-----|-------------|-----------|----------|--------|
@@ -33,7 +43,9 @@
   (autostop 워처가 `checkpoint-1000` 저장 직후 자동 scancel). 도달 예상 ~2026-06-19.
 - ✅ **[운영] 디스크 ~42G 회수** — 미사용 컨테이너(`ms-swift.sif`/`ms-swift-383.sif`)·대체된 콜드스타트
   (`sft_coldstart_merged`/`_lora`) 삭제, 스크립트 참조 정정(`build_image.sh`/`probe_*`/`00_common.sh`).
-- ⏳ Stage-3(의료, LLM judge) — judge 구현 후 진행
+
+### 다음 (예정)
+- ⏳ Stage-3(의료, LLM judge) — `medical_reward.py` judge 구현 후 진행.
 
 > **길이 전략 결론**: budget 확대(수용)는 메모리/속도 천장(6144·ZeRO-3 5배느림)에 막힘 → **rejection-sampling
 > 간결 콜드스타트**가 실효 해법(어려운 꼬리는 본래 장문 필요라 일부 잘림 수용). 진단:`probe_coldstart_infer.slurm`.

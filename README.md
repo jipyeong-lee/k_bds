@@ -3,7 +3,7 @@
 계획서(`plan.hwp`) 기반, **ms-swift**로 (format cold-start) SFT → 범용 RLVR/GRPO → 의료 특화 RL → 평가
 4단계를 KISTI Slurm 클러스터 환경에 맞춰 구성. 일별 진행 기록은 `docs/worklog_*.md` 참고.
 
-## 현황 (2026-06-16)
+## 현황 (2026-06-17)
 - ✅ 환경(컨테이너)·베이스모델(Qwen3.5-9B)·데이터(DeepVision/medix) 확정·검증
 - ✅ **format cold-start SFT(LoRA)** — VLAA clevr_math, 병합본 `sft_coldstart_merged`
 - ✅ **커스텀 정확도 보상 `accuracy_mix`** — 객관식 letter 정답 점수화(내장 accuracy의 치명 누락 보완)
@@ -16,8 +16,23 @@
   **성공하나 s/it 220→1,111(5배 느림)**. no-NVLink param all-gather 비용. 유효 학습량 LoRA-DDP 우세 → **불채택**.
 - ✅ **[해결] rejection-sampling 간결 콜드스타트(STaR/ReST)** — 자기 롤아웃 정답+마감+간결 767예시(질문 336,
   p50 2.8K자)로 LoRA SFT→병합(`sft_rft_coldstart_merged`). **GRPO에서 FormatThink 0.05→0.27(5배)·clip↓ 검증**.
-- ▶ **Stage-2 GRPO 본실행 중** (job 57249) — **LoRA-DDP + 6144 + RFT 간결 콜드스타트 init** (최선 가용 조합).
-  보상 accuracy_mix+format_think+soft_overlong, flash_attn, s/it~204, mem 78GiB(빠듯·OOM 주시).
+- ▶ **Stage-2 GRPO 본실행 중** (job 57249, ~17h·step 298/38811) — **LoRA-DDP + 6144 + RFT 간결 콜드스타트 init**.
+  보상 accuracy_mix+format_think+soft_overlong(1.0/0.2/0.2), flash_attn, s/it~202, mem 95GiB(reserved watermark·안정).
+  **50-step 구간평균 추세(노이즈 제거)** — 일관 우상향, 발산/붕괴 없음:
+
+  | 구간 | Acc | FormatThink | clip(잘림) | mean_len | reward |
+  |------|-----|-------------|-----------|----------|--------|
+  | 1–50 | 0.419 | 0.233 | 0.434 | 3847 | 0.370 |
+  | 101–150 | 0.420 | 0.322 | 0.376 | 3554 | 0.400 |
+  | 201–250 | 0.432 | 0.349 | 0.377 | 3635 | 0.416 |
+  | 251–300 | **0.436** | **0.409** | **0.357** | **3494** | **0.436** |
+
+  → FormatThink 0.23→0.41(+76%, 닫힌 형식 준수↑), clip 0.43→0.36(잘림↓), mean_len 3847→3494(장황함↓), Acc 0.42→0.44.
+  RFT 콜드스타트 효과가 학습 내내 유지·강화됨을 확인.
+- ⏸ **목표 step**: full 3-epoch(38811 step=~90일)는 비현실 → RLVR plateau 도달 목적으로 **step 1000 부근에서 정지**
+  (autostop 워처가 `checkpoint-1000` 저장 직후 자동 scancel). 도달 예상 ~2026-06-19.
+- ✅ **[운영] 디스크 ~42G 회수** — 미사용 컨테이너(`ms-swift.sif`/`ms-swift-383.sif`)·대체된 콜드스타트
+  (`sft_coldstart_merged`/`_lora`) 삭제, 스크립트 참조 정정(`build_image.sh`/`probe_*`/`00_common.sh`).
 - ⏳ Stage-3(의료, LLM judge) — judge 구현 후 진행
 
 > **길이 전략 결론**: budget 확대(수용)는 메모리/속도 천장(6144·ZeRO-3 5배느림)에 막힘 → **rejection-sampling
@@ -213,7 +228,9 @@ singularity exec --bind $PWD/work --env HF_HUB_OFFLINE=1 $SB python scripts/conv
 - [x] **ZeRO-3 실험·불채택**: 길이 확대엔 효과(clip 0.5→0.25)나 no-NVLink param all-gather로 5배 느림(s/it 1111).
 - [x] **rejection-sampling 간결 콜드스타트**(`build_rft_coldstart.py`→`sft_rft_coldstart_merged`):
       GRPO에서 FormatThink 0.05→0.27(5배)·clip↓ **검증 완료**(`merge_probe_rft.slurm`).
-- [▶] **Stage-2 GRPO 본실행**(job 57249): LoRA-DDP + 6144 + RFT 콜드스타트 init. checkpoint-50부터 추세 관찰.
+- [▶] **Stage-2 GRPO 본실행**(job 57249): LoRA-DDP + 6144 + RFT 콜드스타트 init. step~300까지 추세 우상향 확인
+      (FormatThink 0.23→0.41, clip 0.43→0.36). **step 1000 부근 자동 정지**(autostop 워처) 후 checkpoint-1000 평가.
+- [x] **[운영] 디스크 정리 ~42G**: 미사용 .sif 2개 + 대체된 콜드스타트 체크포인트 삭제, 스크립트 스테일 참조 정정.
 - [ ] `medical_reward.py` LLM-as-judge 실제 구현 + judge 기동 (Stage 3 전제)
 - [ ] **Stage 3**: medix + DeepVision 일부 혼합 LoRA RL (judge 보상, 망각 방지)
 - [ ] 평가 벤치마크(`EVAL_DATASETS`)를 실제 의료 멀티모달 벤치마크로 교체

@@ -6,14 +6,14 @@
 # =============================================================================
 set -euo pipefail
 source "$(dirname "$0")/../scripts/00_common.sh"
-SIF_IMAGE="$WORK_DIR/images/ms-swift-383.sif"
+SIF_IMAGE="$WORK_DIR/images/ms-swift-413.sif"
 mkdir -p "$(dirname "$SIF_IMAGE")"
 
-# ModelScope 공식 ms-swift 이미지. ★ CUDA 12.6.3 — 이 클러스터에서 쓸 수 있는 최신.
+# ModelScope 공식 ms-swift 이미지. ★ swift4.1.3 / cuda12.9.1 — 현재 활성 이미지(=ms-swift-413-sandbox 원본).
 #   계산노드 드라이버 550.54.14(CUDA 12.4)에서 CUDA 마이너버전 호환으로 동작(검증 완료).
-#   더 안전한 정확일치 폴백은 cuda12.4.0/swift3.6.4 이미지(=ms-swift.sif). 최신 4.x는 cuda13 요구라 불가.
+#   대안 폴백 이미지(swift3.8.3/cuda12.6.3, swift3.6.4/cuda12.4.0)는 디스크 정리로 삭제됨 — 필요 시 재pull.
 #   us-west-1 이 막히면 cn-hangzhou / cn-beijing 으로 교체.
-SRC_DOCKER="${SRC_DOCKER:-docker://modelscope-registry.us-west-1.cr.aliyuncs.com/modelscope-repo/modelscope:ubuntu22.04-cuda12.6.3-py311-torch2.7.1-vllm0.10.1.1-modelscope1.29.2-swift3.8.3}"
+SRC_DOCKER="${SRC_DOCKER:-docker://modelscope-registry.us-west-1.cr.aliyuncs.com/modelscope-repo/modelscope:ubuntu22.04-cuda12.9.1-py312-torch2.10.0-vllm0.19.1-modelscope1.35.4-swift4.1.3}"
 
 # 캐시는 작업영역에(홈 quota 무제한). pull 완료 후 수동 삭제 가능: rm -rf "$SINGULARITY_CACHEDIR"
 export SINGULARITY_CACHEDIR="$WORK_DIR/.singularity_cache"

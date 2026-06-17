@@ -19,7 +19,7 @@ source /home01/k252a01/kbds_project/scripts/00_common.sh
 if [[ "$ENV_MODE" == conda ]]; then module load compilers/cuda/12.4 compilers/gcc/10.2.0; fi
 export NPROC_PER_NODE=1            # debug-1gpu: 단일 GPU (00_common 기본 8 override)
 
-MODEL="$CKPT_DIR/sft_coldstart_merged"
+MODEL="$CKPT_DIR/sft_rft_coldstart_merged"
 PROBE="$DATA_DIR/_infer_probe6.jsonl"
 
 for ET in true false; do

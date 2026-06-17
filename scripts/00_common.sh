@@ -36,7 +36,7 @@ export ENV_MODE="${ENV_MODE:-container}"
 export CONDA_ENV="${CONDA_ENV:-swift}"                   # conda 폴백용(SFT 한정, vLLM 불가)
 # 실행 이미지: SIF 는 squashfuse/ setuid 제약으로 매 실행 추출이 느려 sandbox(디렉토리) 사용.
 #  기본 = swift4.1.3/cuda12.9.1(Gemma4 지원, 계산노드 검증: vllm._C+커널 OK). 마이너버전 호환 동작.
-#  대안: ms-swift-383-sandbox(swift3.8.3, Qwen-VL용) / ms-swift.sif(3.6.4 콜드폴백).
+#  재빌드 원본: ms-swift-413.sif (env/build_image.sh). 구 폴백 이미지(383/3.6.4)는 디스크 정리로 삭제됨.
 export CONTAINER_IMG="${CONTAINER_IMG:-$WORK_DIR/images/ms-swift-413-sandbox}"
 
 # 단계별 실행 명령을 감싸는 래퍼. 사용:  run_py swift sft ...

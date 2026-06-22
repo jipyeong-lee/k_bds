@@ -38,6 +38,17 @@ RFT 간결 콜드스타트 init + LoRA-DDP + max_completion 6144. step 1000에�
 - ⏳ A/B 본실행 → baseline 대비 plateau 돌파 여부 평가.
 - ⏳ Stage-3(의료, LLM judge) — `medical_reward.py` judge 구현 후 진행.
 
+## 진행 이력 (날짜별 · 상세는 `docs/worklog_*.md`)
+- **2026-06-15** — 환경(컨테이너 swift4.1.3)·모델(Qwen3.5-9B)·데이터 확정·검증. **NVLink 부재 발견→전 단계 LoRA 전환**.
+  format 콜드스타트 SFT, 커스텀 `accuracy_mix` 보상, GRPO LoRA 파일럿 검증. ☞ `worklog_2026-06-15`
+- **2026-06-16** — 추론모드 강제(`enable_thinking`+`format_think`), flash_attn, soft_overlong. **길이폭주 진단**,
+  ZeRO-3 길이확대 불채택, **rejection-sampling 간결 콜드스타트**로 해결. Stage-2 GRPO 본실행 시작(57249). ☞ `worklog_2026-06-16`
+- **2026-06-17** — Stage-2 추세 우상향 확인(step~300), step 1000 자동정지(autostop) 설정, 디스크 ~42G 정리. ☞ `worklog_2026-06-17`
+- **2026-06-19** — **Stage-2 baseline 완주**(step 1000, `checkpoint-1000`). 1000-step 추세 정리, **Acc plateau 진단**
+  (`frac_reward_zero_std` 0.24→0.33). ☞ `worklog_2026-06-19`
+- **2026-06-22** — ms-swift GRPO 파생기법 인벤토리 조사. **plateau 돌파 A/B config**(`scripts/21_rlvr_grpo_adv.slurm`,
+  dynamic_sample+overlong_filter / dapo·gspo 레시피), 스모크 테스트(57526). ☞ `worklog_2026-06-22`
+
 ## 환경: Singularity 컨테이너 (확정·검증 완료)
 - 노드 OS가 **CentOS 7.9 / glibc 2.17**이라 최신 ML 패키지(특히 **vLLM·xformers**)는
   pip wheel(manylinux_2_28)이 안 맞아 **conda/pip 설치 불가**. → 공식 ms-swift 컨테이너 사용.

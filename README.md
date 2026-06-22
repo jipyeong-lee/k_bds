@@ -3,7 +3,7 @@
 계획서(`plan.hwp`) 기반, **ms-swift**로 (format cold-start) SFT → 범용 RLVR/GRPO → 의료 특화 RL → 평가
 4단계를 KISTI Slurm 클러스터 환경에 맞춰 구성. 일별 진행 기록은 `docs/worklog_*.md` 참고.
 
-## 현황 (2026-06-17 기준) — 날짜별 진행
+## 현황 (2026-06-22 기준) — 날짜별 진행
 
 ### 2026-06-15 — 환경 구축 & Stage-2 착수
 - ✅ 환경(Singularity 컨테이너 swift4.1.3)·베이스모델(Qwen3.5-9B)·데이터(DeepVision 103K/medix 51K) 확정·검증.
@@ -44,7 +44,36 @@
 - ✅ **[운영] 디스크 ~42G 회수** — 미사용 컨테이너(`ms-swift.sif`/`ms-swift-383.sif`)·대체된 콜드스타트
   (`sft_coldstart_merged`/`_lora`) 삭제, 스크립트 참조 정정(`build_image.sh`/`probe_*`/`00_common.sh`).
 
+### 2026-06-19 — Stage-2 baseline 완주 & plateau 진단
+- ✅ **Stage-2 GRPO baseline 완료**(job 57249) — step 1000 도달, autostop 워처가 `checkpoint-1000` 저장 직후
+  자동 scancel. 총 2일 7.5시간(s/it~200). 산출: `grpo_general/v11-20260616-165537/checkpoint-{900,950,1000}`.
+- ✅ **전체 1000-step 추세(100-step 구간평균)** — 발산/붕괴 없음, 일관 우상향:
+
+  | 구간 | reward | Acc | FormatThink | clip | mean_len | zero_std |
+  |------|--------|-----|-------------|------|----------|----------|
+  | 1–100 | 0.377 | 0.418 | 0.259 | 0.420 | 3778 | 0.240 |
+  | 301–400 | 0.444 | 0.435 | 0.443 | 0.349 | 3484 | 0.231 |
+  | 501–600 | 0.534 | **0.500** | 0.525 | 0.307 | 3309 | 0.249 |
+  | 901–1000 | **0.557** | 0.491 | **0.660** | **0.279** | **3267** | **0.328** |
+
+- ⚠️ **[핵심 진단] Acc plateau** — reward(+48%)·FormatThink(+155%)·clip↓는 강하나 **Acc는 step~500서 0.50 정점
+  후 0.47~0.50 정체**. 원인은 **`frac_reward_zero_std` 0.24→0.33 상승**: 학습 진행으로 그룹 내 rollout이
+  "전부 정답/전부 오답"화 → 정확도 gradient 신호 소실. 후반 reward 상승은 형식/길이 주도(정확도 정체와 무모순).
+
+### 2026-06-22 — GRPO 파생기법 A/B 실험 착수
+- ✅ **[조사] ms-swift 4.1.3 GRPO 파생기법 인벤토리**(소스 직접 확인) — advantage_estimator(grpo/rloo/
+  reinforce++), loss_type(grpo/bnpo/dr_grpo/dapo/cispo/sapo/real), GSPO(importance_sampling_level=sequence),
+  DAPO(dynamic_sample/epsilon_high/overlong_filter), scale_rewards(group/batch/none/gdpo), entropy mask
+  (top_entropy_quantile), off-policy IS 보정, CHORD, multi-turn 등.
+- ▶ **[실험] plateau 돌파용 A/B config** `scripts/21_rlvr_grpo_adv.slurm` — baseline과 **기법 외 전 조건 동일**.
+  공통 코어 = **`dynamic_sample`**(zero_std 그룹 폐기·재샘플, 진단 직격) + `overlong_filter`. 2개 일관 레시피:
+  - `dapo`(기본): clip-higher(ε 0.2/ε_high 0.28) + `loss_type=dapo` (토큰레벨)
+  - `gspo`: `importance_sampling_level=sequence` + 시퀀스레벨 작은 clip(3e-4/4e-4)
+- ▶ **스모크 테스트 진행 중**(job 57526, RECIPE=dapo `--max_steps 5`) — 신규 인자 수용·s/it·지표 정상기록 확인용.
+- 판정기준: `frac_reward_zero_std`↓ + AccuracyMix↑(0.49 돌파) + entropy 비붕괴.
+
 ### 다음 (예정)
+- ⏳ 스모크 통과 시 dapo/gspo 본실행 → baseline 대비 plateau 돌파 여부 평가.
 - ⏳ Stage-3(의료, LLM judge) — `medical_reward.py` judge 구현 후 진행.
 
 > **길이 전략 결론**: budget 확대(수용)는 메모리/속도 천장(6144·ZeRO-3 5배느림)에 막힘 → **rejection-sampling

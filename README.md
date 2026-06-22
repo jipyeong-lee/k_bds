@@ -18,6 +18,11 @@ RFT 간결 콜드스타트 init + LoRA-DDP + max_completion 6144. step 1000에�
 | 501–600 | 0.534 | **0.500** | 0.525 | 0.307 | 3309 | 0.249 |
 | 901–1000 | **0.557** | 0.491 | **0.660** | **0.279** | **3267** | **0.328** |
 
+![Stage-2 GRPO baseline 추세](docs/assets/grpo57249_trend.png)
+
+*(100-step 구간평균. 상단: reward·AccuracyMix·FormatThink / 하단: clip·zero_std·mean_length.
+재생성: `singularity exec work/images/ms-swift-413-sandbox python scripts/plot_grpo_trend.py logs/<log> docs/assets/<png>`)*
+
 - ✅ 발산/붕괴 없음. FormatThink +155%·clip↓·길이↓ → RFT 콜드스타트 효과 지속 강화.
 - ⚠️ **[진단] Acc plateau**: Acc는 step~500서 0.50 정점 후 정체. 원인 = **`frac_reward_zero_std` 0.24→0.33 상승**
   (그룹 rollout이 전부정답/전부오답화 → 정확도 gradient 소실). 후반 reward 상승은 형식·길이 주도.
@@ -25,8 +30,9 @@ RFT 간결 콜드스타트 init + LoRA-DDP + max_completion 6144. step 1000에�
 ### 진행 중: GRPO 파생기법 A/B (plateau 돌파)
 `scripts/21_rlvr_grpo_adv.slurm` — baseline과 **기법 외 전 조건 동일**. 공통 코어 = `dynamic_sample`(zero_std 그룹
 폐기·재샘플, 진단 직격) + `overlong_filter`. 레시피 2종: `dapo`(clip-higher+`loss_type=dapo`) / `gspo`(sequence-level IS).
-- ▶ 스모크 테스트(job 57526, dapo `--max_steps 5`) → 통과 시 본실행.
-- 판정: `frac_reward_zero_std`↓ + AccuracyMix↑(0.49 돌파) + entropy 비붕괴.
+- ✅ 스모크 테스트(job 57526, dapo `--max_steps 5`) **통과** — 신규 인자 정상 수용, step_time ~177s(baseline 동급),
+  step 1~2 `frac_reward_zero_std=0`(dynamic_sample 작동), entropy 로깅 OK. → 본실행 준비됨.
+- 판정(본실행): `frac_reward_zero_std`↓ + AccuracyMix↑(0.49 돌파) + entropy 비붕괴.
 
 ### 핵심 의사결정 이력 (상세: 해당 섹션 / worklog)
 - **NVLink 없음 → 전 단계 LoRA**: PCIe A100·SHM 폴백으로 full-FT 375~660s/step → LoRA ~5배↑. ☞ "학습 방식" 절.

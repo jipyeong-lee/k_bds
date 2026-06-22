@@ -31,8 +31,9 @@ RFT 간결 콜드스타트 init + LoRA-DDP + max_completion 6144. step 1000에�
 `scripts/21_rlvr_grpo_adv.slurm` — baseline과 **기법 외 전 조건 동일**. 공통 코어 = `dynamic_sample`(zero_std 그룹
 폐기·재샘플, 진단 직격) + `overlong_filter`. 레시피 2종: `dapo`(clip-higher+`loss_type=dapo`) / `gspo`(sequence-level IS).
 - ✅ 스모크 테스트(job 57526, dapo `--max_steps 5`) **통과** — 신규 인자 정상 수용, step_time ~177s(baseline 동급),
-  step 1~2 `frac_reward_zero_std=0`(dynamic_sample 작동), entropy 로깅 OK. → 본실행 준비됨.
-- 판정(본실행): `frac_reward_zero_std`↓ + AccuracyMix↑(0.49 돌파) + entropy 비붕괴.
+  step 1~2 `frac_reward_zero_std=0`(dynamic_sample 작동), entropy 로깅 OK.
+- ▶ **dapo 본실행 진행 중**(job 57527, `--max_steps 1000`, baseline와 동일 지점) — DAPO 레시피 상세는 "GRPO 파생기법" 절.
+- 판정: `frac_reward_zero_std`↓ + AccuracyMix↑(0.49 돌파) + entropy 비붕괴.
 
 ### 핵심 의사결정 이력 (상세: 해당 섹션 / worklog)
 - **NVLink 없음 → 전 단계 LoRA**: PCIe A100·SHM 폴백으로 full-FT 375~660s/step → LoRA ~5배↑. ☞ "학습 방식" 절.
@@ -106,6 +107,25 @@ RFT 간결 콜드스타트 init + LoRA-DDP + max_completion 6144. step 1000에�
 - **format**(내장): 위 구조 정규식 매치. 가중치 `accuracy_mix 1.0 : format 0.2`.
 - **vLLM colocate** 디버깅: `--vllm_mode colocate`(단일노드), `--vllm_mm_processor_cache_gb 0`(멀티모달 mm_hash
   AssertionError 회피), `--sleep_level 1`(2는 ZeRO-3와 비호환). full-FT OOM 시 `ds_zero3_offload.json`(옵티마이저 CPU).
+
+## GRPO 파생기법: DAPO 레시피 (Stage-2 A/B)
+baseline(57249) 진단 결과 **Acc plateau**의 원인이 `frac_reward_zero_std` 0.24→0.33 상승(그룹 rollout이
+전부정답/전부오답화 → 정확도 gradient 소실)으로 규명됨. 이를 직격하기 위해 **DAPO**(Decoupled clip and
+dynamic sAmpling Policy Optimization, [arXiv:2503.14476](https://arxiv.org/abs/2503.14476)) 레시피를 적용.
+`scripts/21_rlvr_grpo_adv.slurm RECIPE=dapo` — baseline과 **기법 외 전 조건 동일**(clean A/B).
+
+DAPO 4대 기법과 본 프로젝트 적용:
+
+| 기법 | ms-swift 인자 | 효과 | plateau 관련성 |
+|------|--------------|------|---------------|
+| **Dynamic Sampling** | `--dynamic_sample true --max_resample_times 3` | reward_std=0 그룹을 폐기하고 재샘플 → 매 step 유효 gradient 비율↑ | ⭐ **직격** — zero_std 급등이 진단된 원인 |
+| **Clip-Higher** | `--epsilon 0.2 --epsilon_high 0.28` | 상·하단 클립 분리(상단 완화) → 저확률 토큰 탐색 보존, 엔트로피 붕괴 억제 | 조기 수렴/다양성 소실 방지 |
+| **Token-level Loss** | `--loss_type dapo` | 토큰 단위 정규화 → 긴 시퀀스의 토큰 기여 희석(길이 정규화 편향) 제거 | 형식·길이 주도 reward 상승 보정 |
+| **Overlong handling** | `--overlong_filter true` (+ 기존 `soft_overlong` 보상) | 잘린(=무답) 롤아웃을 loss에서 제외 → 길이 초과 노이즈 차단 | 잘림=0점의 신호 오염 제거 |
+
+- 진단 모니터링: `--log_entropy true`(클립-하이어 효과 추적), 판정 = `frac_reward_zero_std`↓ + `AccuracyMix`↑(0.49 돌파) + entropy 비붕괴.
+- 비용: dynamic_sample 재샘플로 step time↑ 우려 있었으나 스모크(57526)에서 **~177s/step(baseline 동급)** 확인 — 부담 없음.
+- 대안 레시피 `RECIPE=gspo`(sequence-level importance sampling, [arXiv:2507.18071](https://arxiv.org/abs/2507.18071))도 동일 스크립트에서 토글 가능.
 
 ## 자원 정합성 (가이드 확인 완료)
 - 계획서의 **8×A100-80GB·896GB·128core 노드** = 일반 **`8gpu` 파티션**(가이드 공식표상

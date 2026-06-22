@@ -3,84 +3,40 @@
 계획서(`plan.hwp`) 기반, **ms-swift**로 (format cold-start) SFT → 범용 RLVR/GRPO → 의료 특화 RL → 평가
 4단계를 KISTI Slurm 클러스터 환경에 맞춰 구성. 일별 진행 기록은 `docs/worklog_*.md` 참고.
 
-## 현황 (2026-06-22 기준) — 날짜별 진행
+## 현황 (2026-06-22 기준)
 
-### 2026-06-15 — 환경 구축 & Stage-2 착수
-- ✅ 환경(Singularity 컨테이너 swift4.1.3)·베이스모델(Qwen3.5-9B)·데이터(DeepVision 103K/medix 51K) 확정·검증.
-- ⚠️ **[핵심 발견] NVLink 없음**(8gpu = PCIe A100·가상화) → full-FT 멀티GPU가 SHM 통신병목(375~660초/step).
-  **대응: 전 단계 LoRA 전환**(adapter grad만 통신 → ~5배 빠름).
-- ✅ **format cold-start SFT(LoRA)** — VLAA clevr_math, 병합본 `sft_coldstart_merged`(이후 RFT판으로 대체).
-- ✅ **커스텀 정확도 보상 `accuracy_mix`**(`configs/accuracy.py`) — 객관식 letter 정답 점수화(내장 accuracy 누락 보완).
-- ✅ **GRPO LoRA 파일럿 검증** — 128초/step, Format 0→0.156, OOM無.
+**파이프라인 위치**: Stage-2(범용 RLVR/GRPO) — baseline 완주 → **Acc plateau 진단** → **GRPO 파생기법 A/B 실험 중**.
+일별 상세 기록은 `docs/worklog_*.md`.
 
-### 2026-06-16 — 추론모드·길이 전략 정립
-- ✅ **추론모드 강제** — `enable_thinking=true` + `format_think` 보상(빈 `<think></think>`=0점, reward-hacking 차단).
-- ✅ **flash_attn** 적용(sdpa→flash_attn). vllm_util↑는 무익(생성 병목·KV-bound 아님) 확인 후 원복.
-- ✅ **soft_overlong** 길이 보상 추가(DAPO식). 단 "다 잘리면 그룹 내 분산=0"이라 보조 신호로 한정(가중치 0.2).
-- ✅ **[핵심 진단] 추론 길이 폭주 규명** — base Qwen3.5-VL이 어려운 시각/기하 문제에 본래 3.5~4.6K토큰 추론.
-  budget 늘려도(2048→6144) 50~80% 잘림(=무답=0점). `enable_thinking` on/off·콜드스타트(clevr_math 760자)와
-  무관(일반화 실패). (`probe_coldstart_infer.slurm`)
-- ✅ **[ZeRO-3 실험·불채택]** 길이 확대 위해 zero3+offload 시도 → 메모리 77.6→48GiB·8192 길이로 clip 0.5→0.25
-  **성공하나 s/it 220→1,111(5배 느림)**. no-NVLink param all-gather 비용. 유효 학습량 LoRA-DDP 우세 → **불채택**.
-- ✅ **[해결] rejection-sampling 간결 콜드스타트(STaR/ReST)** — 자기 롤아웃 정답+마감+간결 767예시(질문 336,
-  p50 2.8K자)로 LoRA SFT→병합(`sft_rft_coldstart_merged`). **GRPO에서 FormatThink 0.05→0.27(5배)·clip↓ 검증**.
-- ▶ **Stage-2 GRPO 본실행 시작**(job 57249) — **LoRA-DDP + 6144 + RFT 간결 콜드스타트 init**.
-  보상 accuracy_mix+format_think+soft_overlong(1.0/0.2/0.2), flash_attn, s/it~202, mem 95GiB(reserved watermark·안정).
+### Stage-2 GRPO baseline (job 57249 · step 1000 완주)
+RFT 간결 콜드스타트 init + LoRA-DDP + max_completion 6144. step 1000에서 autostop(`checkpoint-1000` 저장 후
+자동 scancel). 산출: `work/checkpoints/grpo_general/v11-20260616-165537/checkpoint-1000`. 100-step 구간평균 추세:
 
-### 2026-06-17 — Stage-2 추세 확인 & 운영 정리
-- ▶ **Stage-2 GRPO 진행 중**(job 57249, ~17h·step ~300/38811). **50-step 구간평균 추세(노이즈 제거)** — 일관 우상향, 발산/붕괴 없음:
+| 구간 | reward | Acc | FormatThink | clip | mean_len | zero_std |
+|------|--------|-----|-------------|------|----------|----------|
+| 1–100 | 0.377 | 0.418 | 0.259 | 0.420 | 3778 | 0.240 |
+| 501–600 | 0.534 | **0.500** | 0.525 | 0.307 | 3309 | 0.249 |
+| 901–1000 | **0.557** | 0.491 | **0.660** | **0.279** | **3267** | **0.328** |
 
-  | 구간 | Acc | FormatThink | clip(잘림) | mean_len | reward |
-  |------|-----|-------------|-----------|----------|--------|
-  | 1–50 | 0.419 | 0.233 | 0.434 | 3847 | 0.370 |
-  | 101–150 | 0.420 | 0.322 | 0.376 | 3554 | 0.400 |
-  | 201–250 | 0.432 | 0.349 | 0.377 | 3635 | 0.416 |
-  | 251–300 | **0.436** | **0.409** | **0.357** | **3494** | **0.436** |
+- ✅ 발산/붕괴 없음. FormatThink +155%·clip↓·길이↓ → RFT 콜드스타트 효과 지속 강화.
+- ⚠️ **[진단] Acc plateau**: Acc는 step~500서 0.50 정점 후 정체. 원인 = **`frac_reward_zero_std` 0.24→0.33 상승**
+  (그룹 rollout이 전부정답/전부오답화 → 정확도 gradient 소실). 후반 reward 상승은 형식·길이 주도.
 
-  → FormatThink 0.23→0.41(+76%, 닫힌 형식 준수↑), clip 0.43→0.36(잘림↓), mean_len 3847→3494(장황함↓), Acc 0.42→0.44.
-  RFT 콜드스타트 효과가 학습 내내 유지·강화됨을 확인.
-- ⏸ **목표 step**: full 3-epoch(38811 step=~90일)는 비현실 → RLVR plateau 도달 목적으로 **step 1000 부근에서 정지**
-  (autostop 워처가 `checkpoint-1000` 저장 직후 자동 scancel). 도달 예상 ~2026-06-19.
-- ✅ **[운영] 디스크 ~42G 회수** — 미사용 컨테이너(`ms-swift.sif`/`ms-swift-383.sif`)·대체된 콜드스타트
-  (`sft_coldstart_merged`/`_lora`) 삭제, 스크립트 참조 정정(`build_image.sh`/`probe_*`/`00_common.sh`).
+### 진행 중: GRPO 파생기법 A/B (plateau 돌파)
+`scripts/21_rlvr_grpo_adv.slurm` — baseline과 **기법 외 전 조건 동일**. 공통 코어 = `dynamic_sample`(zero_std 그룹
+폐기·재샘플, 진단 직격) + `overlong_filter`. 레시피 2종: `dapo`(clip-higher+`loss_type=dapo`) / `gspo`(sequence-level IS).
+- ▶ 스모크 테스트(job 57526, dapo `--max_steps 5`) → 통과 시 본실행.
+- 판정: `frac_reward_zero_std`↓ + AccuracyMix↑(0.49 돌파) + entropy 비붕괴.
 
-### 2026-06-19 — Stage-2 baseline 완주 & plateau 진단
-- ✅ **Stage-2 GRPO baseline 완료**(job 57249) — step 1000 도달, autostop 워처가 `checkpoint-1000` 저장 직후
-  자동 scancel. 총 2일 7.5시간(s/it~200). 산출: `grpo_general/v11-20260616-165537/checkpoint-{900,950,1000}`.
-- ✅ **전체 1000-step 추세(100-step 구간평균)** — 발산/붕괴 없음, 일관 우상향:
-
-  | 구간 | reward | Acc | FormatThink | clip | mean_len | zero_std |
-  |------|--------|-----|-------------|------|----------|----------|
-  | 1–100 | 0.377 | 0.418 | 0.259 | 0.420 | 3778 | 0.240 |
-  | 301–400 | 0.444 | 0.435 | 0.443 | 0.349 | 3484 | 0.231 |
-  | 501–600 | 0.534 | **0.500** | 0.525 | 0.307 | 3309 | 0.249 |
-  | 901–1000 | **0.557** | 0.491 | **0.660** | **0.279** | **3267** | **0.328** |
-
-- ⚠️ **[핵심 진단] Acc plateau** — reward(+48%)·FormatThink(+155%)·clip↓는 강하나 **Acc는 step~500서 0.50 정점
-  후 0.47~0.50 정체**. 원인은 **`frac_reward_zero_std` 0.24→0.33 상승**: 학습 진행으로 그룹 내 rollout이
-  "전부 정답/전부 오답"화 → 정확도 gradient 신호 소실. 후반 reward 상승은 형식/길이 주도(정확도 정체와 무모순).
-
-### 2026-06-22 — GRPO 파생기법 A/B 실험 착수
-- ✅ **[조사] ms-swift 4.1.3 GRPO 파생기법 인벤토리**(소스 직접 확인) — advantage_estimator(grpo/rloo/
-  reinforce++), loss_type(grpo/bnpo/dr_grpo/dapo/cispo/sapo/real), GSPO(importance_sampling_level=sequence),
-  DAPO(dynamic_sample/epsilon_high/overlong_filter), scale_rewards(group/batch/none/gdpo), entropy mask
-  (top_entropy_quantile), off-policy IS 보정, CHORD, multi-turn 등.
-- ▶ **[실험] plateau 돌파용 A/B config** `scripts/21_rlvr_grpo_adv.slurm` — baseline과 **기법 외 전 조건 동일**.
-  공통 코어 = **`dynamic_sample`**(zero_std 그룹 폐기·재샘플, 진단 직격) + `overlong_filter`. 2개 일관 레시피:
-  - `dapo`(기본): clip-higher(ε 0.2/ε_high 0.28) + `loss_type=dapo` (토큰레벨)
-  - `gspo`: `importance_sampling_level=sequence` + 시퀀스레벨 작은 clip(3e-4/4e-4)
-- ▶ **스모크 테스트 진행 중**(job 57526, RECIPE=dapo `--max_steps 5`) — 신규 인자 수용·s/it·지표 정상기록 확인용.
-- 판정기준: `frac_reward_zero_std`↓ + AccuracyMix↑(0.49 돌파) + entropy 비붕괴.
+### 핵심 의사결정 이력 (상세: 해당 섹션 / worklog)
+- **NVLink 없음 → 전 단계 LoRA**: PCIe A100·SHM 폴백으로 full-FT 375~660s/step → LoRA ~5배↑. ☞ "학습 방식" 절.
+- **추론 길이 폭주 → rejection-sampling 간결 콜드스타트**: base가 본래 3.5~4.6K토큰 장문, 잘림=0점이 정체 원인.
+  ZeRO-3 길이확대는 5배 느려 불채택. ☞ `worklog_2026-06-16`.
+- **보상 = accuracy_mix + format_think + soft_overlong**: 내장 accuracy의 letter 미파싱 보완. ☞ "보상 설계" 절.
 
 ### 다음 (예정)
-- ⏳ 스모크 통과 시 dapo/gspo 본실행 → baseline 대비 plateau 돌파 여부 평가.
+- ⏳ A/B 본실행 → baseline 대비 plateau 돌파 여부 평가.
 - ⏳ Stage-3(의료, LLM judge) — `medical_reward.py` judge 구현 후 진행.
-
-> **길이 전략 결론**: budget 확대(수용)는 메모리/속도 천장(6144·ZeRO-3 5배느림)에 막힘 → **rejection-sampling
-> 간결 콜드스타트**가 실효 해법(어려운 꼬리는 본래 장문 필요라 일부 잘림 수용). 진단:`probe_coldstart_infer.slurm`.
-
-> **⚠️ 이 클러스터는 NVLink가 없어(PCIe A100·가상화) full-FT 멀티GPU가 통신병목(SHM, 375~660초/step).
-> 전 단계를 LoRA로 수행한다(~5배 빠름). 상세: 아래 "학습 방식" 절.**
 
 ## 환경: Singularity 컨테이너 (확정·검증 완료)
 - 노드 OS가 **CentOS 7.9 / glibc 2.17**이라 최신 ML 패키지(특히 **vLLM·xformers**)는
@@ -269,8 +225,10 @@ singularity exec --bind $PWD/work --env HF_HUB_OFFLINE=1 $SB python scripts/conv
 - [x] **ZeRO-3 실험·불채택**: 길이 확대엔 효과(clip 0.5→0.25)나 no-NVLink param all-gather로 5배 느림(s/it 1111).
 - [x] **rejection-sampling 간결 콜드스타트**(`build_rft_coldstart.py`→`sft_rft_coldstart_merged`):
       GRPO에서 FormatThink 0.05→0.27(5배)·clip↓ **검증 완료**(`merge_probe_rft.slurm`).
-- [▶] **Stage-2 GRPO 본실행**(job 57249): LoRA-DDP + 6144 + RFT 콜드스타트 init. step~300까지 추세 우상향 확인
-      (FormatThink 0.23→0.41, clip 0.43→0.36). **step 1000 부근 자동 정지**(autostop 워처) 후 checkpoint-1000 평가.
+- [x] **Stage-2 GRPO baseline**(job 57249): LoRA-DDP + 6144 + RFT 콜드스타트 init. step 1000 완주(autostop) →
+      `checkpoint-1000`. 추세 우상향(reward+48%·FormatThink+155%)이나 **Acc plateau 진단**(zero_std 0.24→0.33).
+- [▶] **GRPO 파생기법 A/B**(`scripts/21_rlvr_grpo_adv.slurm`, job 57526~): plateau 돌파용 `dynamic_sample`+
+      `overlong_filter` 코어 + dapo/gspo 레시피. 스모크 테스트 후 본실행 → baseline 대비 평가.
 - [x] **[운영] 디스크 정리 ~42G**: 미사용 .sif 2개 + 대체된 콜드스타트 체크포인트 삭제, 스크립트 스테일 참조 정정.
 - [ ] `medical_reward.py` LLM-as-judge 실제 구현 + judge 기동 (Stage 3 전제)
 - [ ] **Stage 3**: medix + DeepVision 일부 혼합 LoRA RL (judge 보상, 망각 방지)

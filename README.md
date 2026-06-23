@@ -49,6 +49,12 @@ RFT 간결 콜드스타트 init + LoRA-DDP + max_completion 6144. step 1000에�
   - ⚠️ **속도 ~1.8배 느림**: 재샘플로 ~369s/it(baseline 202). 벽시계 동일시점(18h≈baseline step320)으로 봐도 형식·신호효율은 DAPO 우세.
   - ⚠️ **Acc 이득 미확정**: 최신 구간(151–176)서 DAPO 0.417 vs baseline 0.436 근소 역전 — plateau 돌파 여부는 step 누적 후 재판정 필요.
 
+  ![baseline vs DAPO 추세 비교](docs/assets/grpo_dapo_vs_baseline.png)
+
+  *(50-step 구간평균. 실선=baseline(57249, step 1000) / 점선=DAPO(57527, 진행 중). 상단 reward·Acc·FormatThink, 하단 clip·zero_std.
+  점선 세로선=DAPO 최신 지점. DAPO FormatThink 급상승·zero_std 0.00 평탄선이 핵심. 재생성:
+  `singularity exec work/images/ms-swift-413-sandbox python scripts/plot_grpo_compare.py logs/grpo_stage2_57249.log baseline logs/grpo_adv_57527.log DAPO docs/assets/grpo_dapo_vs_baseline.png`)*
+
 ### 핵심 의사결정 이력 (상세: 해당 섹션 / worklog)
 - **NVLink 없음 → 전 단계 LoRA**: PCIe A100·SHM 폴백으로 full-FT 375~660s/step → LoRA ~5배↑. ☞ "학습 방식" 절.
 - **추론 길이 폭주 → rejection-sampling 간결 콜드스타트**: base가 본래 3.5~4.6K토큰 장문, 잘림=0점이 정체 원인.

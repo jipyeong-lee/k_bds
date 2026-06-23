@@ -5,7 +5,9 @@
 
 ## 현황 (2026-06-23 기준)
 
-**파이프라인 위치**: Stage-2(범용 RLVR/GRPO) — baseline 완주 → **Acc plateau 진단** → **DAPO 본실행 진행 중**(step~176/1000).
+<!-- AUTO:status START (scripts/grpo_ab_update.py 자동 갱신 — 수동 편집 금지) -->
+**파이프라인 위치**: Stage-2(범용 RLVR/GRPO) — baseline 완주 → **Acc plateau 진단** → **DAPO 본실행 진행 중**(step~234/1000).
+<!-- AUTO:status END -->
 일별 상세 기록은 `docs/worklog_*.md`.
 
 ### Stage-2 GRPO baseline (job 57249 · step 1000 완주)
@@ -31,23 +33,25 @@ RFT 간결 콜드스타트 init + LoRA-DDP + max_completion 6144. step 1000에�
 `scripts/21_rlvr_grpo_adv.slurm` — baseline과 **기법 외 전 조건 동일**. 공통 코어 = `dynamic_sample`(zero_std 그룹
 폐기·재샘플, 진단 직격) + `overlong_filter`. 레시피 2종: `dapo`(clip-higher+`loss_type=dapo`) / `gspo`(sequence-level IS).
 - ✅ 스모크 테스트(job 57526, dapo `--max_steps 5`) **통과** — 신규 인자 정상 수용, step 1~2 `frac_reward_zero_std=0`, entropy 로깅 OK.
-- ▶ **dapo 본실행 진행 중**(job 57527, `--max_steps 1000`) — 2026-06-23 기준 **step~176/1000**(~18h). DAPO 레시피 상세는 "GRPO 파생기법" 절.
+- ▶ **dapo 본실행 진행 중**(job 57527, `--max_steps 1000`). DAPO 레시피 상세는 "GRPO 파생기법" 절.
 
-  **baseline(57249) vs DAPO(57527) — 동일 구간 step 1~176 비교:**
+<!-- AUTO:ab START (scripts/grpo_ab_update.py 자동 갱신 — 100-step마다 watcher 가 재생성. 수동 편집 금지) -->
+  **baseline(57249) vs DAPO(57527) — 동일 구간 step 1~234 비교:**
 
   | 지표 | baseline | DAPO | 차이 |
   |------|----------|------|------|
-  | **frac_zero_std**(무신호 그룹) | 0.235 | **0.000** | ↓완전 제거 ★ |
-  | FormatThink | 0.289 | **0.478** | ↑0.19 (수렴 ~2배 빠름) |
-  | reward | 0.390 | 0.478 | ↑0.09 |
-  | clip(잘림) | 0.403 | 0.312 | ↓0.09 |
-  | Acc | 0.421 | 0.458 | ↑0.04 |
-  | mean_len | 3704 | 3485 | ↓219 |
+  | **frac_zero_std**(무신호 그룹) | 0.235 | **0.000** | ↓0.235 ★ |
+  | FormatThink | 0.306 | 0.518 | ↑0.212 |
+  | reward | 0.396 | 0.484 | ↑0.087 |
+  | clip(잘림) | 0.396 | 0.310 | ↓0.086 |
+  | Acc | 0.423 | 0.455 | ↑0.031 |
+  | mean_len | 3677 | 3469 | ↓208 |
 
-  - ✅ **dynamic_sample 가설 검증**: `frac_reward_zero_std` 0.24→**0.00**. baseline이 매 step ~24% 낭비하던 무신호 그룹을 재샘플로 100% 제거(plateau 직격).
-  - ✅ **형식 수렴 가속**: DAPO는 step 176에 FormatThink 0.62 도달(baseline은 step 700~900 소요). clip-higher(ε_high 0.28) 효과.
-  - ⚠️ **속도 ~1.8배 느림**: 재샘플로 ~369s/it(baseline 202). 벽시계 동일시점(18h≈baseline step320)으로 봐도 형식·신호효율은 DAPO 우세.
-  - ⚠️ **Acc 이득 미확정**: 최신 구간(151–176)서 DAPO 0.417 vs baseline 0.436 근소 역전 — plateau 돌파 여부는 step 누적 후 재판정 필요.
+  - ✅ **dynamic_sample 가설 검증**: `frac_reward_zero_std` 0.24→**0.00**. baseline 이 매 step ~24% 낭비하던 무신호 그룹을 재샘플로 제거(plateau 직격).
+  - ✅ **형식 수렴 가속**: 동일구간 FormatThink baseline 0.31 → DAPO **0.52** (clip-higher ε_high 0.28 효과).
+  - ⚠️ **속도 ~1.8배 느림**: 재샘플로 ~369s/it(baseline 202).
+  - ⚠️ **Acc 이득 미확정**: DAPO 0.455 vs baseline 0.423 — DAPO 우세, baseline Acc 도약(step 600)이후 구간 비교 필요.
+<!-- AUTO:ab END -->
 
   ![baseline vs DAPO 추세 비교](docs/assets/grpo_dapo_vs_baseline.png)
 

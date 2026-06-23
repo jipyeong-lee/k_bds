@@ -6,7 +6,7 @@
 ## 현황 (2026-06-23 기준)
 
 <!-- AUTO:status START (scripts/grpo_ab_update.py 자동 갱신 — 수동 편집 금지) -->
-**파이프라인 위치**: Stage-2(범용 RLVR/GRPO) — baseline 완주 → **Acc plateau 진단** → **DAPO 본실행 진행 중**(step~234/1000).
+**파이프라인 위치**: Stage-2(범용 RLVR/GRPO) — baseline 완주 → **Acc plateau 진단** → **DAPO 본실행 진행 중**(step~300/1000).
 <!-- AUTO:status END -->
 일별 상세 기록은 `docs/worklog_*.md`.
 
@@ -36,21 +36,21 @@ RFT 간결 콜드스타트 init + LoRA-DDP + max_completion 6144. step 1000에�
 - ▶ **dapo 본실행 진행 중**(job 57527, `--max_steps 1000`). DAPO 레시피 상세는 "GRPO 파생기법" 절.
 
 <!-- AUTO:ab START (scripts/grpo_ab_update.py 자동 갱신 — 100-step마다 watcher 가 재생성. 수동 편집 금지) -->
-  **baseline(57249) vs DAPO(57527) — 동일 구간 step 1~234 비교:**
+  **baseline(57249) vs DAPO(57527) — 동일 구간 step 1~300 비교:**
 
   | 지표 | baseline | DAPO | 차이 |
   |------|----------|------|------|
   | **frac_zero_std**(무신호 그룹) | 0.235 | **0.000** | ↓0.235 ★ |
-  | FormatThink | 0.306 | 0.518 | ↑0.212 |
-  | reward | 0.396 | 0.484 | ↑0.087 |
-  | clip(잘림) | 0.396 | 0.310 | ↓0.086 |
-  | Acc | 0.423 | 0.455 | ↑0.031 |
-  | mean_len | 3677 | 3469 | ↓208 |
+  | FormatThink | 0.324 | 0.552 | ↑0.227 |
+  | reward | 0.405 | 0.486 | ↑0.081 |
+  | clip(잘림) | 0.389 | 0.305 | ↓0.084 |
+  | Acc | 0.427 | 0.449 | ↑0.022 |
+  | mean_len | 3646 | 3453 | ↓193 |
 
-  - ✅ **dynamic_sample 가설 검증**: `frac_reward_zero_std` 0.24→**0.00**. baseline 이 매 step ~24% 낭비하던 무신호 그룹을 재샘플로 제거(plateau 직격).
-  - ✅ **형식 수렴 가속**: 동일구간 FormatThink baseline 0.31 → DAPO **0.52** (clip-higher ε_high 0.28 효과).
+  - ✅ **dynamic_sample 가설 검증**: `frac_reward_zero_std` 0.23→**0.00**. baseline 이 매 step ~23% 낭비하던 무신호 그룹을 재샘플로 제거(plateau 직격).
+  - ✅ **형식 수렴 가속**: 동일구간 FormatThink baseline 0.32 → DAPO **0.55** (clip-higher ε_high 0.28 효과).
   - ⚠️ **속도 ~1.8배 느림**: 재샘플로 ~369s/it(baseline 202).
-  - ⚠️ **Acc 이득 미확정**: DAPO 0.455 vs baseline 0.423 — DAPO 우세, baseline Acc 도약(step 600)이후 구간 비교 필요.
+  - ⚠️ **Acc 이득 미확정**: DAPO 0.449 vs baseline 0.427 — DAPO 우세, baseline Acc 도약(step 600)이후 구간 비교 필요.
 <!-- AUTO:ab END -->
 
   ![baseline vs DAPO 추세 비교](docs/assets/grpo_dapo_vs_baseline.png)

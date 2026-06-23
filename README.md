@@ -3,9 +3,9 @@
 계획서(`plan.hwp`) 기반, **ms-swift**로 (format cold-start) SFT → 범용 RLVR/GRPO → 의료 특화 RL → 평가
 4단계를 KISTI Slurm 클러스터 환경에 맞춰 구성. 일별 진행 기록은 `docs/worklog_*.md` 참고.
 
-## 현황 (2026-06-22 기준)
+## 현황 (2026-06-23 기준)
 
-**파이프라인 위치**: Stage-2(범용 RLVR/GRPO) — baseline 완주 → **Acc plateau 진단** → **GRPO 파생기법 A/B 실험 중**.
+**파이프라인 위치**: Stage-2(범용 RLVR/GRPO) — baseline 완주 → **Acc plateau 진단** → **DAPO 본실행 진행 중**(step~176/1000).
 일별 상세 기록은 `docs/worklog_*.md`.
 
 ### Stage-2 GRPO baseline (job 57249 · step 1000 완주)
@@ -30,10 +30,24 @@ RFT 간결 콜드스타트 init + LoRA-DDP + max_completion 6144. step 1000에�
 ### 진행 중: GRPO 파생기법 A/B (plateau 돌파)
 `scripts/21_rlvr_grpo_adv.slurm` — baseline과 **기법 외 전 조건 동일**. 공통 코어 = `dynamic_sample`(zero_std 그룹
 폐기·재샘플, 진단 직격) + `overlong_filter`. 레시피 2종: `dapo`(clip-higher+`loss_type=dapo`) / `gspo`(sequence-level IS).
-- ✅ 스모크 테스트(job 57526, dapo `--max_steps 5`) **통과** — 신규 인자 정상 수용, step_time ~177s(baseline 동급),
-  step 1~2 `frac_reward_zero_std=0`(dynamic_sample 작동), entropy 로깅 OK.
-- ▶ **dapo 본실행 진행 중**(job 57527, `--max_steps 1000`, baseline와 동일 지점) — DAPO 레시피 상세는 "GRPO 파생기법" 절.
-- 판정: `frac_reward_zero_std`↓ + AccuracyMix↑(0.49 돌파) + entropy 비붕괴.
+- ✅ 스모크 테스트(job 57526, dapo `--max_steps 5`) **통과** — 신규 인자 정상 수용, step 1~2 `frac_reward_zero_std=0`, entropy 로깅 OK.
+- ▶ **dapo 본실행 진행 중**(job 57527, `--max_steps 1000`) — 2026-06-23 기준 **step~176/1000**(~18h). DAPO 레시피 상세는 "GRPO 파생기법" 절.
+
+  **baseline(57249) vs DAPO(57527) — 동일 구간 step 1~176 비교:**
+
+  | 지표 | baseline | DAPO | 차이 |
+  |------|----------|------|------|
+  | **frac_zero_std**(무신호 그룹) | 0.235 | **0.000** | ↓완전 제거 ★ |
+  | FormatThink | 0.289 | **0.478** | ↑0.19 (수렴 ~2배 빠름) |
+  | reward | 0.390 | 0.478 | ↑0.09 |
+  | clip(잘림) | 0.403 | 0.312 | ↓0.09 |
+  | Acc | 0.421 | 0.458 | ↑0.04 |
+  | mean_len | 3704 | 3485 | ↓219 |
+
+  - ✅ **dynamic_sample 가설 검증**: `frac_reward_zero_std` 0.24→**0.00**. baseline이 매 step ~24% 낭비하던 무신호 그룹을 재샘플로 100% 제거(plateau 직격).
+  - ✅ **형식 수렴 가속**: DAPO는 step 176에 FormatThink 0.62 도달(baseline은 step 700~900 소요). clip-higher(ε_high 0.28) 효과.
+  - ⚠️ **속도 ~1.8배 느림**: 재샘플로 ~369s/it(baseline 202). 벽시계 동일시점(18h≈baseline step320)으로 봐도 형식·신호효율은 DAPO 우세.
+  - ⚠️ **Acc 이득 미확정**: 최신 구간(151–176)서 DAPO 0.417 vs baseline 0.436 근소 역전 — plateau 돌파 여부는 step 누적 후 재판정 필요.
 
 ### 핵심 의사결정 이력 (상세: 해당 섹션 / worklog)
 - **NVLink 없음 → 전 단계 LoRA**: PCIe A100·SHM 폴백으로 full-FT 375~660s/step → LoRA ~5배↑. ☞ "학습 방식" 절.
@@ -54,7 +68,9 @@ RFT 간결 콜드스타트 init + LoRA-DDP + max_completion 6144. step 1000에�
 - **2026-06-19** — **Stage-2 baseline 완주**(step 1000, `checkpoint-1000`). 1000-step 추세 정리, **Acc plateau 진단**
   (`frac_reward_zero_std` 0.24→0.33). ☞ `worklog_2026-06-19`
 - **2026-06-22** — ms-swift GRPO 파생기법 인벤토리 조사. **plateau 돌파 A/B config**(`scripts/21_rlvr_grpo_adv.slurm`,
-  dynamic_sample+overlong_filter / dapo·gspo 레시피), 스모크 테스트(57526). ☞ `worklog_2026-06-22`
+  dynamic_sample+overlong_filter / dapo·gspo 레시피), 스모크 테스트(57526), **dapo 본실행 착수(57527)**. ☞ `worklog_2026-06-22`
+- **2026-06-23** — **DAPO 본실행 중간 비교**(57527 step~176 vs baseline 동일구간): `frac_reward_zero_std` 0.24→**0.00**
+  (dynamic_sample 가설 검증), FormatThink 수렴 ~2배 가속. 단 ~1.8배 느림·Acc 이득 미확정. ☞ `worklog_2026-06-22`
 
 ## 환경: Singularity 컨테이너 (확정·검증 완료)
 - 노드 OS가 **CentOS 7.9 / glibc 2.17**이라 최신 ML 패키지(특히 **vLLM·xformers**)는
@@ -124,7 +140,7 @@ DAPO 4대 기법과 본 프로젝트 적용:
 | **Overlong handling** | `--overlong_filter true` (+ 기존 `soft_overlong` 보상) | 잘린(=무답) 롤아웃을 loss에서 제외 → 길이 초과 노이즈 차단 | 잘림=0점의 신호 오염 제거 |
 
 - 진단 모니터링: `--log_entropy true`(클립-하이어 효과 추적), 판정 = `frac_reward_zero_std`↓ + `AccuracyMix`↑(0.49 돌파) + entropy 비붕괴.
-- 비용: dynamic_sample 재샘플로 step time↑ 우려 있었으나 스모크(57526)에서 **~177s/step(baseline 동급)** 확인 — 부담 없음.
+- 비용: 본실행(57527) 실측 **~369s/it (baseline 202의 ~1.8배)**. 스모크(5 step)의 ~177s는 재샘플 부하가 거의 없는 초기값이라 과소추정 — 실제로는 `dynamic_sample` 재샘플(최대 3회)이 step당 생성량을 늘려 느려짐. 신호효율 향상의 대가.
 - 대안 레시피 `RECIPE=gspo`(sequence-level importance sampling, [arXiv:2507.18071](https://arxiv.org/abs/2507.18071))도 동일 스크립트에서 토글 가능.
 
 ## 자원 정합성 (가이드 확인 완료)

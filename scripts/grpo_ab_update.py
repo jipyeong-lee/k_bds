@@ -51,6 +51,11 @@ def mean_upto(rows, n, v):
     vals = [rows[s][v] for s in rows if s <= n and v in rows[s]]
     return st.mean(vals) if vals else float('nan')
 
+def mean_window(rows, lo, hi, v):
+    """[lo, hi] 구간 평균 (돌파 구간 직접 비교용)."""
+    vals = [rows[s][v] for s in rows if lo <= s <= hi and v in rows[s]]
+    return st.mean(vals) if vals else float('nan')
+
 def block_ab():
     out = []
     out.append(f'  **baseline(57249) vs DAPO(57527) — 동일 구간 step 1~{N} 비교:**')
@@ -87,11 +92,28 @@ def block_ab():
     out.append(f'  - ✅ **형식 수렴 가속**: 동일구간 FormatThink baseline {fb:.2f} → DAPO **{fd:.2f}** '
                f'(clip-higher ε_high 0.28 효과).')
     out.append('  - ⚠️ **속도 ~1.8배 느림**: 재샘플로 ~369s/it(baseline 202).')
-    acc_note = (f'DAPO {ad:.3f} vs baseline {ab:.3f} — ' +
+    acc_note = (f'DAPO {ad:.3f} vs baseline {ab:.3f} (누적) — ' +
                 ('DAPO 우세, ' if ad > ab + 0.005 else
                  'baseline 우세, ' if ab > ad + 0.005 else '동률, '))
-    breakthrough = 'baseline Acc 도약(step 600)이후 구간 비교 필요.' if N < 600 else '돌파 구간 진입.'
-    out.append(f'  - ⚠️ **Acc 이득 미확정**: {acc_note}{breakthrough}')
+    if N < 600:
+        out.append(f'  - ⚠️ **Acc 이득 미확정**: {acc_note}baseline Acc 도약(step ~600)이후 '
+                   f'구간 비교 필요 (현재 step {N}).')
+    else:
+        # 돌파 구간(step 501~600 = baseline 이 0.50 으로 점프한 윈도) 직접 비교
+        lo, hi = 501, 600
+        aw_b = mean_window(base, lo, hi, 'acc'); aw_d = mean_window(dapo, lo, hi, 'acc')
+        d_win = aw_d - aw_b
+        if d_win > 0.005:
+            verdict = (f'✅ **돌파 확인**: step {lo}~{hi} 구간 Acc DAPO **{aw_d:.3f}** vs '
+                       f'baseline {aw_b:.3f} (Δ+{d_win:.3f}) — 안정성이 정확도 우위로 전환됨.')
+        elif aw_b > aw_d + 0.005:
+            verdict = (f'⚠️ **돌파 미확인**: step {lo}~{hi} 구간 Acc DAPO {aw_d:.3f} < '
+                       f'baseline **{aw_b:.3f}** (Δ{d_win:.3f}) — 안정성 이득이 아직 정확도로 미전환.')
+        else:
+            verdict = (f'➖ **돌파 동률**: step {lo}~{hi} 구간 Acc DAPO {aw_d:.3f} ≈ '
+                       f'baseline {aw_b:.3f} (Δ{d_win:+.3f}) — 추가 step(>700) 관찰 필요.')
+        out.append(f'  - {verdict}')
+        out.append(f'  - 누적 참고: {acc_note}step {N}까지 평균.')
     return '\n'.join(out)
 
 def block_status():

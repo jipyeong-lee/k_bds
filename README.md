@@ -81,6 +81,9 @@ RFT 간결 콜드스타트 init + LoRA-DDP + max_completion 6144. step 1000에�
   dynamic_sample+overlong_filter / dapo·gspo 레시피), 스모크 테스트(57526), **dapo 본실행 착수(57527)**. ☞ `worklog_2026-06-22`
 - **2026-06-23** — **DAPO 본실행 중간 비교**(57527 step~176 vs baseline 동일구간): `frac_reward_zero_std` 0.24→**0.00**
   (dynamic_sample 가설 검증), FormatThink 수렴 ~2배 가속. 단 ~1.8배 느림·Acc 이득 미확정. ☞ `worklog_2026-06-22`
+- **2026-06-24** — **DAPO 진행 모니터링**(step 408→475). **안정성 정량 검증**: grad_norm DAPO 0.012 무spike vs
+  baseline 최대 67만·spike 107회 → 안정성 우위 확정. ⚠️ **Acc 약한 적신호**(0.48→0.43 완만 하락, KL↑·형식포화).
+  **step 600 돌파 판정 자동화**(`grpo_ab_update.py` 구간 501~600 Acc 직접비교). step 475 README·plot 갱신. ☞ `worklog_2026-06-24`
 
 ## 환경: Singularity 컨테이너 (확정·검증 완료)
 - 노드 OS가 **CentOS 7.9 / glibc 2.17**이라 최신 ML 패키지(특히 **vLLM·xformers**)는

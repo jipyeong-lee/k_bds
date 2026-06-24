@@ -3,10 +3,10 @@
 계획서(`plan.hwp`) 기반, **ms-swift**로 (format cold-start) SFT → 범용 RLVR/GRPO → 의료 특화 RL → 평가
 4단계를 KISTI Slurm 클러스터 환경에 맞춰 구성. 일별 진행 기록은 `docs/worklog_*.md` 참고.
 
-## 현황 (2026-06-24 기준)
+## 현황 (2026-06-25 기준)
 
 <!-- AUTO:status START (scripts/grpo_ab_update.py 자동 갱신 — 수동 편집 금지) -->
-**파이프라인 위치**: Stage-2(범용 RLVR/GRPO) — baseline 완주 → **Acc plateau 진단** → **DAPO 본실행 진행 중**(step~601/1000).
+**파이프라인 위치**: Stage-2(범용 RLVR/GRPO) — baseline 완주 → Acc plateau 진단 → **DAPO 종결**(step 623, `checkpoint-600` 확정, step 501~600 Acc 0.465<baseline 0.500 → **돌파 미확인**) → **dr_grpo A/B 진행 중**(job 57624).
 <!-- AUTO:status END -->
 일별 상세 기록은 `docs/worklog_*.md`.
 
@@ -31,27 +31,30 @@ RFT 간결 콜드스타트 init + LoRA-DDP + max_completion 6144. step 1000에�
 
 ### 진행 중: GRPO 파생기법 A/B (plateau 돌파)
 `scripts/21_rlvr_grpo_adv.slurm` — baseline과 **기법 외 전 조건 동일**. 공통 코어 = `dynamic_sample`(zero_std 그룹
-폐기·재샘플, 진단 직격) + `overlong_filter`. 레시피 2종: `dapo`(clip-higher+`loss_type=dapo`) / `gspo`(sequence-level IS).
-- ✅ 스모크 테스트(job 57526, dapo `--max_steps 5`) **통과** — 신규 인자 정상 수용, step 1~2 `frac_reward_zero_std=0`, entropy 로깅 OK.
-- ▶ **dapo 본실행 진행 중**(job 57527, `--max_steps 1000`). DAPO 레시피 상세는 "GRPO 파생기법" 절.
+폐기·재샘플, 진단 직격) + `overlong_filter`. 레시피 3종: `dapo`(clip-higher+`loss_type=dapo`) / `gspo`(sequence-level IS) /
+`dr_grpo`(길이·난이도 편향 제거).
+- ✅ **dapo 본실행 종결**(job 57527, step 623서 scancel·`checkpoint-600` 확정). 결과: 안정성 압도(grad_norm 무폭주·zero_std 0.00)
+  하나 **돌파 미확인**(step 501~600 Acc DAPO 0.465 < baseline 0.500). 길이↑→clip↑ 재폭주가 정확도 미전환 원인 추정.
+- ▶ **dr_grpo 본실행 진행 중**(job 57624). DAPO 진단 직격: `loss_type=dr_grpo`(길이정규화 편향 제거) +
+  `scale_rewards=none`(그룹 std 난이도 편향 제거). clip-higher 미적용(대칭 ε 0.2)으로 dr_grpo 효과만 분리.
 
 <!-- AUTO:ab START (scripts/grpo_ab_update.py 자동 갱신 — 100-step마다 watcher 가 재생성. 수동 편집 금지) -->
-  **baseline(57249) vs DAPO(57527) — 동일 구간 step 1~601 비교:**
+  **baseline(57249) vs DAPO(57527) — 동일 구간 step 1~623 비교:**
 
   | 지표 | baseline | DAPO | 차이 |
   |------|----------|------|------|
-  | **frac_zero_std**(무신호 그룹) | 0.237 | **0.000** | ↓0.237 ★ |
-  | FormatThink | 0.400 | 0.607 | ↑0.206 |
-  | reward | 0.444 | 0.493 | ↑0.050 |
-  | clip(잘림) | 0.361 | 0.302 | ↓0.059 |
-  | Acc | 0.445 | 0.445 | ↓0.000 |
-  | mean_len | 3532 | 3450 | ↓82 |
+  | **frac_zero_std**(무신호 그룹) | 0.238 | **0.001** | ↓0.237 ★ |
+  | FormatThink | 0.405 | 0.608 | ↑0.203 |
+  | reward | 0.445 | 0.493 | ↑0.048 |
+  | clip(잘림) | 0.360 | 0.303 | ↓0.058 |
+  | Acc | 0.446 | 0.444 | ↓0.001 |
+  | mean_len | 3531 | 3452 | ↓79 |
 
   - ✅ **dynamic_sample 가설 검증**: `frac_reward_zero_std` 0.24→**0.00**. baseline 이 매 step ~24% 낭비하던 무신호 그룹을 재샘플로 제거(plateau 직격).
-  - ✅ **형식 수렴 가속**: 동일구간 FormatThink baseline 0.40 → DAPO **0.61** (clip-higher ε_high 0.28 효과).
+  - ✅ **형식 수렴 가속**: 동일구간 FormatThink baseline 0.41 → DAPO **0.61** (clip-higher ε_high 0.28 효과).
   - ⚠️ **속도 ~1.8배 느림**: 재샘플로 ~369s/it(baseline 202).
   - ⚠️ **돌파 미확인**: step 501~600 구간 Acc DAPO 0.465 < baseline **0.500** (Δ-0.035) — 안정성 이득이 아직 정확도로 미전환.
-  - 누적 참고: DAPO 0.445 vs baseline 0.445 (누적) — 동률, step 601까지 평균.
+  - 누적 참고: DAPO 0.444 vs baseline 0.446 (누적) — 동률, step 623까지 평균.
 <!-- AUTO:ab END -->
 
   ![baseline vs DAPO 추세 비교](docs/assets/grpo_dapo_vs_baseline.png)
@@ -85,6 +88,9 @@ RFT 간결 콜드스타트 init + LoRA-DDP + max_completion 6144. step 1000에�
 - **2026-06-24** — **DAPO 진행 모니터링**(step 408→475). **안정성 정량 검증**: grad_norm DAPO 0.012 무spike vs
   baseline 최대 67만·spike 107회 → 안정성 우위 확정. ⚠️ **Acc 약한 적신호**(0.48→0.43 완만 하락, KL↑·형식포화).
   **step 600 돌파 판정 자동화**(`grpo_ab_update.py` 구간 501~600 Acc 직접비교). step 475 README·plot 갱신. ☞ `worklog_2026-06-24`
+- **2026-06-25** — **DAPO 종결**(step 600 자동판정 = 돌파 미확인: step501~600 Acc 0.465<0.500, step 623서 scancel·`checkpoint-600` 확정).
+  ms-swift 4.1.3 GRPO 파생기법 인벤토리(소스 검증): loss_type `dr_grpo`·`cispo`·`bnpo`·`sapo`·`real`, advantage `rloo`·`reinforce++`,
+  `top_entropy_quantile` 등. **DAPO 길이폭주 진단 직격 → `dr_grpo` 본실행 착수**(job 57624). ☞ `worklog_2026-06-25`
 
 ## 환경: Singularity 컨테이너 (확정·검증 완료)
 - 노드 OS가 **CentOS 7.9 / glibc 2.17**이라 최신 ML 패키지(특히 **vLLM·xformers**)는

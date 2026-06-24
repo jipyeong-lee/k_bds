@@ -22,6 +22,9 @@
 #       · importance_sampling_level=sequence + 시퀀스레벨에 맞는 작은 clip(3e-4/4e-4)
 #       · dynamic_sample + overlong_filter (직교 기법이라 공통 적용)
 #       · LoRA+멀티모달에서 토큰레벨보다 안정적이라는 보고 → 안정성 비교용
+#   - dr_grpo: Dr.GRPO (2503.20783) — DAPO 진단(길이 폭주→clip↑→0점) 직격
+#       · loss_type=dr_grpo (길이정규화 편향 제거) + scale_rewards=none (std 난이도 편향 제거)
+#       · dynamic_sample + overlong_filter 공통 적용. clip-higher 미적용(대칭 ε 0.2)
 #
 #  주의: dynamic_sample 은 재샘플(최대 max_resample_times)로 롤아웃 비용↑ → step time 증가 가능.
 #        overlong_filter 는 잘린 샘플을 loss 에서 빼므로 유효 배치가 작아짐(의도된 DAPO 동작).
@@ -75,8 +78,19 @@ case "$RECIPE" in
       --epsilon ${EPS:-3e-4} --epsilon_high ${EPS_HIGH:-4e-4} \
       --scale_rewards ${SCALE_REWARDS:-group}"
     ;;
+  dr_grpo)
+    # Dr.GRPO (2503.20783) — 두 편향 제거로 "길이 폭주→clip→0점" 직격:
+    #   ① loss_type=dr_grpo : 손실을 시퀀스길이가 아닌 상수(batch×max_completion)로 정규화
+    #      → 긴 응답에 유리하던 길이정규화 편향 제거 (소스: per_token_loss.sum()/(B*max_len))
+    #   ② scale_rewards=none : advantage 를 그룹 std 로 나누지 않음 → 난이도(쉬운 문제 과대가중) 편향 제거
+    #   clip-higher 미적용(그건 DAPO 고유) — 대칭 epsilon 0.2 로 dr_grpo 효과만 분리.
+    RECIPE_ARGS="--loss_type dr_grpo \
+      --importance_sampling_level token \
+      --epsilon ${EPS:-0.2} \
+      --scale_rewards ${SCALE_REWARDS:-none}"
+    ;;
   *)
-    echo "[grpo-adv] 알 수 없는 RECIPE=$RECIPE (dapo|gspo)"; exit 1;;
+    echo "[grpo-adv] 알 수 없는 RECIPE=$RECIPE (dapo|gspo|dr_grpo)"; exit 1;;
 esac
 
 echo "[grpo-adv] RECIPE=$RECIPE  INIT_MODEL=$INIT_MODEL"

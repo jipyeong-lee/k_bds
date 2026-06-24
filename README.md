@@ -6,7 +6,7 @@
 ## 현황 (2026-06-24 기준)
 
 <!-- AUTO:status START (scripts/grpo_ab_update.py 자동 갱신 — 수동 편집 금지) -->
-**파이프라인 위치**: Stage-2(범용 RLVR/GRPO) — baseline 완주 → **Acc plateau 진단** → **DAPO 본실행 진행 중**(step~500/1000).
+**파이프라인 위치**: Stage-2(범용 RLVR/GRPO) — baseline 완주 → **Acc plateau 진단** → **DAPO 본실행 진행 중**(step~601/1000).
 <!-- AUTO:status END -->
 일별 상세 기록은 `docs/worklog_*.md`.
 
@@ -36,21 +36,22 @@ RFT 간결 콜드스타트 init + LoRA-DDP + max_completion 6144. step 1000에�
 - ▶ **dapo 본실행 진행 중**(job 57527, `--max_steps 1000`). DAPO 레시피 상세는 "GRPO 파생기법" 절.
 
 <!-- AUTO:ab START (scripts/grpo_ab_update.py 자동 갱신 — 100-step마다 watcher 가 재생성. 수동 편집 금지) -->
-  **baseline(57249) vs DAPO(57527) — 동일 구간 step 1~500 비교:**
+  **baseline(57249) vs DAPO(57527) — 동일 구간 step 1~601 비교:**
 
   | 지표 | baseline | DAPO | 차이 |
   |------|----------|------|------|
-  | **frac_zero_std**(무신호 그룹) | 0.235 | **0.000** | ↓0.235 ★ |
-  | FormatThink | 0.375 | 0.591 | ↑0.216 |
-  | reward | 0.426 | 0.486 | ↑0.060 |
-  | clip(잘림) | 0.372 | 0.305 | ↓0.066 |
-  | Acc | 0.434 | 0.441 | ↑0.007 |
-  | mean_len | 3576 | 3464 | ↓113 |
+  | **frac_zero_std**(무신호 그룹) | 0.237 | **0.000** | ↓0.237 ★ |
+  | FormatThink | 0.400 | 0.607 | ↑0.206 |
+  | reward | 0.444 | 0.493 | ↑0.050 |
+  | clip(잘림) | 0.361 | 0.302 | ↓0.059 |
+  | Acc | 0.445 | 0.445 | ↓0.000 |
+  | mean_len | 3532 | 3450 | ↓82 |
 
-  - ✅ **dynamic_sample 가설 검증**: `frac_reward_zero_std` 0.23→**0.00**. baseline 이 매 step ~23% 낭비하던 무신호 그룹을 재샘플로 제거(plateau 직격).
-  - ✅ **형식 수렴 가속**: 동일구간 FormatThink baseline 0.37 → DAPO **0.59** (clip-higher ε_high 0.28 효과).
+  - ✅ **dynamic_sample 가설 검증**: `frac_reward_zero_std` 0.24→**0.00**. baseline 이 매 step ~24% 낭비하던 무신호 그룹을 재샘플로 제거(plateau 직격).
+  - ✅ **형식 수렴 가속**: 동일구간 FormatThink baseline 0.40 → DAPO **0.61** (clip-higher ε_high 0.28 효과).
   - ⚠️ **속도 ~1.8배 느림**: 재샘플로 ~369s/it(baseline 202).
-  - ⚠️ **Acc 이득 미확정**: DAPO 0.441 vs baseline 0.434 (누적) — DAPO 우세, baseline Acc 도약(step ~600)이후 구간 비교 필요 (현재 step 500).
+  - ⚠️ **돌파 미확인**: step 501~600 구간 Acc DAPO 0.465 < baseline **0.500** (Δ-0.035) — 안정성 이득이 아직 정확도로 미전환.
+  - 누적 참고: DAPO 0.445 vs baseline 0.445 (누적) — 동률, step 601까지 평균.
 <!-- AUTO:ab END -->
 
   ![baseline vs DAPO 추세 비교](docs/assets/grpo_dapo_vs_baseline.png)

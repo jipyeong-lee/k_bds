@@ -63,6 +63,20 @@ RFT 간결 콜드스타트 init + LoRA-DDP + max_completion 6144. step 1000에�
   점선 세로선=DAPO 최신 지점. DAPO FormatThink 급상승·zero_std 0.00 평탄선이 핵심. 재생성:
   `singularity exec work/images/ms-swift-413-sandbox python scripts/plot_grpo_compare.py logs/grpo_stage2_57249.log baseline logs/grpo_adv_57527.log DAPO docs/assets/grpo_dapo_vs_baseline.png`)*
 
+### dr_grpo A/B (DAPO 길이폭주 진단 직격 · 진행 중)
+DAPO 종결 결론(안정성 OK·**돌파 미확인**, 길이↑→clip↑ 재폭주 추정)을 직격하기 위해 **Dr.GRPO**(arXiv:2503.20783):
+`loss_type=dr_grpo`(길이정규화 편향 제거) + `scale_rewards=none`(그룹 std 난이도 편향 제거). 공통 코어(dynamic_sample
++overlong_filter) 유지, clip-higher 미적용(대칭 ε 0.2). baseline·DAPO 와 동일 init 으로 clean A/B. (job 57624)
+
+<!-- AUTO:ab:dr_grpo START (scripts/grpo_ab_update.py 자동 갱신 — 100-step마다 watcher 가 재생성. 수동 편집 금지) -->
+  (dr_grpo 첫 100-step 도달 시 자동 생성)
+<!-- AUTO:ab:dr_grpo END -->
+
+  ![baseline vs dr_grpo 추세 비교](docs/assets/grpo_dr_grpo_vs_baseline.png)
+
+  *(50-step 구간평균. 실선=baseline(57249) / 점선=dr_grpo(57624, 진행 중). 재생성:
+  `singularity exec work/images/ms-swift-413-sandbox python scripts/plot_grpo_compare.py logs/grpo_stage2_57249.log baseline logs/grpo_adv_57624.log dr_grpo docs/assets/grpo_dr_grpo_vs_baseline.png`)*
+
 ### 핵심 의사결정 이력 (상세: 해당 섹션 / worklog)
 - **NVLink 없음 → 전 단계 LoRA**: PCIe A100·SHM 폴백으로 full-FT 375~660s/step → LoRA ~5배↑. ☞ "학습 방식" 절.
 - **추론 길이 폭주 → rejection-sampling 간결 콜드스타트**: base가 본래 3.5~4.6K토큰 장문, 잘림=0점이 정체 원인.

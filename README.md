@@ -6,7 +6,7 @@
 ## 현황 (2026-06-25 기준)
 
 <!-- AUTO:status START (scripts/grpo_ab_update.py 자동 갱신 — 수동 편집 금지) -->
-**파이프라인 위치**: Stage-2(범용 RLVR/GRPO) — baseline 완주 → Acc plateau 진단 → **DAPO 종결**(step 623, `checkpoint-600` 확정, step 501~600 Acc 0.465<baseline 0.500 → **돌파 미확인**) → **dr_grpo A/B 진행 중**(job 57624).
+**파이프라인 위치**: Stage-2(범용 RLVR/GRPO) — baseline 완주 → Acc plateau 진단 → **DAPO 종결**(step 623, `checkpoint-600` 확정, step 501~600 Acc 0.465<baseline 0.500 → **돌파 미확인**) → **dr_grpo A/B 진행 중**(job 57624, step~76: 초기 mean_len 3471·Acc 0.489 — 길이 억제·정확도 양호 신호, 확정은 step 200+).
 <!-- AUTO:status END -->
 일별 상세 기록은 `docs/worklog_*.md`.
 
@@ -53,7 +53,7 @@ RFT 간결 콜드스타트 init + LoRA-DDP + max_completion 6144. step 1000에�
 | IS 레벨 | token | token | token |
 | 주 타깃 문제 | (기준선) | zero_std plateau | **길이 폭주→clip→0점** |
 | ms-swift 인자 | `--loss_type grpo --scale_rewards group` | `--loss_type dapo --epsilon_high 0.28 --dynamic_sample --overlong_filter` | `--loss_type dr_grpo --scale_rewards none --dynamic_sample --overlong_filter` |
-| 우리 결과 | Acc plateau(~0.50 정점, zero_std 0.24→0.33) | 안정성 압도(grad 무폭주·zero_std 0.00) **but 돌파 미확인**(step501~600 Acc 0.465<0.500) | 진행 중(57624) — 길이 재폭주 억제 여부가 관건 |
+| 우리 결과 | Acc plateau(~0.50 정점, zero_std 0.24→0.33) | 안정성 압도(grad 무폭주·zero_std 0.00) **but 돌파 미확인**(step501~600 Acc 0.465<0.500) | 진행 중(57624, step~76): 초기 mean_len↓·Acc↑ 양호, 길이 억제 신호 (확정 step 200+) |
 
 > 요지: **DAPO 는 "탐색·신호 효율"**(clip-higher + 동적샘플)을, **dr_grpo 는 "정규화 편향 제거"**(길이·난이도)를 노린다.
 > 둘 다 공통 코어(`dynamic_sample`+`overlong_filter`)는 켠 채, baseline 과 그 외 조건은 동일(clean A/B). GSPO 등 추가 레시피는 "GRPO 파생기법" 절 참고.
@@ -90,7 +90,22 @@ DAPO 종결 결론(안정성 OK·**돌파 미확인**, 길이↑→clip↑ 재�
 +overlong_filter) 유지, clip-higher 미적용(대칭 ε 0.2). baseline·DAPO 와 동일 init 으로 clean A/B. (job 57624)
 
 <!-- AUTO:ab:dr_grpo START (scripts/grpo_ab_update.py 자동 갱신 — 100-step마다 watcher 가 재생성. 수동 편집 금지) -->
-  (dr_grpo 첫 100-step 도달 시 자동 생성)
+  **baseline(57249) vs dr_grpo(57624) — 동일 구간 step 1~76 비교:**
+
+  | 지표 | baseline | dr_grpo | 차이 |
+  |------|----------|------|------|
+  | **frac_zero_std**(무신호 그룹) | 0.238 | **0.000** | ↓0.238 ★ |
+  | FormatThink | 0.253 | 0.295 | ↑0.042 |
+  | reward | 0.388 | 0.472 | ↑0.084 |
+  | clip(잘림) | 0.414 | 0.321 | ↓0.093 |
+  | Acc | 0.429 | 0.489 | ↑0.060 |
+  | mean_len | 3749 | 3471 | ↓278 |
+
+  - ✅ **dynamic_sample 가설 검증**: `frac_reward_zero_std` 0.24→**0.00**. baseline 이 매 step ~24% 낭비하던 무신호 그룹을 재샘플로 제거(plateau 직격).
+  - ✅ **형식 수렴**: 동일구간 FormatThink baseline 0.25 → dr_grpo **0.29**.
+  - ⚠️ **속도 ~1.9배**: dr_grpo ~388s/it vs baseline 204.
+  - 📏 **길이·clip**: mean_len 3471(Δ-278) / clip 0.321(Δ-0.093) vs baseline.
+  - ⚠️ **Acc 이득 미확정**: dr_grpo 0.489 vs baseline 0.429 (누적) — baseline Acc 도약(step ~600)이후 구간 비교 필요 (현재 step 76).
 <!-- AUTO:ab:dr_grpo END -->
 
   ![baseline vs dr_grpo 추세 비교](docs/assets/grpo_dr_grpo_vs_baseline.png)

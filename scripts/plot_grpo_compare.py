@@ -16,8 +16,10 @@ ap.add_argument('logA'); ap.add_argument('labelA')
 ap.add_argument('logB'); ap.add_argument('labelB')
 ap.add_argument('out')
 ap.add_argument('--bin', type=int, default=50)
-ap.add_argument('--title', default='GRPO A/B: baseline vs DAPO (per-segment mean)')
+ap.add_argument('--title', default=None)
 a = ap.parse_args()
+if a.title is None:  # 라벨에서 제목 자동 생성 (하드코딩 'DAPO' 방지)
+    a.title = f'GRPO A/B: {a.labelA} vs {a.labelB} (per-segment mean)'
 
 KEYS = {
     'reward': 'reward', 'rewards/AccuracyMix/mean': 'acc',

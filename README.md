@@ -38,6 +38,26 @@ RFT 간결 콜드스타트 init + LoRA-DDP + max_completion 6144. step 1000에�
 - ▶ **dr_grpo 본실행 진행 중**(job 57624). DAPO 진단 직격: `loss_type=dr_grpo`(길이정규화 편향 제거) +
   `scale_rewards=none`(그룹 std 난이도 편향 제거). clip-higher 미적용(대칭 ε 0.2)으로 dr_grpo 효과만 분리.
 
+#### 기법 메커니즘 비교 (GRPO / DAPO / dr_grpo)
+세 기법은 **advantage = 그룹상대(group-relative)** 라는 골격을 공유하며, 아래 축에서만 갈린다. (소스: `grpo_trainer.py` 손실 분기 직접 확인)
+
+| 차원 | **GRPO** (baseline) | **DAPO** | **dr_grpo** |
+|------|---------------------|----------|-------------|
+| 논문 | DeepSeekMath (2402.03300) | DAPO (2503.14476) | Dr.GRPO (2503.20783) |
+| 한 줄 요약 | 그룹상대 PG 기본형 | 비대칭클립 + 동적샘플 | 두 정규화 **편향 제거** |
+| **손실 정규화** | ÷ **시퀀스 길이**(per-seq) → 길이 편향 | ÷ **배치 총토큰**(token-level) | ÷ **(B×max_len) 상수** → 편향 제거 |
+| **advantage 정규화** | ÷ 그룹 std → 난이도 편향 | ÷ 그룹 std (유지) | **안 함**(`scale_rewards=none`) → 난이도 편향 제거 |
+| **클리핑** | 대칭 ε=0.2 | **clip-higher** 비대칭 ε=0.2/0.28(탐색↑·엔트로피붕괴 억제) | 대칭 ε=0.2 |
+| **zero-std 그룹** | 방치 → 정확도 gradient 소실(plateau 원인) | `dynamic_sample` 재샘플 | `dynamic_sample` 재샘플 |
+| **잘린 롤아웃** | loss 포함(신호 오염) | `overlong_filter` 제외 | `overlong_filter` 제외 |
+| IS 레벨 | token | token | token |
+| 주 타깃 문제 | (기준선) | zero_std plateau | **길이 폭주→clip→0점** |
+| ms-swift 인자 | `--loss_type grpo --scale_rewards group` | `--loss_type dapo --epsilon_high 0.28 --dynamic_sample --overlong_filter` | `--loss_type dr_grpo --scale_rewards none --dynamic_sample --overlong_filter` |
+| 우리 결과 | Acc plateau(~0.50 정점, zero_std 0.24→0.33) | 안정성 압도(grad 무폭주·zero_std 0.00) **but 돌파 미확인**(step501~600 Acc 0.465<0.500) | 진행 중(57624) — 길이 재폭주 억제 여부가 관건 |
+
+> 요지: **DAPO 는 "탐색·신호 효율"**(clip-higher + 동적샘플)을, **dr_grpo 는 "정규화 편향 제거"**(길이·난이도)를 노린다.
+> 둘 다 공통 코어(`dynamic_sample`+`overlong_filter`)는 켠 채, baseline 과 그 외 조건은 동일(clean A/B). GSPO 등 추가 레시피는 "GRPO 파생기법" 절 참고.
+
 <!-- AUTO:ab START (scripts/grpo_ab_update.py 자동 갱신 — 100-step마다 watcher 가 재생성. 수동 편집 금지) -->
   **baseline(57249) vs DAPO(57527) — 동일 구간 step 1~623 비교:**
 

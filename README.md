@@ -51,16 +51,17 @@ RFT 간결 콜드스타트 init + LoRA-DDP + max_completion 6144. step 1000에�
   | mean_len | 3531 | 3452 | ↓79 |
 
   - ✅ **dynamic_sample 가설 검증**: `frac_reward_zero_std` 0.24→**0.00**. baseline 이 매 step ~24% 낭비하던 무신호 그룹을 재샘플로 제거(plateau 직격).
-  - ✅ **형식 수렴 가속**: 동일구간 FormatThink baseline 0.41 → DAPO **0.61** (clip-higher ε_high 0.28 효과).
-  - ⚠️ **속도 ~1.8배 느림**: 재샘플로 ~369s/it(baseline 202).
+  - ✅ **형식 수렴**: 동일구간 FormatThink baseline 0.41 → DAPO **0.61**.
+  - ⚠️ **속도 ~1.8배**: DAPO ~368s/it vs baseline 202.
+  - 📏 **길이·clip**: mean_len 3452(Δ-79) / clip 0.303(Δ-0.058) vs baseline.
   - ⚠️ **돌파 미확인**: step 501~600 구간 Acc DAPO 0.465 < baseline **0.500** (Δ-0.035) — 안정성 이득이 아직 정확도로 미전환.
-  - 누적 참고: DAPO 0.444 vs baseline 0.446 (누적) — 동률, step 623까지 평균.
+  - 누적 참고: DAPO 0.444 vs baseline 0.446 (누적) — step 623까지 평균.
 <!-- AUTO:ab END -->
 
   ![baseline vs DAPO 추세 비교](docs/assets/grpo_dapo_vs_baseline.png)
 
-  *(50-step 구간평균. 실선=baseline(57249, step 1000) / 점선=DAPO(57527, 진행 중). 상단 reward·Acc·FormatThink, 하단 clip·zero_std.
-  점선 세로선=DAPO 최신 지점. DAPO FormatThink 급상승·zero_std 0.00 평탄선이 핵심. 재생성:
+  *(50-step 구간평균. 실선=baseline(57249, step 1000) / 점선=DAPO(57527, **종결 step 623·`checkpoint-600` 확정**). 상단 reward·Acc·FormatThink, 하단 clip·zero_std.
+  DAPO FormatThink 급상승·zero_std 0.00 평탄선이 핵심이나 step 501~600 Acc 0.465<baseline 0.500 → **돌파 미확인**. 재생성:
   `singularity exec work/images/ms-swift-413-sandbox python scripts/plot_grpo_compare.py logs/grpo_stage2_57249.log baseline logs/grpo_adv_57527.log DAPO docs/assets/grpo_dapo_vs_baseline.png`)*
 
 ### dr_grpo A/B (DAPO 길이폭주 진단 직격 · 진행 중)

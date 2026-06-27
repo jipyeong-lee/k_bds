@@ -6,7 +6,7 @@
 ## 현황 (2026-06-25 기준)
 
 <!-- AUTO:status START (scripts/grpo_ab_update.py 자동 갱신 — 수동 편집 금지) -->
-**파이프라인 위치**: Stage-2(범용 RLVR/GRPO) — baseline 완주 → Acc plateau 진단 → **DAPO 종결**(step 623, `checkpoint-600` 확정, step 501~600 Acc 0.465<baseline 0.500 → **돌파 미확인**) → **dr_grpo ✅ 돌파 확인**(job 57624, step~635): **step 501~600 Acc 0.526 > baseline 0.500**(DAPO 0.465 실패) — 길이 억제(mean_len 3259<baseline)와 함께 정확도 우위 전환. **Stage-2 승자 = dr_grpo `checkpoint-600`**. 잡은 시간제한까지(step~685) 마저 진행 중.
+**파이프라인 위치**: Stage-2(범용 RLVR/GRPO) — baseline 완주 → Acc plateau 진단 → **DAPO 종결**(step 623, `checkpoint-600` 확정, step 501~600 Acc 0.465<baseline 0.500 → **돌파 미확인**) → **dr_grpo ✅ 돌파 확인·종결**(job 57624, step 689 TIMEOUT): **step 501~600 Acc 0.526 > baseline 0.500**(DAPO 0.465 실패) — 길이 억제(mean_len 3259<baseline)와 함께 정확도 우위 전환. 후반 꼬리(601~689) Acc 0.494로 소폭 냉각(길이 3426 반등) → **최적 = `checkpoint-600`**. **Stage-2 승자 = dr_grpo `checkpoint-600`. 다음 = Stage-3(의료 RL)**.
 <!-- AUTO:status END -->
 일별 상세 기록은 `docs/worklog_*.md`.
 
@@ -35,8 +35,9 @@ RFT 간결 콜드스타트 init + LoRA-DDP + max_completion 6144. step 1000에�
 `dr_grpo`(길이·난이도 편향 제거).
 - ✅ **dapo 본실행 종결**(job 57527, step 623서 scancel·`checkpoint-600` 확정). 결과: 안정성 압도(grad_norm 무폭주·zero_std 0.00)
   하나 **돌파 미확인**(step 501~600 Acc DAPO 0.465 < baseline 0.500). 길이↑→clip↑ 재폭주가 정확도 미전환 원인 추정.
-- ▶ **dr_grpo 본실행 진행 중**(job 57624). DAPO 진단 직격: `loss_type=dr_grpo`(길이정규화 편향 제거) +
-  `scale_rewards=none`(그룹 std 난이도 편향 제거). clip-higher 미적용(대칭 ε 0.2)으로 dr_grpo 효과만 분리.
+- ✅ **dr_grpo 본실행 종결·돌파 확인**(job 57624, step 689 TIMEOUT). DAPO 진단 직격: `loss_type=dr_grpo`(길이정규화 편향 제거)
+  + `scale_rewards=none`(그룹 std 난이도 편향 제거). **step 501~600 Acc 0.526 > baseline 0.500**(DAPO 0.465 실패)하며
+  길이 억제(mean_len 3259)까지 동반 → **가설 검증**. 후반 꼬리(601~689) Acc 0.494 소폭 냉각 → **최적 산출물 `checkpoint-600`**.
 
 #### 쉬운 설명 (한 문장 직관)
 공통 아이디어: **한 문제에 답을 여러 개(그룹) 뽑아, 그룹 평균보다 잘한 답은 강화·못한 답은 억제**한다(정답 채점만 있으면 됨).
@@ -90,34 +91,34 @@ RFT 간결 콜드스타트 init + LoRA-DDP + max_completion 6144. step 1000에�
   DAPO FormatThink 급상승·zero_std 0.00 평탄선이 핵심이나 step 501~600 Acc 0.465<baseline 0.500 → **돌파 미확인**. 재생성:
   `singularity exec work/images/ms-swift-413-sandbox python scripts/plot_grpo_compare.py logs/grpo_stage2_57249.log baseline logs/grpo_adv_57527.log DAPO docs/assets/grpo_dapo_vs_baseline.png`)*
 
-### dr_grpo A/B (DAPO 길이폭주 진단 직격 · 진행 중)
+### dr_grpo A/B (DAPO 길이폭주 진단 직격 · ✅ 돌파 확인·종결)
 DAPO 종결 결론(안정성 OK·**돌파 미확인**, 길이↑→clip↑ 재폭주 추정)을 직격하기 위해 **Dr.GRPO**(arXiv:2503.20783):
 `loss_type=dr_grpo`(길이정규화 편향 제거) + `scale_rewards=none`(그룹 std 난이도 편향 제거). 공통 코어(dynamic_sample
 +overlong_filter) 유지, clip-higher 미적용(대칭 ε 0.2). baseline·DAPO 와 동일 init 으로 clean A/B. (job 57624)
 
 <!-- AUTO:ab:dr_grpo START (scripts/grpo_ab_update.py 자동 갱신 — 100-step마다 watcher 가 재생성. 수동 편집 금지) -->
-  **baseline(57249) vs dr_grpo(57624) — 동일 구간 step 1~635 비교:**
+  **baseline(57249) vs dr_grpo(57624) — 동일 구간 step 1~689 비교:**
 
   | 지표 | baseline | dr_grpo | 차이 |
   |------|----------|------|------|
-  | **frac_zero_std**(무신호 그룹) | 0.238 | **0.000** | ↓0.238 ★ |
-  | FormatThink | 0.408 | 0.458 | ↑0.050 |
-  | reward | 0.446 | 0.521 | ↑0.075 |
-  | clip(잘림) | 0.360 | 0.280 | ↓0.080 |
-  | Acc | 0.446 | 0.498 | ↑0.052 |
-  | mean_len | 3531 | 3393 | ↓139 |
+  | **frac_zero_std**(무신호 그룹) | 0.242 | **0.000** | ↓0.242 ★ |
+  | FormatThink | 0.421 | 0.464 | ↑0.043 |
+  | reward | 0.453 | 0.523 | ↑0.069 |
+  | clip(잘림) | 0.355 | 0.279 | ↓0.076 |
+  | Acc | 0.449 | 0.498 | ↑0.049 |
+  | mean_len | 3510 | 3391 | ↓119 |
 
   - ✅ **dynamic_sample 가설 검증**: `frac_reward_zero_std` 0.24→**0.00**. baseline 이 매 step ~24% 낭비하던 무신호 그룹을 재샘플로 제거(plateau 직격).
-  - ✅ **형식 수렴**: 동일구간 FormatThink baseline 0.41 → dr_grpo **0.46**.
+  - ✅ **형식 수렴**: 동일구간 FormatThink baseline 0.42 → dr_grpo **0.46**.
   - ⚠️ **속도 ~1.8배**: dr_grpo ~369s/it vs baseline 202.
-  - 📏 **길이·clip**: mean_len 3393(Δ-139) / clip 0.280(Δ-0.080) vs baseline.
+  - 📏 **길이·clip**: mean_len 3391(Δ-119) / clip 0.279(Δ-0.076) vs baseline.
   - ✅ **돌파 확인**: step 501~600 구간 Acc dr_grpo **0.526** vs baseline 0.500 (Δ+0.027) — 안정성이 정확도 우위로 전환됨.
-  - 누적 참고: dr_grpo 0.498 vs baseline 0.446 (누적) — step 635까지 평균.
+  - 누적 참고: dr_grpo 0.498 vs baseline 0.449 (누적) — step 689까지 평균.
 <!-- AUTO:ab:dr_grpo END -->
 
   ![baseline vs dr_grpo 추세 비교](docs/assets/grpo_dr_grpo_vs_baseline.png)
 
-  *(50-step 구간평균. 실선=baseline(57249) / 점선=dr_grpo(57624, 진행 중). 재생성:
+  *(50-step 구간평균. 실선=baseline(57249) / 점선=dr_grpo(57624, **종결 step 689·`checkpoint-600` 확정**). 재생성:
   `singularity exec work/images/ms-swift-413-sandbox python scripts/plot_grpo_compare.py logs/grpo_stage2_57249.log baseline logs/grpo_adv_57624.log dr_grpo docs/assets/grpo_dr_grpo_vs_baseline.png`)*
 
 ### 핵심 의사결정 이력 (상세: 해당 섹션 / worklog)
@@ -127,8 +128,8 @@ DAPO 종결 결론(안정성 OK·**돌파 미확인**, 길이↑→clip↑ 재�
 - **보상 = accuracy_mix + format_think + soft_overlong**: 내장 accuracy의 letter 미파싱 보완. ☞ "보상 설계" 절.
 
 ### 다음 (예정)
-- ⏳ A/B 본실행 → baseline 대비 plateau 돌파 여부 평가.
-- ⏳ Stage-3(의료, LLM judge) — `medical_reward.py` judge 구현 후 진행.
+- ✅ A/B 본실행 완료 → **dr_grpo 가 plateau 돌파**(step 501~600 Acc 0.526>0.500). **Stage-2 종결, 승자 = `grpo_general_adv_dr_grpo/.../checkpoint-600`**.
+- ⏳ **Stage-3(의료, LLM judge)** — dr_grpo `checkpoint-600` 을 init 으로, `medical_reward.py` judge 구현 후 진행.
 
 ## 진행 이력 (날짜별 · 상세는 `docs/worklog_*.md`)
 - **2026-06-15** — 환경(컨테이너 swift4.1.3)·모델(Qwen3.5-9B)·데이터 확정·검증. **NVLink 부재 발견→전 단계 LoRA 전환**.
@@ -145,6 +146,9 @@ DAPO 종결 결론(안정성 OK·**돌파 미확인**, 길이↑→clip↑ 재�
 - **2026-06-24** — **DAPO 진행 모니터링**(step 408→475). **안정성 정량 검증**: grad_norm DAPO 0.012 무spike vs
   baseline 최대 67만·spike 107회 → 안정성 우위 확정. ⚠️ **Acc 약한 적신호**(0.48→0.43 완만 하락, KL↑·형식포화).
   **step 600 돌파 판정 자동화**(`grpo_ab_update.py` 구간 501~600 Acc 직접비교). step 475 README·plot 갱신. ☞ `worklog_2026-06-24`
+- **2026-06-25** — DAPO 종결(돌파 미확인). ms-swift GRPO 파생기법 인벤토리(소스검증). **dr_grpo 착수**(57624). watcher/updater 레시피 일반화. ☞ `worklog_2026-06-25`
+- **2026-06-28** — **Stage-2 종결: dr_grpo 돌파 확인**(step501~600 Acc 0.526>baseline 0.500, DAPO 0.465 실패지점 통과·길이 억제 동반).
+  step 689 TIMEOUT 종료. **승자 = dr_grpo `checkpoint-600`** → Stage-3(의료 RL) init. ☞ `worklog_2026-06-28`
 - **2026-06-25** — **DAPO 종결**(step 600 자동판정 = 돌파 미확인: step501~600 Acc 0.465<0.500, step 623서 scancel·`checkpoint-600` 확정).
   ms-swift 4.1.3 GRPO 파생기법 인벤토리(소스 검증): loss_type `dr_grpo`·`cispo`·`bnpo`·`sapo`·`real`, advantage `rloo`·`reinforce++`,
   `top_entropy_quantile` 등. **DAPO 길이폭주 진단 직격 → `dr_grpo` 본실행 착수**(job 57624). ☞ `worklog_2026-06-25`

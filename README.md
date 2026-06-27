@@ -96,22 +96,22 @@ DAPO 종결 결론(안정성 OK·**돌파 미확인**, 길이↑→clip↑ 재�
 +overlong_filter) 유지, clip-higher 미적용(대칭 ε 0.2). baseline·DAPO 와 동일 init 으로 clean A/B. (job 57624)
 
 <!-- AUTO:ab:dr_grpo START (scripts/grpo_ab_update.py 자동 갱신 — 100-step마다 watcher 가 재생성. 수동 편집 금지) -->
-  **baseline(57249) vs dr_grpo(57624) — 동일 구간 step 1~400 비교:**
+  **baseline(57249) vs dr_grpo(57624) — 동일 구간 step 1~501 비교:**
 
   | 지표 | baseline | dr_grpo | 차이 |
   |------|----------|------|------|
-  | **frac_zero_std**(무신호 그룹) | 0.234 | **0.000** | ↓0.234 ★ |
-  | FormatThink | 0.354 | 0.428 | ↑0.074 |
-  | reward | 0.415 | 0.511 | ↑0.096 |
-  | clip(잘림) | 0.379 | 0.284 | ↓0.094 |
-  | Acc | 0.429 | 0.495 | ↑0.066 |
-  | mean_len | 3605 | 3400 | ↓206 |
+  | **frac_zero_std**(무신호 그룹) | 0.235 | **0.000** | ↓0.235 ★ |
+  | FormatThink | 0.375 | 0.444 | ↑0.070 |
+  | reward | 0.425 | 0.513 | ↑0.088 |
+  | clip(잘림) | 0.372 | 0.285 | ↓0.087 |
+  | Acc | 0.434 | 0.493 | ↑0.059 |
+  | mean_len | 3578 | 3413 | ↓166 |
 
   - ✅ **dynamic_sample 가설 검증**: `frac_reward_zero_std` 0.23→**0.00**. baseline 이 매 step ~23% 낭비하던 무신호 그룹을 재샘플로 제거(plateau 직격).
-  - ✅ **형식 수렴**: 동일구간 FormatThink baseline 0.35 → dr_grpo **0.43**.
-  - ⚠️ **속도 ~1.8배**: dr_grpo ~372s/it vs baseline 202.
-  - 📏 **길이·clip**: mean_len 3400(Δ-206) / clip 0.284(Δ-0.094) vs baseline.
-  - ⚠️ **Acc 이득 미확정**: dr_grpo 0.495 vs baseline 0.429 (누적) — baseline Acc 도약(step ~600)이후 구간 비교 필요 (현재 step 400).
+  - ✅ **형식 수렴**: 동일구간 FormatThink baseline 0.37 → dr_grpo **0.44**.
+  - ⚠️ **속도 ~1.8배**: dr_grpo ~371s/it vs baseline 202.
+  - 📏 **길이·clip**: mean_len 3413(Δ-166) / clip 0.285(Δ-0.087) vs baseline.
+  - ⚠️ **Acc 이득 미확정**: dr_grpo 0.493 vs baseline 0.434 (누적) — baseline Acc 도약(step ~600)이후 구간 비교 필요 (현재 step 501).
 <!-- AUTO:ab:dr_grpo END -->
 
   ![baseline vs dr_grpo 추세 비교](docs/assets/grpo_dr_grpo_vs_baseline.png)

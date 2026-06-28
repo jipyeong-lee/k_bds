@@ -39,12 +39,28 @@ judge 가 **(나중에) 대형·멀티모달 모델을 API 로 사용** 예정 �
 - 클라이언트: `AsyncOpenAI(base_url=$JUDGE_BASE_URL, api_key=$JUDGE_API_KEY)`, model=`$JUDGE_MODEL`.
   이미지는 OpenAI 멀티모달 포맷(`image_url` base64) 으로 전달.
 
-### 4.2 루브릭(judge system 프롬프트) — 다차원, 보상붕괴 완화
-1. **임상적 정확성** — 참조답(gold) 대비 핵심 소견/진단 일치
-2. **사실성/환각 없음** — **이미지에 근거 없는 주장 페널티(멀티모달 judge 의 핵심 강점)**
-3. **완전성** — 요구된 임상 요소 포함
-4. **안전성** — 위험한 오답(놓친 위중 소견 등) 강한 페널티
-→ 0~1 종합, 파싱 가능한 형식(예: `Reward: 0.85` 또는 JSON `{"score":..}`). 앵커 예시로 차등 점수 유도.
+### 4.2 루브릭 = Rubric-as-a-Reward(RaR, [arXiv:2507.17746](https://arxiv.org/abs/2507.17746)) 방식 — **확정**
+판정을 단일 스칼라가 아니라 **가중 다기준 체크리스트(0/1)** 로 분해 → judge 가 항목별 0/1, explicit 집계
+`r = Σⱼ wⱼ·cⱼ / Σⱼ wⱼ` (∈[0,1]). 부분점수가 dense → GRPO zero-std 완화(2단계 교훈).
+
+**데이터 실측 반영**: medix 는 **단답형 의료 VQA**(정답 중앙값 46자, 예 "28 x 27 mm"·"X-ray"). RaR-Medicine-20k
+(장문 임상추론, 9~12항목 인스턴스 루브릭)와 성격이 달라 **그 데이터는 비채택**(텍스트전용·장문). 대신 그 **스키마만 차용**:
+`{"title","description":"<Category> Criteria: ...","weight":정수}`.
+
+**핵심 단순화 — LLM 루브릭 생성 불필요**: 단답이라 핵심 사실=참조답 1개 → Essential 기준에 **참조답을 템플릿 주입**.
+오프라인 GPT 생성 파이프라인 없이 코드로 루브릭 구성.
+
+**정적 4차원 루브릭** (가중치 = RaR 정수 스킴 Essential 5 / Important 3 / Pitfall 4):
+| # | title | weight | 대상 | description(요지) |
+|---|-------|--------|------|------|
+| 1 | 정답 정확성 | 5(Essential) | `<answer>` | 참조답과 의미 일치(동의어·단위환산·환언 허용) — **참조답 주입** |
+| 2 | 시각적 근거 | 3(Important) | `<think>` | 추론이 영상의 실제 소견을 인용해 답을 뒷받침 (⭐ 교차추론) |
+| 3 | 정밀도·단위 | 3(Important) | `<answer>` | 수치 크기·단위가 ±15% 내 — **측정 문항 한정**(참조답에 숫자+단위 정규식 매치 시 자동 포함) |
+| 4 | 환각·과잉주장 없음 | 4(Pitfall) | 전체 | 영상에 없는 소견·질문 안 한 주장 추가 안 함 |
+
+- **측정형 자동 분기**: 참조답 `\d+\s*(mm|cm|...)` 매치 → 기준3 포함, 아니면 제외(예 "X-ray" 문항은 1·2·4).
+- judge 출력 = 파싱가능 JSON `{"c1":0/1,"c2":0/1,"c3":0/1|null,"c4":0/1}`, temperature=0, 파싱실패→0.0.
+- 보상해킹 완화: 시각근거를 `<think>` 에 부여(운으로 맞힌 답 vs 진짜 교차추론 구분) + 환각 Pitfall + 형식 게이팅(4.3).
 
 ### 4.3 견고성
 - 타임아웃/실패/파싱불가 → 0.0 반환(학습 중단 방지). 결정적 채점 위해 judge temperature=0.
@@ -99,6 +115,8 @@ run_py swift rlhf --rlhf_type grpo \
 - ✅ SFT: **생략하고 GRPO 직행**(R1-zero) — Qwen3.5-9B 가 추론·지시따르기 가능. 강한 시스템 프롬프트로 형식 유도,
        GRPO format 보상이 보강. 초기 GRPO 에서 format 보상이 낮으면 경량 format SFT 추가(가역적). 기존 sft_*.jsonl 은 폴백 보관.
 - ✅ judge: **대형 멀티모달 모델 API**(AsyncORM, §2/§4). 3단계 전용.
+- ✅ **루브릭: RaR 방식 정적 4차원**(정확성5/시각근거3/정밀도3/환각4, §4.2 확정). 참조답 템플릿 주입 → **LLM 생성 불필요**.
+  RaR-Medicine-20k 는 텍스트전용·장문이라 비채택, 스키마만 차용. judge 엔드포인트는 env(`JUDGE_BASE_URL/MODEL/API_KEY`)로 주입.
 - ⏳ 🚨 **judge API 도달성**(오프라인 컴퓨트 노드): 상용 API 불가 → **클러스터 내부 self-host vLLM** 으로 갈지,
        egress 예외가 있는지 **확인 필요**. 설계의 핵심 분기.
 - ⏳ judge 모델 구체(어떤 대형 VLM), reward_weights, judge 서버 노드 할당/노드시간.

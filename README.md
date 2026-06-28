@@ -3,10 +3,11 @@
 계획서(`plan.hwp`) 기반, **ms-swift**로 (format cold-start) SFT → 범용 RLVR/GRPO → 의료 특화 RL → 평가
 4단계를 KISTI Slurm 클러스터 환경에 맞춰 구성. 일별 진행 기록은 `docs/worklog_*.md` 참고.
 
-## 현황 (2026-06-25 기준)
+## 현황 (2026-06-29 기준)
 
 <!-- AUTO:status START (scripts/grpo_ab_update.py 자동 갱신 — 수동 편집 금지) -->
-**파이프라인 위치**: Stage-2(범용 RLVR/GRPO) — baseline 완주 → Acc plateau 진단 → **DAPO 종결**(step 623, `checkpoint-600` 확정, step 501~600 Acc 0.465<baseline 0.500 → **돌파 미확인**) → **dr_grpo ✅ 돌파 확인·종결**(job 57624, step 689 TIMEOUT): **step 501~600 Acc 0.526 > baseline 0.500**(DAPO 0.465 실패) — 길이 억제(mean_len 3259<baseline)와 함께 정확도 우위 전환. 후반 꼬리(601~689) Acc 0.494로 소폭 냉각(길이 3426 반등) → **최적 = `checkpoint-600`**. **Stage-2 승자 = dr_grpo `checkpoint-600`. 다음 = Stage-3(의료 RL)**.
+**파이프라인 위치**: Stage-2(범용 RLVR/GRPO) — baseline 완주 → Acc plateau 진단 → **DAPO 종결**(step 623, `checkpoint-600` 확정, step 501~600 Acc 0.465<baseline 0.500 → **돌파 미확인**) → **dr_grpo ✅ 돌파 확인·종결**(job 57624, step 689 TIMEOUT): **step 501~600 Acc 0.526 > baseline 0.500**(DAPO 0.465 실패) — 길이 억제(mean_len 3259<baseline)와 함께 정확도 우위 전환. 후반 꼬리(601~689) Acc 0.494로 소폭 냉각(길이 3426 반등) → **최적 = `checkpoint-600`**(= Stage-2 승자).
+→ **Stage-3(의료 RL) 착수**: **RaR 루브릭 보상 설계·구현 완료**(`medical_reward.py` clinical_judge, 유닛테스트 24/24). **judge 엔드포인트 확정 + slurm 배선**이 남은 선행과제.
 <!-- AUTO:status END -->
 일별 상세 기록은 `docs/worklog_*.md`.
 
@@ -29,7 +30,7 @@ RFT 간결 콜드스타트 init + LoRA-DDP + max_completion 6144. step 1000에�
 - ⚠️ **[진단] Acc plateau**: Acc는 step~500서 0.50 정점 후 정체. 원인 = **`frac_reward_zero_std` 0.24→0.33 상승**
   (그룹 rollout이 전부정답/전부오답화 → 정확도 gradient 소실). 후반 reward 상승은 형식·길이 주도.
 
-### 진행 중: GRPO 파생기법 A/B (plateau 돌파)
+### Stage-2 A/B: GRPO 파생기법 (plateau 돌파 · ✅ 종결)
 `scripts/21_rlvr_grpo_adv.slurm` — baseline과 **기법 외 전 조건 동일**. 공통 코어 = `dynamic_sample`(zero_std 그룹
 폐기·재샘플, 진단 직격) + `overlong_filter`. 레시피 3종: `dapo`(clip-higher+`loss_type=dapo`) / `gspo`(sequence-level IS) /
 `dr_grpo`(길이·난이도 편향 제거).
@@ -128,8 +129,11 @@ DAPO 종결 결론(안정성 OK·**돌파 미확인**, 길이↑→clip↑ 재�
 - **보상 = accuracy_mix + format_think + soft_overlong**: 내장 accuracy의 letter 미파싱 보완. ☞ "보상 설계" 절.
 
 ### 다음 (예정)
-- ✅ A/B 본실행 완료 → **dr_grpo 가 plateau 돌파**(step 501~600 Acc 0.526>0.500). **Stage-2 종결, 승자 = `grpo_general_adv_dr_grpo/.../checkpoint-600`**.
-- ⏳ **Stage-3(의료, LLM judge)** — dr_grpo `checkpoint-600` 을 init 으로, `medical_reward.py` judge 구현 후 진행.
+- ✅ Stage-2 A/B 완료 → **dr_grpo plateau 돌파**(승자 `grpo_general_adv_dr_grpo/.../checkpoint-600`).
+- ✅ **Stage-3 RaR 루브릭 보상 설계·구현**(`medical_reward.py`, spec §4.2, 유닛테스트 24/24).
+- ⏳ **judge 엔드포인트 확정** — snuhub(gemma4-26b) 컴퓨트노드 도달성 or 내부 self-host vLLM. (구현은 env 주입형이라 URL만 정해지면 연결)
+- ⏳ **`30_medical_rl.slurm` 배선** — dr_grpo `checkpoint-600` init + `--reward_funcs format_think clinical_judge` + judge env.
+- ⏳ judge 실연결 후 spec §8 분포 프로브(점수 단조성) → Stage-3 본실행.
 
 ## 진행 이력 (날짜별 · 상세는 `docs/worklog_*.md`)
 - **2026-06-15** — 환경(컨테이너 swift4.1.3)·모델(Qwen3.5-9B)·데이터 확정·검증. **NVLink 부재 발견→전 단계 LoRA 전환**.
@@ -146,12 +150,14 @@ DAPO 종결 결론(안정성 OK·**돌파 미확인**, 길이↑→clip↑ 재�
 - **2026-06-24** — **DAPO 진행 모니터링**(step 408→475). **안정성 정량 검증**: grad_norm DAPO 0.012 무spike vs
   baseline 최대 67만·spike 107회 → 안정성 우위 확정. ⚠️ **Acc 약한 적신호**(0.48→0.43 완만 하락, KL↑·형식포화).
   **step 600 돌파 판정 자동화**(`grpo_ab_update.py` 구간 501~600 Acc 직접비교). step 475 README·plot 갱신. ☞ `worklog_2026-06-24`
-- **2026-06-25** — DAPO 종결(돌파 미확인). ms-swift GRPO 파생기법 인벤토리(소스검증). **dr_grpo 착수**(57624). watcher/updater 레시피 일반화. ☞ `worklog_2026-06-25`
+- **2026-06-25** — **DAPO 종결**(돌파 미확인: step501~600 Acc 0.465<0.500, step 623 scancel·`checkpoint-600`).
+  ms-swift GRPO 파생기법 인벤토리(소스검증: `dr_grpo`·`cispo`·`bnpo`·`rloo`·`reinforce++`·`top_entropy_quantile` 등),
+  **dr_grpo 착수**(57624), watcher/updater 레시피 일반화. ☞ `worklog_2026-06-25`
 - **2026-06-28** — **Stage-2 종결: dr_grpo 돌파 확인**(step501~600 Acc 0.526>baseline 0.500, DAPO 0.465 실패지점 통과·길이 억제 동반).
-  step 689 TIMEOUT 종료. **승자 = dr_grpo `checkpoint-600`** → Stage-3(의료 RL) init. ☞ `worklog_2026-06-28`
-- **2026-06-25** — **DAPO 종결**(step 600 자동판정 = 돌파 미확인: step501~600 Acc 0.465<0.500, step 623서 scancel·`checkpoint-600` 확정).
-  ms-swift 4.1.3 GRPO 파생기법 인벤토리(소스 검증): loss_type `dr_grpo`·`cispo`·`bnpo`·`sapo`·`real`, advantage `rloo`·`reinforce++`,
-  `top_entropy_quantile` 등. **DAPO 길이폭주 진단 직격 → `dr_grpo` 본실행 착수**(job 57624). ☞ `worklog_2026-06-25`
+  step 689 TIMEOUT 종료. **승자 = dr_grpo `checkpoint-600`** → Stage-3 init. ☞ `worklog_2026-06-28`
+- **2026-06-29** — **Stage-3 착수: RaR(Rubric-as-a-Reward) 루브릭 보상 설계·구현**. medix=단답 VQA 실측 → 정적 4차원
+  루브릭(정확성5/시각근거3/정밀도3/환각4, 참조답 템플릿 주입 → LLM생성 불필요). `medical_reward.py` 멀티모달
+  judge(AsyncORM) 구현 + 유닛테스트 24/24 통과. judge 엔드포인트(snuhub/self-host) 확정 대기. ☞ `worklog_2026-06-29`
 
 ## 환경: Singularity 컨테이너 (확정·검증 완료)
 - 노드 OS가 **CentOS 7.9 / glibc 2.17**이라 최신 ML 패키지(특히 **vLLM·xformers**)는
@@ -224,6 +230,16 @@ DAPO 4대 기법과 본 프로젝트 적용:
 - 비용: 본실행(57527) 실측 **~369s/it (baseline 202의 ~1.8배)**. 스모크(5 step)의 ~177s는 재샘플 부하가 거의 없는 초기값이라 과소추정 — 실제로는 `dynamic_sample` 재샘플(최대 3회)이 step당 생성량을 늘려 느려짐. 신호효율 향상의 대가.
 - 대안 레시피 `RECIPE=gspo`(sequence-level importance sampling, [arXiv:2507.18071](https://arxiv.org/abs/2507.18071))도 동일 스크립트에서 토글 가능.
 
+## Stage-3: 의료 RL — RaR 루브릭 보상 (설계 확정 · 상세 `docs/medical_reward_spec.md`)
+개방형 의료 VQA(medix)는 단일정답 규칙검증이 불가 → **Rubric-as-a-Reward**([arXiv:2507.17746](https://arxiv.org/abs/2507.17746)):
+judge 가 가중 다기준 체크리스트를 항목별 0/1 채점, explicit 집계 `r = Σwⱼcⱼ / Σwⱼ ∈ [0,1]`(부분점수 dense).
+- **데이터 실측**: medix = 단답 VQA(정답 중앙값 46자, 예 "28×27mm"). RaR-Medicine-20k(텍스트전용·장문)는 **스키마만 차용**, 비채택.
+- **정적 4차원 루브릭**(가중 = RaR 정수): 정답정확성(5) / **시각근거(3, `<think>`·교차추론)** / 정밀도·단위(3, 측정형 자동분기) / 환각Pitfall(4).
+  단답이라 핵심사실=참조답 1개 → **참조답을 Essential 기준에 템플릿 주입**(오프라인 LLM 루브릭 생성 불필요).
+- **구현** `configs/medical_reward.py` `ClinicalJudgeReward(AsyncORM)`: 형식게이트→멀티모달 judge(env `JUDGE_BASE_URL/MODEL/API_KEY`)
+  →JSON 0/1 파싱→집계. 타임아웃·파싱실패→0.0. 유닛테스트 `scripts/test_medical_reward.py` **24/24**(단조성 포함).
+- **남은 선행과제**: judge 엔드포인트(snuhub gemma4-26b 도달성 or 내부 self-host vLLM) 확정 → `30_medical_rl.slurm` 배선 → 분포 프로브.
+
 ## 자원 정합성 (가이드 확인 완료)
 - 계획서의 **8×A100-80GB·896GB·128core 노드** = 일반 **`8gpu` 파티션**(가이드 공식표상
   4gpu·8gpu는 A100 **80GB**, 1gpu·2gpu만 40GB). `bdata_user`로 **바로 사용 가능**,
@@ -263,7 +279,7 @@ kbds_project/
 │   ├── ds_zero2.json       # ZeRO-2 (full-FT SFT용)
 │   ├── ds_zero3.json       # DeepSpeed ZeRO-3
 │   ├── ds_zero3_offload.json # ZeRO-3 + 옵티마이저 CPU 오프로드 (full-FT GRPO OOM 대비)
-│   └── medical_reward.py   # 3단계 LLM-as-judge 복합보상 plugin (스텁)
+│   └── medical_reward.py   # ★ 3단계 RaR 루브릭 보상 clinical_judge(AsyncORM, 멀티모달 judge·env 주입)
 ├── scripts/
 │   ├── 00_common.sh        # 공통 경로/환경/실행 래퍼 (모든 단계가 source)
 │   ├── 10_sft.slurm        # 1단계 (format cold-start) SFT — TUNER_TYPE 분기
@@ -274,6 +290,8 @@ kbds_project/
 │   ├── build_rft_coldstart.py # ★ rejection-sampling 간결 콜드스타트: 롤아웃 정답+간결 완성문 → SFT
 │   ├── probe_coldstart_infer.slurm # ★ 콜드스타트 격리 인퍼런스 진단(enable_thinking on/off 길이)
 │   ├── merge_probe_rft.slurm  # ★ RFT 콜드스타트 LoRA 병합 + 길이검증 인퍼런스
+│   ├── grpo_watch.sh / grpo_ab_update.py / plot_grpo_compare.py # ★ A/B 자동추적(레시피 일반화): watcher→README·plot 갱신
+│   ├── test_medical_reward.py # ★ 3단계 보상 유닛테스트(swift 스텁+mock judge, 24 검증)
 │   ├── watch_train.sh      # 학습 라이브 모니터(tmux)
 │   ├── build_sft.py        # (구) RL jsonl → SFT jsonl
 │   ├── convert_to_swift.py # parquet → ms-swift GRPO jsonl
@@ -361,11 +379,13 @@ singularity exec --bind $PWD/work --env HF_HUB_OFFLINE=1 $SB python scripts/conv
       GRPO에서 FormatThink 0.05→0.27(5배)·clip↓ **검증 완료**(`merge_probe_rft.slurm`).
 - [x] **Stage-2 GRPO baseline**(job 57249): LoRA-DDP + 6144 + RFT 콜드스타트 init. step 1000 완주(autostop) →
       `checkpoint-1000`. 추세 우상향(reward+48%·FormatThink+155%)이나 **Acc plateau 진단**(zero_std 0.24→0.33).
-- [▶] **GRPO 파생기법 A/B**(`scripts/21_rlvr_grpo_adv.slurm`, job 57526~): plateau 돌파용 `dynamic_sample`+
-      `overlong_filter` 코어 + dapo/gspo 레시피. 스모크 테스트 후 본실행 → baseline 대비 평가.
+- [x] **GRPO 파생기법 A/B 종결**(`scripts/21_rlvr_grpo_adv.slurm`): `dynamic_sample`+`overlong_filter` 코어 + dapo/gspo/dr_grpo.
+      **DAPO 돌파 미확인**(57527) / **dr_grpo 돌파 확인**(57624, step501~600 Acc 0.526>0.500) → **승자 dr_grpo `checkpoint-600`**.
 - [x] **[운영] 디스크 정리 ~42G**: 미사용 .sif 2개 + 대체된 콜드스타트 체크포인트 삭제, 스크립트 스테일 참조 정정.
-- [ ] `medical_reward.py` LLM-as-judge 실제 구현 + judge 기동 (Stage 3 전제)
-- [ ] **Stage 3**: medix + DeepVision 일부 혼합 LoRA RL (judge 보상, 망각 방지)
+- [x] **`medical_reward.py` RaR 루브릭 보상 구현**(clinical_judge AsyncORM, 정적 4차원, 유닛테스트 24/24) — spec §4.2
+- [ ] **judge 엔드포인트 확정·기동** (snuhub gemma4-26b 도달성 or 내부 self-host vLLM) — Stage-3 본실행 전제
+- [ ] **`30_medical_rl.slurm` 배선** + spec §8 분포 프로브(점수 단조성)
+- [ ] **Stage 3 본실행**: medix + DeepVision 일부 혼합 LoRA RL (judge 보상, 망각 방지)
 - [ ] 평가 벤치마크(`EVAL_DATASETS`)를 실제 의료 멀티모달 벤치마크로 교체
 - [ ] 하이퍼파라미터 튜닝(num_generations·lora_rank 등 — 메모리 여유 있음)
 

@@ -7,7 +7,7 @@
 
 <!-- AUTO:status START (scripts/grpo_ab_update.py 자동 갱신 — 수동 편집 금지) -->
 **파이프라인 위치**: Stage-2(범용 RLVR/GRPO) — baseline 완주 → Acc plateau 진단 → **DAPO 종결**(step 623, `checkpoint-600` 확정, step 501~600 Acc 0.465<baseline 0.500 → **돌파 미확인**) → **dr_grpo ✅ 돌파 확인·종결**(job 57624, step 689 TIMEOUT): **step 501~600 Acc 0.526 > baseline 0.500**(DAPO 0.465 실패) — 길이 억제(mean_len 3259<baseline)와 함께 정확도 우위 전환. 후반 꼬리(601~689) Acc 0.494로 소폭 냉각(길이 3426 반등) → **최적 = `checkpoint-600`**(= Stage-2 승자).
-→ **Stage-3(의료 RL) 착수**: **RaR 루브릭 보상 설계·구현 완료**(`medical_reward.py` clinical_judge, 유닛테스트 24/24). **judge 엔드포인트 확정 + slurm 배선**이 남은 선행과제.
+→ **Stage-3(의료 RL) 진행 중**: **RaR 루브릭 보상 + judge 검증 완료**. `medical_reward.py`(clinical_judge, 유닛테스트 24/24) + **judge=Qwen3.6-27B-FP8 멀티모달**을 **컴퓨트노드 vLLM 단일 40GB에서 검증**(스모크: 정답1.0>오답0.0 단조성·이미지 채점 OK). 남은 것: 학습↔judge **내부망 도달성 테스트** → 분포 프로브 → `30_medical_rl.slurm` 배선.
 <!-- AUTO:status END -->
 일별 상세 기록은 `docs/worklog_*.md`.
 
@@ -131,9 +131,10 @@ DAPO 종결 결론(안정성 OK·**돌파 미확인**, 길이↑→clip↑ 재�
 ### 다음 (예정)
 - ✅ Stage-2 A/B 완료 → **dr_grpo plateau 돌파**(승자 `grpo_general_adv_dr_grpo/.../checkpoint-600`).
 - ✅ **Stage-3 RaR 루브릭 보상 설계·구현**(`medical_reward.py`, spec §4.2, 유닛테스트 24/24).
-- ⏳ **judge 엔드포인트 확정** — snuhub(gemma4-26b) 컴퓨트노드 도달성 or 내부 self-host vLLM. (구현은 env 주입형이라 URL만 정해지면 연결)
-- ⏳ **`30_medical_rl.slurm` 배선** — dr_grpo `checkpoint-600` init + `--reward_funcs format_think clinical_judge` + judge env.
-- ⏳ judge 실연결 후 spec §8 분포 프로브(점수 단조성) → Stage-3 본실행.
+- ✅ **judge 확정·검증** — `Qwen3.6-27B-FP8`(멀티모달), 컴퓨트노드 vLLM 단일 40GB 적합·단조성 PASS(`31_judge_smoke.slurm`).
+- ⏳ **학습↔judge 내부망 도달성 테스트** (별도 잡 2개 간 IP:port).
+- ⏳ **분포 프로브** — medix 100~200건 judge 점수 분포·c2 캘리브레이션(spec §8).
+- ⏳ **`30_medical_rl.slurm` 배선** — dr_grpo `checkpoint-600` init + `--reward_funcs format_think clinical_judge` + judge 노드 env → Stage-3 본실행.
 
 ## 진행 이력 (날짜별 · 상세는 `docs/worklog_*.md`)
 - **2026-06-15** — 환경(컨테이너 swift4.1.3)·모델(Qwen3.5-9B)·데이터 확정·검증. **NVLink 부재 발견→전 단계 LoRA 전환**.
@@ -230,15 +231,18 @@ DAPO 4대 기법과 본 프로젝트 적용:
 - 비용: 본실행(57527) 실측 **~369s/it (baseline 202의 ~1.8배)**. 스모크(5 step)의 ~177s는 재샘플 부하가 거의 없는 초기값이라 과소추정 — 실제로는 `dynamic_sample` 재샘플(최대 3회)이 step당 생성량을 늘려 느려짐. 신호효율 향상의 대가.
 - 대안 레시피 `RECIPE=gspo`(sequence-level importance sampling, [arXiv:2507.18071](https://arxiv.org/abs/2507.18071))도 동일 스크립트에서 토글 가능.
 
-## Stage-3: 의료 RL — RaR 루브릭 보상 (설계 확정 · 상세 `docs/medical_reward_spec.md`)
+## Stage-3: 의료 RL — RaR 루브릭 보상 (설계 확정·judge 검증 완료 · 상세 `docs/medical_reward_spec.md`)
 개방형 의료 VQA(medix)는 단일정답 규칙검증이 불가 → **Rubric-as-a-Reward**([arXiv:2507.17746](https://arxiv.org/abs/2507.17746)):
 judge 가 가중 다기준 체크리스트를 항목별 0/1 채점, explicit 집계 `r = Σwⱼcⱼ / Σwⱼ ∈ [0,1]`(부분점수 dense).
 - **데이터 실측**: medix = 단답 VQA(정답 중앙값 46자, 예 "28×27mm"). RaR-Medicine-20k(텍스트전용·장문)는 **스키마만 차용**, 비채택.
 - **정적 4차원 루브릭**(가중 = RaR 정수): 정답정확성(5) / **시각근거(3, `<think>`·교차추론)** / 정밀도·단위(3, 측정형 자동분기) / 환각Pitfall(4).
   단답이라 핵심사실=참조답 1개 → **참조답을 Essential 기준에 템플릿 주입**(오프라인 LLM 루브릭 생성 불필요).
 - **구현** `configs/medical_reward.py` `ClinicalJudgeReward(AsyncORM)`: 형식게이트→멀티모달 judge(env `JUDGE_BASE_URL/MODEL/API_KEY`)
-  →JSON 0/1 파싱→집계. 타임아웃·파싱실패→0.0. 유닛테스트 `scripts/test_medical_reward.py` **24/24**(단조성 포함).
-- **남은 선행과제**: judge 엔드포인트(snuhub gemma4-26b 도달성 or 내부 self-host vLLM) 확정 → `30_medical_rl.slurm` 배선 → 분포 프로브.
+  →JSON 0/1 파싱→집계. 타임아웃·파싱실패→0.0. Qwen3 추론모델 대응(thinking off). 유닛테스트 `scripts/test_medical_reward.py` **24/24**.
+- **judge = `Qwen/Qwen3.6-27B-FP8`**(멀티모달, 같은 `qwen3_5` arch → 컨테이너 vLLM 0.19.1 그대로 서빙). `scripts/judge_server.sh`(40GB 보수설정: maxlen8K·enforce-eager·util0.92, TP).
+  - 🚨 **로그인노드 불가**: 드라이버 470(CUDA11.4) → vLLM 로드 실패(`cuTensorMapEncodeTiled` 없음). **judge는 컴퓨트노드(드라이버550)**. 학습↔judge 모두 컴퓨트노드라 **내부망 통신**(외부 egress 불필요).
+  - ✅ **스모크 검증**(`31_judge_smoke.slurm`, 1gpu): FP8 30GB **단일 40GB 적합**(36.6GB), 멀티모달 채점·JSON 파싱 OK, **정답1.0>오답0.0 단조성 PASS**.
+- **남은 선행과제**: 학습↔judge **내부망 도달성 테스트** → spec §8 분포 프로브(c2 캘리브레이션) → `30_medical_rl.slurm` 배선.
 
 ## 자원 정합성 (가이드 확인 완료)
 - 계획서의 **8×A100-80GB·896GB·128core 노드** = 일반 **`8gpu` 파티션**(가이드 공식표상
@@ -383,8 +387,9 @@ singularity exec --bind $PWD/work --env HF_HUB_OFFLINE=1 $SB python scripts/conv
       **DAPO 돌파 미확인**(57527) / **dr_grpo 돌파 확인**(57624, step501~600 Acc 0.526>0.500) → **승자 dr_grpo `checkpoint-600`**.
 - [x] **[운영] 디스크 정리 ~42G**: 미사용 .sif 2개 + 대체된 콜드스타트 체크포인트 삭제, 스크립트 스테일 참조 정정.
 - [x] **`medical_reward.py` RaR 루브릭 보상 구현**(clinical_judge AsyncORM, 정적 4차원, 유닛테스트 24/24) — spec §4.2
-- [ ] **judge 엔드포인트 확정·기동** (snuhub gemma4-26b 도달성 or 내부 self-host vLLM) — Stage-3 본실행 전제
-- [ ] **`30_medical_rl.slurm` 배선** + spec §8 분포 프로브(점수 단조성)
+- [x] **judge 확정·검증**: `Qwen3.6-27B-FP8`(멀티모달) 컴퓨트노드 vLLM 단일40GB 적합·단조성 PASS(`judge_server.sh`/`31_judge_smoke.slurm`). 로그인노드는 드라이버470이라 불가.
+- [ ] **학습↔judge 내부망 도달성 테스트** + spec §8 분포 프로브(c2 캘리브레이션)
+- [ ] **`30_medical_rl.slurm` 배선** (dr_grpo `checkpoint-600` init + judge 노드 연결)
 - [ ] **Stage 3 본실행**: medix + DeepVision 일부 혼합 LoRA RL (judge 보상, 망각 방지)
 - [ ] 평가 벤치마크(`EVAL_DATASETS`)를 실제 의료 멀티모달 벤치마크로 교체
 - [ ] 하이퍼파라미터 튜닝(num_generations·lora_rank 등 — 메모리 여유 있음)

@@ -35,6 +35,15 @@ JUDGE_TIMEOUT = float(os.environ.get('JUDGE_TIMEOUT', '60'))
 JUDGE_MAX_TOKENS = int(os.environ.get('JUDGE_MAX_TOKENS', '512'))
 MEASURE_TOL_PCT = int(os.environ.get('JUDGE_MEASURE_TOL_PCT', '15'))
 SEND_IMAGE = os.environ.get('JUDGE_SEND_IMAGE', '1') == '1'   # judge 가 멀티모달이면 1
+# Qwen3 계열 judge 는 추론모델 → JSON 판정만 필요하므로 thinking 끔(빈 content/토큰낭비 방지).
+JUDGE_THINK = os.environ.get('JUDGE_THINK', '0') == '1'
+_EXTRA_BODY = {} if JUDGE_THINK else {'chat_template_kwargs': {'enable_thinking': False}}
+
+
+def _msg_text(resp) -> str:
+    """추론모델 대응: content 비면 reasoning_content 폴백."""
+    m = resp.choices[0].message
+    return (getattr(m, 'content', None) or getattr(m, 'reasoning_content', None) or '')
 
 # 카테고리 가중치 (RaR 정수 스킴)
 W_ESSENTIAL, W_IMPORTANT, W_PITFALL, W_OPTIONAL = 5, 3, 4, 1
@@ -197,8 +206,9 @@ class ClinicalJudgeReward(AsyncORM):
             resp = await client.chat.completions.create(
                 model=JUDGE_MODEL,
                 messages=[{'role': 'user', 'content': content}],
-                temperature=0.0, max_tokens=JUDGE_MAX_TOKENS)
-            text = resp.choices[0].message.content
+                temperature=0.0, max_tokens=JUDGE_MAX_TOKENS,
+                extra_body=_EXTRA_BODY)
+            text = _msg_text(resp)
         except Exception:
             return 0.0  # 타임아웃/네트워크/서버오류 → 학습 중단 방지
         verdicts = parse_verdicts(text, rubric)

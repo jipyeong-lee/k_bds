@@ -24,7 +24,7 @@ EVAL_N="${EVAL_N:-150}"
 run_eval() {  # $1=tag  $2=model(경로 or HF id)
   local tag="$1" model="$2"
   echo "=================  [$tag] $model  ================="
-  singularity exec --nv --env HF_HUB_OFFLINE=1 \
+  singularity exec --nv --env HF_HUB_OFFLINE=1 --env VLLM_USE_MODELSCOPE=False \
     "$SB" vllm serve "$model" --served-model-name evalmodel \
       --max-model-len 10240 --gpu-memory-utilization 0.85 --enforce-eager \
       --limit-mm-per-prompt '{"image": 1}' --host 0.0.0.0 --port "$PORT" \
@@ -47,7 +47,9 @@ run_eval() {  # $1=tag  $2=model(경로 or HF id)
   sleep 5
 }
 
-run_eval base    "Qwen/Qwen3.5-9B"
+# base 는 로컬 스냅샷 경로로(HF id 주면 컨테이너가 modelscope 로 받으려다 read-only 캐시 실패)
+BASE_PATH=$(ls -d work/hf_cache/hub/models--Qwen--Qwen3.5-9B/snapshots/*/ 2>/dev/null | head -1)
+run_eval base    "$BASE_PATH"
 run_eval trained "$CKPT_DIR/dr_grpo_merged"
 
 echo ""

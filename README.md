@@ -6,8 +6,9 @@
 ## 현황 (2026-06-29 기준)
 
 <!-- AUTO:status START (scripts/grpo_ab_update.py 자동 갱신 — 수동 편집 금지) -->
-**파이프라인 위치**: Stage-2(범용 RLVR/GRPO) — baseline 완주 → Acc plateau 진단 → **DAPO 종결**(step 623, `checkpoint-600` 확정, step 501~600 Acc 0.465<baseline 0.500 → **돌파 미확인**) → **dr_grpo ✅ 돌파 확인·종결**(job 57624, step 689 TIMEOUT): **step 501~600 Acc 0.526 > baseline 0.500**(DAPO 0.465 실패) — 길이 억제(mean_len 3259<baseline)와 함께 정확도 우위 전환. 후반 꼬리(601~689) Acc 0.494로 소폭 냉각(길이 3426 반등) → **최적 = `checkpoint-600`**(= Stage-2 승자).
-→ **Stage-3(의료 RL) 진행 중**: **RaR 루브릭 보상 + judge 검증 완료**. `medical_reward.py`(clinical_judge, 유닛테스트 24/24) + **judge=Qwen3.6-27B-FP8 멀티모달**을 **컴퓨트노드 vLLM 단일 40GB에서 검증**(스모크: 정답1.0>오답0.0 단조성·이미지 채점 OK). 남은 것: 학습↔judge **내부망 도달성 테스트** → 분포 프로브 → `30_medical_rl.slurm` 배선.
+**파이프라인 위치**: Stage-2(범용 RLVR/GRPO) — baseline 완주 → Acc plateau 진단 → **DAPO 종결**(step 623, `checkpoint-600` 확정, step 501~600 Acc 0.465<baseline 0.500 → **돌파 미확인**) → **dr_grpo ✅ 돌파 확인·종결**(job 57624, step 689 TIMEOUT): **step 501~600 Acc 0.526 > baseline 0.500**(DAPO 0.465 실패) — 길이 억제(mean_len 3259<baseline)와 함께 정확도 우위 전환. 후반 꼬리(601~689) Acc 0.494로 소폭 냉각(길이 3426 반등) → **최적 = `checkpoint-600`**(= Stage-2 승자, 병합본 `dr_grpo_merged`).
+**📊 학습효과(vs base Qwen3.5-9B, DeepVision 홀드아웃): 정확도 0.21→0.35(+67% 상대)·형식 0.23→0.46(2배)·길이 5618→4414자↓** (`40_eval_compare.slurm`). → **Stage-2 완전 종결.**
+→ **Stage-3(의료 RL): 본실행 준비 완료.** RaR 루브릭 보상 + judge(Qwen3.6-27B-FP8 멀티모달) **전부 검증** — 유닛 24/24·judge 스모크(단일40GB·단조성)·내부망 도달성·분포 프로브(good0.96/wrong0.00, c2변별Δ0.94)·slurm 배선 ✅. **남은 것: 본실행** `bash scripts/launch_stage3.sh`.
 <!-- AUTO:status END -->
 일별 상세 기록은 `docs/worklog_*.md`.
 

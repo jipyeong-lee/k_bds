@@ -17,11 +17,11 @@ TAG = os.environ.get('EVAL_TAG', '?')
 SYSTEM = os.environ['SYSTEM_PROMPT']
 MODEL = os.environ['EVAL_MODEL']
 
-# 평가 슬라이스: stride 샘플(다양성·대부분 GRPO 미관측). base/trained 동일 슬라이스.
+# 평가셋 = 진짜 홀드아웃(학습 trainonly 에서 제외된 deepvision_holdout.jsonl). base/trained 동일 슬라이스.
+EVAL_DATA = os.environ.get('EVAL_DATA', 'work/data/deepvision_holdout.jsonl')
 rows = []
-for i, l in enumerate(open('work/data/deepvision103k_train.jsonl')):
-    if i % 137 == 11:
-        rows.append(json.loads(l))
+for l in open(EVAL_DATA):
+    rows.append(json.loads(l))
     if len(rows) >= N:
         break
 print(f"[eval:{TAG}] model={MODEL} N={len(rows)} conc={CONC}")
@@ -66,10 +66,19 @@ async def main():
     fmt = sum(1 for p in preds if re.search(r'<answer>.*?</answer>', p, re.S)) / len(preds)
     mlen = st.mean(len(p) for p in preds)
     print(f"[eval:{TAG}] accuracy={acc:.4f}  format(<answer>)={fmt:.2f}  mean_chars={mlen:.0f}  errors={errs}/{len(preds)}")
+    # 층(stratum)별 분리 보고 — 홀드아웃 라인의 _stratum (math / vl) 기준
+    strata = {}
+    for r, s in zip(rows, scores):
+        k = r.get('_stratum', 'all')
+        strata.setdefault(k, []).append(s)
+    per_stratum = {k: round(st.mean(v), 4) for k, v in strata.items()}
+    for k in sorted(strata):
+        print(f"          └ [{k:5}] accuracy={st.mean(strata[k]):.4f}  (n={len(strata[k])})")
     # 결과 파일(머신리더블) append
     with open('logs/eval_compare_results.jsonl', 'a') as f:
         f.write(json.dumps({'tag': TAG, 'model': MODEL, 'n': len(rows),
                             'accuracy': round(acc, 4), 'format': round(fmt, 3),
-                            'mean_chars': round(mlen, 0), 'errors': errs}) + '\n')
+                            'mean_chars': round(mlen, 0), 'errors': errs,
+                            'per_stratum': per_stratum}) + '\n')
 
 asyncio.run(main())

@@ -132,7 +132,7 @@ DAPO 종결 결론(안정성 OK·**돌파 미확인**, 길이↑→clip↑ 재�
 - ✅ Stage-2 A/B 완료 → **dr_grpo plateau 돌파**(승자 `grpo_general_adv_dr_grpo/.../checkpoint-600`).
 - ✅ **Stage-3 RaR 루브릭 보상 설계·구현**(`medical_reward.py`, spec §4.2, 유닛테스트 24/24).
 - ✅ **judge 확정·검증** — `Qwen3.6-27B-FP8`(멀티모달), 컴퓨트노드 vLLM 단일 40GB 적합·단조성 PASS(`31_judge_smoke.slurm`).
-- ⏳ **학습↔judge 내부망 도달성 테스트** (별도 잡 2개 간 IP:port).
+- ✅ **학습↔judge 내부망 도달성 테스트** 통과(컴퓨트노드 간 hostname·IP 200 OK, `32_net_test.slurm`).
 - ⏳ **분포 프로브** — medix 100~200건 judge 점수 분포·c2 캘리브레이션(spec §8).
 - ⏳ **`30_medical_rl.slurm` 배선** — dr_grpo `checkpoint-600` init + `--reward_funcs format_think clinical_judge` + judge 노드 env → Stage-3 본실행.
 
@@ -388,7 +388,8 @@ singularity exec --bind $PWD/work --env HF_HUB_OFFLINE=1 $SB python scripts/conv
 - [x] **[운영] 디스크 정리 ~42G**: 미사용 .sif 2개 + 대체된 콜드스타트 체크포인트 삭제, 스크립트 스테일 참조 정정.
 - [x] **`medical_reward.py` RaR 루브릭 보상 구현**(clinical_judge AsyncORM, 정적 4차원, 유닛테스트 24/24) — spec §4.2
 - [x] **judge 확정·검증**: `Qwen3.6-27B-FP8`(멀티모달) 컴퓨트노드 vLLM 단일40GB 적합·단조성 PASS(`judge_server.sh`/`31_judge_smoke.slurm`). 로그인노드는 드라이버470이라 불가.
-- [ ] **학습↔judge 내부망 도달성 테스트** + spec §8 분포 프로브(c2 캘리브레이션)
+- [x] **학습↔judge 내부망 도달성 테스트** 통과(`32_net_test.slurm`)
+- [ ] spec §8 분포 프로브(c2 캘리브레이션)
 - [ ] **`30_medical_rl.slurm` 배선** (dr_grpo `checkpoint-600` init + judge 노드 연결)
 - [ ] **Stage 3 본실행**: medix + DeepVision 일부 혼합 LoRA RL (judge 보상, 망각 방지)
 - [ ] 평가 벤치마크(`EVAL_DATASETS`)를 실제 의료 멀티모달 벤치마크로 교체

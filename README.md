@@ -12,7 +12,17 @@
 <!-- AUTO:status END -->
 일별 상세 기록은 `docs/worklog_*.md`.
 
-### Stage-2 GRPO baseline (job 57249 · step 1000 완주)
+## 목차
+1. **현황** — 파이프라인 위치·핵심 결과 (맨 위)
+2. **Stage-2 결과** (범용 RLVR/GRPO · 종결) — 3기법 비교·통합 plot·base vs 학습모델 벤치마크
+3. **Stage-3** (의료 RL · RaR judge) — 설계·검증·배선 (본실행 대기)
+4. **기술 레퍼런스** — 환경·모델·학습방식(LoRA)·보상·DAPO 레시피
+5. **운영·데이터** — 자원·정책·데이터 경로·디렉토리·사용순서·노드시간 예산
+6. **진행 이력 / TODO** — 일자별 기록·체크리스트
+
+## Stage-2 결과 (범용 RLVR/GRPO · ✅ 종결)
+
+### baseline (job 57249 · step 1000 완주)
 RFT 간결 콜드스타트 init + LoRA-DDP + max_completion 6144. step 1000에서 autostop(`checkpoint-1000` 저장 후
 자동 scancel). 산출: `work/checkpoints/grpo_general/v11-20260616-165537/checkpoint-1000`. 100-step 구간평균 추세:
 
@@ -21,11 +31,6 @@ RFT 간결 콜드스타트 init + LoRA-DDP + max_completion 6144. step 1000에�
 | 1–100 | 0.377 | 0.418 | 0.259 | 0.420 | 3778 | 0.240 |
 | 501–600 | 0.534 | **0.500** | 0.525 | 0.307 | 3309 | 0.249 |
 | 901–1000 | **0.557** | 0.491 | **0.660** | **0.279** | **3267** | **0.328** |
-
-![Stage-2 GRPO baseline 추세](docs/assets/grpo57249_trend.png)
-
-*(100-step 구간평균. 상단: reward·AccuracyMix·FormatThink / 하단: clip·zero_std·mean_length.
-재생성: `singularity exec work/images/ms-swift-413-sandbox python scripts/plot_grpo_trend.py logs/<log> docs/assets/<png>`)*
 
 - ✅ 발산/붕괴 없음. FormatThink +155%·clip↓·길이↓ → RFT 콜드스타트 효과 지속 강화.
 - ⚠️ **[진단] Acc plateau**: Acc는 step~500서 0.50 정점 후 정체. 원인 = **`frac_reward_zero_std` 0.24→0.33 상승**
@@ -67,61 +72,21 @@ RFT 간결 콜드스타트 init + LoRA-DDP + max_completion 6144. step 1000에�
 > 요지: **DAPO 는 "탐색·신호 효율"**(clip-higher + 동적샘플)을, **dr_grpo 는 "정규화 편향 제거"**(길이·난이도)를 노린다.
 > 둘 다 공통 코어(`dynamic_sample`+`overlong_filter`)는 켠 채, baseline 과 그 외 조건은 동일(clean A/B). GSPO 등 추가 레시피는 "GRPO 파생기법" 절 참고.
 
-<!-- AUTO:ab START (scripts/grpo_ab_update.py 자동 갱신 — 100-step마다 watcher 가 재생성. 수동 편집 금지) -->
-  **baseline(57249) vs DAPO(57527) — 동일 구간 step 1~623 비교:**
+**3기법 최종 비교** (동일구간 누적 + 돌파판정 구간):
 
-  | 지표 | baseline | DAPO | 차이 |
-  |------|----------|------|------|
-  | **frac_zero_std**(무신호 그룹) | 0.238 | **0.001** | ↓0.237 ★ |
-  | FormatThink | 0.405 | 0.608 | ↑0.203 |
-  | reward | 0.445 | 0.493 | ↑0.048 |
-  | clip(잘림) | 0.360 | 0.303 | ↓0.058 |
-  | Acc | 0.446 | 0.444 | ↓0.001 |
-  | mean_len | 3531 | 3452 | ↓79 |
+| 지표 | baseline(57249) | DAPO(57527) | **dr_grpo(57624)** |
+|------|-----------------|-------------|--------------------|
+| **step 501~600 Acc** (돌파판정) | 0.500 | 0.465 ❌ | **0.526 ✅** |
+| `frac_reward_zero_std` | 0.24→0.33 (↑=plateau 원인) | **0.00** | **0.00** |
+| mean_len (후반) | 3267 | ~3600 (↑재폭주) | **3259 (억제)** |
+| 누적 Acc (동일구간) | ~0.45 | 0.444 | **0.498** |
+| 판정 | plateau 정체 | 안정하나 **미돌파** | **✅ 돌파 (승자)** |
 
-  - ✅ **dynamic_sample 가설 검증**: `frac_reward_zero_std` 0.24→**0.00**. baseline 이 매 step ~24% 낭비하던 무신호 그룹을 재샘플로 제거(plateau 직격).
-  - ✅ **형식 수렴**: 동일구간 FormatThink baseline 0.41 → DAPO **0.61**.
-  - ⚠️ **속도 ~1.8배**: DAPO ~368s/it vs baseline 202.
-  - 📏 **길이·clip**: mean_len 3452(Δ-79) / clip 0.303(Δ-0.058) vs baseline.
-  - ⚠️ **돌파 미확인**: step 501~600 구간 Acc DAPO 0.465 < baseline **0.500** (Δ-0.035) — 안정성 이득이 아직 정확도로 미전환.
-  - 누적 참고: DAPO 0.444 vs baseline 0.446 (누적) — step 623까지 평균.
-<!-- AUTO:ab END -->
+![Stage-2 3기법 비교](docs/assets/grpo_stage2_all.png)
 
-  ![baseline vs DAPO 추세 비교](docs/assets/grpo_dapo_vs_baseline.png)
-
-  *(50-step 구간평균. 실선=baseline(57249, step 1000) / 점선=DAPO(57527, **종결 step 623·`checkpoint-600` 확정**). 상단 reward·Acc·FormatThink, 하단 clip·zero_std.
-  DAPO FormatThink 급상승·zero_std 0.00 평탄선이 핵심이나 step 501~600 Acc 0.465<baseline 0.500 → **돌파 미확인**. 재생성:
-  `singularity exec work/images/ms-swift-413-sandbox python scripts/plot_grpo_compare.py logs/grpo_stage2_57249.log baseline logs/grpo_adv_57527.log DAPO docs/assets/grpo_dapo_vs_baseline.png`)*
-
-### dr_grpo A/B (DAPO 길이폭주 진단 직격 · ✅ 돌파 확인·종결)
-DAPO 종결 결론(안정성 OK·**돌파 미확인**, 길이↑→clip↑ 재폭주 추정)을 직격하기 위해 **Dr.GRPO**(arXiv:2503.20783):
-`loss_type=dr_grpo`(길이정규화 편향 제거) + `scale_rewards=none`(그룹 std 난이도 편향 제거). 공통 코어(dynamic_sample
-+overlong_filter) 유지, clip-higher 미적용(대칭 ε 0.2). baseline·DAPO 와 동일 init 으로 clean A/B. (job 57624)
-
-<!-- AUTO:ab:dr_grpo START (scripts/grpo_ab_update.py 자동 갱신 — 100-step마다 watcher 가 재생성. 수동 편집 금지) -->
-  **baseline(57249) vs dr_grpo(57624) — 동일 구간 step 1~689 비교:**
-
-  | 지표 | baseline | dr_grpo | 차이 |
-  |------|----------|------|------|
-  | **frac_zero_std**(무신호 그룹) | 0.242 | **0.000** | ↓0.242 ★ |
-  | FormatThink | 0.421 | 0.464 | ↑0.043 |
-  | reward | 0.453 | 0.523 | ↑0.069 |
-  | clip(잘림) | 0.355 | 0.279 | ↓0.076 |
-  | Acc | 0.449 | 0.498 | ↑0.049 |
-  | mean_len | 3510 | 3391 | ↓119 |
-
-  - ✅ **dynamic_sample 가설 검증**: `frac_reward_zero_std` 0.24→**0.00**. baseline 이 매 step ~24% 낭비하던 무신호 그룹을 재샘플로 제거(plateau 직격).
-  - ✅ **형식 수렴**: 동일구간 FormatThink baseline 0.42 → dr_grpo **0.46**.
-  - ⚠️ **속도 ~1.8배**: dr_grpo ~369s/it vs baseline 202.
-  - 📏 **길이·clip**: mean_len 3391(Δ-119) / clip 0.279(Δ-0.076) vs baseline.
-  - ✅ **돌파 확인**: step 501~600 구간 Acc dr_grpo **0.526** vs baseline 0.500 (Δ+0.027) — 안정성이 정확도 우위로 전환됨.
-  - 누적 참고: dr_grpo 0.498 vs baseline 0.449 (누적) — step 689까지 평균.
-<!-- AUTO:ab:dr_grpo END -->
-
-  ![baseline vs dr_grpo 추세 비교](docs/assets/grpo_dr_grpo_vs_baseline.png)
-
-  *(50-step 구간평균. 실선=baseline(57249) / 점선=dr_grpo(57624, **종결 step 689·`checkpoint-600` 확정**). 재생성:
-  `singularity exec work/images/ms-swift-413-sandbox python scripts/plot_grpo_compare.py logs/grpo_stage2_57249.log baseline logs/grpo_adv_57624.log dr_grpo docs/assets/grpo_dr_grpo_vs_baseline.png`)*
+*(50-step 구간평균. baseline(실선)·DAPO(파선)·dr_grpo(점선). **dr_grpo만 step 501~600(노란 띠)서 Acc 0.50 돌파**하며
+mean_length 억제(DAPO는 길이↑→정확도 미전환). zero_std 는 DAPO·dr_grpo 둘 다 0 평탄, baseline 만 상승(=plateau 원인).
+재생성: `singularity exec work/images/ms-swift-413-sandbox python scripts/plot_grpo_all.py logs/grpo_stage2_57249.log logs/grpo_adv_57527.log logs/grpo_adv_57624.log docs/assets/grpo_stage2_all.png`)*
 
 ### Stage-2 학습 효과: base vs 학습모델 (DeepVision 홀드아웃 100건, `40_eval_compare.slurm`)
 콜드스타트 SFT + Stage-2 GRPO(dr_grpo) 의 실제 효과를 base(Qwen3.5-9B)와 동일조건 비교(accuracy_mix 자동채점):
@@ -134,13 +99,13 @@ DAPO 종결 결론(안정성 OK·**돌파 미확인**, 길이↑→clip↑ 재�
 
 → 학습이 **정확도·형식·간결성** 모두 개선. (N=100·max_tokens 2048·DeepVision in-domain. 외부 멀티모달 벤치마크는 Stage-4 평가에서 추가.) 산출 init = `dr_grpo_merged`(Stage-3 init 겸).
 
-### 핵심 의사결정 이력 (상세: 해당 섹션 / worklog)
+## 핵심 의사결정 이력 (상세: 해당 섹션 / worklog)
 - **NVLink 없음 → 전 단계 LoRA**: PCIe A100·SHM 폴백으로 full-FT 375~660s/step → LoRA ~5배↑. ☞ "학습 방식" 절.
 - **추론 길이 폭주 → rejection-sampling 간결 콜드스타트**: base가 본래 3.5~4.6K토큰 장문, 잘림=0점이 정체 원인.
   ZeRO-3 길이확대는 5배 느려 불채택. ☞ `worklog_2026-06-16`.
 - **보상 = accuracy_mix + format_think + soft_overlong**: 내장 accuracy의 letter 미파싱 보완. ☞ "보상 설계" 절.
 
-### 다음 (예정)
+## 다음 (예정)
 - ✅ Stage-2 A/B 완료 → **dr_grpo plateau 돌파**(승자 `grpo_general_adv_dr_grpo/.../checkpoint-600`).
 - ✅ **Stage-3 RaR 루브릭 보상 설계·구현**(`medical_reward.py`, spec §4.2, 유닛테스트 24/24).
 - ✅ **judge 확정·검증** — `Qwen3.6-27B-FP8`(멀티모달), 컴퓨트노드 vLLM 단일 40GB 적합·단조성 PASS(`31_judge_smoke.slurm`).
@@ -307,7 +272,9 @@ kbds_project/
 │   ├── build_rft_coldstart.py # ★ rejection-sampling 간결 콜드스타트: 롤아웃 정답+간결 완성문 → SFT
 │   ├── probe_coldstart_infer.slurm # ★ 콜드스타트 격리 인퍼런스 진단(enable_thinking on/off 길이)
 │   ├── merge_probe_rft.slurm  # ★ RFT 콜드스타트 LoRA 병합 + 길이검증 인퍼런스
-│   ├── grpo_watch.sh / grpo_ab_update.py / plot_grpo_compare.py # ★ A/B 자동추적(레시피 일반화): watcher→README·plot 갱신
+│   ├── grpo_watch.sh / grpo_ab_update.py / plot_grpo_{compare,all}.py # ★ A/B 자동추적·비교 plot(통합 plot=plot_grpo_all)
+│   ├── judge_server.{sh,slurm} / 31_judge_smoke.slurm / judge_smoke_client.py / judge_probe.py / 33_judge_probe.slurm # ★ Stage-3 judge 서빙·검증
+│   ├── merge_drgrpo.slurm / launch_stage3.sh / 32_net_test.slurm / 40_eval_compare.slurm / eval_compare.py # ★ Stage-3 배선·평가
 │   ├── test_medical_reward.py # ★ 3단계 보상 유닛테스트(swift 스텁+mock judge, 24 검증)
 │   ├── watch_train.sh      # 학습 라이브 모니터(tmux)
 │   ├── build_sft.py        # (구) RL jsonl → SFT jsonl

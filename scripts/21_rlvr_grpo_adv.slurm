@@ -99,6 +99,21 @@ echo "[grpo-adv] RECIPE_ARGS=$RECIPE_ARGS"
 
 OUTPUT_DIR="${OUTPUT_DIR:-$CKPT_DIR/grpo_general_adv_$RECIPE}"
 
+# ---- resume / max_steps (1-epoch 이어학습 체인용) --------------------------
+#  RESUME=1 → OUTPUT_DIR 하위 모든 버전에서 최신 checkpoint-N 자동 resume.
+#  MAX_STEPS=<n> → 그 step 에서 정지(예 1 epoch=3235). 체인 잡들이 max_steps 도달 시 자동 no-op.
+RESUME_ARGS=""
+if [[ "${RESUME:-0}" == "1" ]]; then
+  LATEST=$(ls -d "$OUTPUT_DIR"/*/checkpoint-* 2>/dev/null \
+    | awk -F'checkpoint-' '{print $2"\t"$0}' | sort -n | tail -1 | cut -f2-)
+  if [[ -n "$LATEST" ]]; then
+    RESUME_ARGS="--resume_from_checkpoint $LATEST"; echo "[grpo-adv] RESUME from: $LATEST"
+  else
+    echo "[grpo-adv] RESUME=1 이나 체크포인트 없음 → 신규 시작"
+  fi
+fi
+[[ -n "${MAX_STEPS:-}" ]] && RESUME_ARGS="$RESUME_ARGS --max_steps $MAX_STEPS" && echo "[grpo-adv] MAX_STEPS=$MAX_STEPS"
+
 run_py swift rlhf \
   --rlhf_type grpo \
   --model "$INIT_MODEL" \
@@ -138,6 +153,7 @@ run_py swift rlhf \
   --logging_steps 1 \
   --output_dir "$OUTPUT_DIR" \
   --report_to tensorboard \
+  $RESUME_ARGS \
   $EXTRA_ARGS
 
 echo "[grpo-adv] done ($RECIPE) -> $OUTPUT_DIR"

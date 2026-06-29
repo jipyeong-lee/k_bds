@@ -69,9 +69,8 @@
 
 1. [x] **학습↔judge 내부망 도달성 테스트** ✅통과(`32_net_test.slurm`, hostname·IP 200) — judge 잡(1gpu/2gpu) 먼저 띄우고, 별도 잡(다른 컴퓨트노드)에서 그 노드 IP:port 접속 확인.
 2. [x] **분포 프로브 통과**(`33_judge_probe.slurm`): good0.96/wrong0.00/halluc0.64, 단조성99%, c2변별 good0.94 vs halluc0.00. (c2 과엄격→'영상과 모순없는 관찰'로 완화)
-3. [ ] **`scripts/30_medical_rl.slurm` 배선** — init=dr_grpo `checkpoint-600`(병합본), `--reward_funcs format_think clinical_judge`,
-   `--reward_weights`(초안 0.2 1.0), judge 노드 `JUDGE_BASE_URL` 자동 주입. judge 잡 + 학습 잡 동시 가동(노드시간 추가 — 예산 재산정).
-4. [ ] **Stage-3 본실행** — medix(+DeepVision 일부 혼합으로 망각 방지) LoRA GRPO.
+3. [x] **배선 완료**: `30_medical_rl.slurm`(LoRA+dr_grpo init+format_think/clinical_judge)·`judge_server.slurm`(judge 상주+ready파일)·`merge_drgrpo.slurm`·`launch_stage3.sh`(merge→judge ready→학습 순차 제출).
+4. [ ] **Stage-3 본실행** — `bash scripts/launch_stage3.sh` (judge 1gpu + 학습 8gpu 동시; 끝나면 judge scancel). 망각 방지용 DeepVision 혼합은 옵션.
 5. [ ] `scripts/40_eval.slurm` EVAL_DATASETS 를 실제 의료 멀티모달 벤치마크로 교체.
 
 ---
@@ -82,6 +81,7 @@
 - **컨테이너**: `work/images/ms-swift-413-sandbox`(swift4.1.3/torch2.10/vllm0.19.1). glibc2.17이라 conda vLLM 불가.
 - **공통설정**: `scripts/00_common.sh`. 단일GPU 디버그는 `export NPROC_PER_NODE=1` 필수.
 - **judge 서버 기동**(컴퓨트노드): `JUDGE_PORT=8100 JUDGE_TP=1 bash scripts/judge_server.sh` (1gpu) / `JUDGE_TP=2`(2gpu).
+- **Stage-3 전체 실행**: `bash scripts/launch_stage3.sh` (merge→judge→학습 오케스트레이션). 수동 시 judge 잡 먼저, endpoint 는 `logs/judge_endpoint.txt`.
 - **푸시**: `git push origin HEAD:master` (로컬 main → 원격 master).
 - ⚠️ **보안**: `~/model_download.py` 에 HF 토큰 평문 노출 — 재발급·env 분리 권장.
 

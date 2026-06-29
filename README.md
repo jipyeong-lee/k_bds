@@ -134,7 +134,8 @@ DAPO 종결 결론(안정성 OK·**돌파 미확인**, 길이↑→clip↑ 재�
 - ✅ **judge 확정·검증** — `Qwen3.6-27B-FP8`(멀티모달), 컴퓨트노드 vLLM 단일 40GB 적합·단조성 PASS(`31_judge_smoke.slurm`).
 - ✅ **학습↔judge 내부망 도달성 테스트** 통과(컴퓨트노드 간 hostname·IP 200 OK, `32_net_test.slurm`).
 - ✅ **분포 프로브 통과** — good0.96/wrong0.00/halluc0.64, 단조성99%, c2변별Δ0.94(spec §8-결과). 보상 사용준비 완료.
-- ⏳ **`30_medical_rl.slurm` 배선** — dr_grpo `checkpoint-600` init + `--reward_funcs format_think clinical_judge` + judge 노드 env → Stage-3 본실행.
+- ✅ **`30_medical_rl.slurm` 배선 완료** — LoRA + dr_grpo init + format_think/clinical_judge 보상 + judge 오케스트레이터(`launch_stage3.sh`).
+- ⏳ **Stage-3 본실행** — `bash scripts/launch_stage3.sh`(judge 잡 ready 후 학습 잡 자동 제출).
 
 ## 진행 이력 (날짜별 · 상세는 `docs/worklog_*.md`)
 - **2026-06-15** — 환경(컨테이너 swift4.1.3)·모델(Qwen3.5-9B)·데이터 확정·검증. **NVLink 부재 발견→전 단계 LoRA 전환**.
@@ -390,7 +391,7 @@ singularity exec --bind $PWD/work --env HF_HUB_OFFLINE=1 $SB python scripts/conv
 - [x] **judge 확정·검증**: `Qwen3.6-27B-FP8`(멀티모달) 컴퓨트노드 vLLM 단일40GB 적합·단조성 PASS(`judge_server.sh`/`31_judge_smoke.slurm`). 로그인노드는 드라이버470이라 불가.
 - [x] **학습↔judge 내부망 도달성 테스트** 통과(`32_net_test.slurm`)
 - [x] spec §8 분포 프로브 통과(단조성99%·c2변별Δ0.94, c2 완화)
-- [ ] **`30_medical_rl.slurm` 배선** (dr_grpo `checkpoint-600` init + judge 노드 연결)
+- [x] **Stage-3 배선 완료**: `30_medical_rl.slurm`(LoRA+judge보상)·`judge_server.slurm`·`merge_drgrpo.slurm`·`launch_stage3.sh`(오케스트레이터)
 - [ ] **Stage 3 본실행**: medix + DeepVision 일부 혼합 LoRA RL (judge 보상, 망각 방지)
 - [ ] 평가 벤치마크(`EVAL_DATASETS`)를 실제 의료 멀티모달 벤치마크로 교체
 - [ ] 하이퍼파라미터 튜닝(num_generations·lora_rank 등 — 메모리 여유 있음)

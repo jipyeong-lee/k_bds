@@ -1,7 +1,7 @@
 # 3단계 의료 복합 보상 (clinical_judge) 구현 스펙
 
 > 대상: `configs/medical_reward.py` + `scripts/30_medical_rl.slurm`
-> 상태: **스펙(구현 전)**. ms-swift 4.1.3 컨테이너 소스 조사 기반.
+> 상태: **구현·검증 완료**(보상 + judge Qwen3.6-27B-FP8 분포프로브 통과, 2026-06-29). 남은 것: `30_medical_rl.slurm` 배선.
 
 ## 1. 목표 & 범위
 - **judge 는 3단계(개방형 의료 RL) 전용**. 2단계 RLVR(DeepVision)은 judge 안 씀 — 검증가능 정답을

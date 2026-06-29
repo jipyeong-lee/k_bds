@@ -68,7 +68,7 @@
 ## 5. 다음 할 일 (순서)
 
 1. [x] **학습↔judge 내부망 도달성 테스트** ✅통과(`32_net_test.slurm`, hostname·IP 200) — judge 잡(1gpu/2gpu) 먼저 띄우고, 별도 잡(다른 컴퓨트노드)에서 그 노드 IP:port 접속 확인.
-2. [ ] **분포 프로브**(spec §8) — medix 100~200건에 judge 적용 → 점수 분포·단조성·**c2(시각근거) 캘리브레이션** 점검(스모크에선 c2 다소 관대).
+2. [x] **분포 프로브 통과**(`33_judge_probe.slurm`): good0.96/wrong0.00/halluc0.64, 단조성99%, c2변별 good0.94 vs halluc0.00. (c2 과엄격→'영상과 모순없는 관찰'로 완화)
 3. [ ] **`scripts/30_medical_rl.slurm` 배선** — init=dr_grpo `checkpoint-600`(병합본), `--reward_funcs format_think clinical_judge`,
    `--reward_weights`(초안 0.2 1.0), judge 노드 `JUDGE_BASE_URL` 자동 주입. judge 잡 + 학습 잡 동시 가동(노드시간 추가 — 예산 재산정).
 4. [ ] **Stage-3 본실행** — medix(+DeepVision 일부 혼합으로 망각 방지) LoRA GRPO.

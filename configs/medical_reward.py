@@ -74,9 +74,10 @@ def build_rubric(reference: str, measurement: bool) -> List[dict]:
          'description': (f"Essential Criteria: The <answer> matches the reference answer "
                          f"'{ref}' in meaning (synonyms, unit conversion, and paraphrase are allowed).")},
         {'key': 'c2', 'title': 'Visual grounding', 'weight': W_IMPORTANT,
-         'description': ("Important Criteria: The <think> reasoning cites ACTUAL visual findings in the "
-                         "image (e.g. location, shape, boundary, intensity) that genuinely support the answer, "
-                         "rather than generic or fabricated description.")},
+         'description': ("Important Criteria: The <think> reasoning refers to an image-relevant observation "
+                         "that is CONSISTENT with the actual image and supports the answer. It need not be "
+                         "highly detailed, but it must NOT contradict or fabricate what the image shows "
+                         "(e.g. describing structures or scenery absent from the image fails this).")},
     ]
     if measurement:
         rubric.append(

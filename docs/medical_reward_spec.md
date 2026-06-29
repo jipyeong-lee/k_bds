@@ -54,7 +54,7 @@ judge 가 **(나중에) 대형·멀티모달 모델을 API 로 사용** 예정 �
 | # | title | weight | 대상 | description(요지) |
 |---|-------|--------|------|------|
 | 1 | 정답 정확성 | 5(Essential) | `<answer>` | 참조답과 의미 일치(동의어·단위환산·환언 허용) — **참조답 주입** |
-| 2 | 시각적 근거 | 3(Important) | `<think>` | 추론이 영상의 실제 소견을 인용해 답을 뒷받침 (⭐ 교차추론) |
+| 2 | 시각적 근거 | 3(Important) | `<think>` | 추론이 **영상과 모순되지 않는 image-relevant 관찰**을 언급(⭐ 교차추론). 엉뚱/날조 묘사=0 |
 | 3 | 정밀도·단위 | 3(Important) | `<answer>` | 수치 크기·단위가 ±15% 내 — **측정 문항 한정**(참조답에 숫자+단위 정규식 매치 시 자동 포함) |
 | 4 | 환각·과잉주장 없음 | 4(Pitfall) | 전체 | 영상에 없는 소견·질문 안 한 주장 추가 안 함 |
 
@@ -127,3 +127,9 @@ run_py swift rlhf --rlhf_type grpo \
 - GPU OOM(정책+참조+rollout+judge 4모델 동시 적재).
 - reward collapse / judge 편향·환각(임상 오판) → 강력 judge + 참조답 의존 + 다차원 루브릭으로 완화.
 - judge 자기일관성 부족 → 온도 0 / 결정적 디코딩.
+
+## 8-결과. 분포 프로브 결과 (2026-06-29, judge=Qwen3.6-27B-FP8, medix 100건×3변형)
+- good 0.96 / wrong 0.00 / halluc 0.64. 단조성 good>wrong **99%**, parsefail 0/300.
+- **c2 변별 good 0.94 vs halluc 0.00 (Δ+0.94)** — judge 가 이미지 실제 확인(엉뚱묘사 차단).
+- c2 초판은 '구체적 아니면 0'으로 과엄격(항상 0) → '영상과 모순 안 되는 관찰'로 완화 후 4차원 모두 활성.
+- 스크립트: `scripts/33_judge_probe.slurm` + `judge_probe.py`. → **보상 Stage-3 사용 준비 완료.**

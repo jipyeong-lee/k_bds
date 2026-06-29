@@ -39,7 +39,8 @@ run_eval() {  # $1=tag  $2=model(경로 or HF id)
   if [ "$ready" = "1" ]; then
     singularity exec --nv --env HF_HUB_OFFLINE=1 \
       --env EVAL_BASE_URL=http://localhost:$PORT/v1 --env EVAL_MODEL=evalmodel \
-      --env EVAL_N=$EVAL_N --env EVAL_CONC="${EVAL_CONC:-8}" --env EVAL_TAG="$tag" \
+      --env EVAL_N=$EVAL_N --env EVAL_CONC="${EVAL_CONC:-16}" --env EVAL_TAG="$tag" \
+      --env EVAL_MAXTOK="${EVAL_MAXTOK:-2048}" \
       --env SYSTEM_PROMPT="$SYSTEM_PROMPT" \
       "$SB" python scripts/eval_compare.py
   fi

@@ -122,6 +122,17 @@ DAPO 종결 결론(안정성 OK·**돌파 미확인**, 길이↑→clip↑ 재�
   *(50-step 구간평균. 실선=baseline(57249) / 점선=dr_grpo(57624, **종결 step 689·`checkpoint-600` 확정**). 재생성:
   `singularity exec work/images/ms-swift-413-sandbox python scripts/plot_grpo_compare.py logs/grpo_stage2_57249.log baseline logs/grpo_adv_57624.log dr_grpo docs/assets/grpo_dr_grpo_vs_baseline.png`)*
 
+### Stage-2 학습 효과: base vs 학습모델 (DeepVision 홀드아웃 100건, `40_eval_compare.slurm`)
+콜드스타트 SFT + Stage-2 GRPO(dr_grpo) 의 실제 효과를 base(Qwen3.5-9B)와 동일조건 비교(accuracy_mix 자동채점):
+
+| 지표 | base (Qwen3.5-9B) | **학습모델 (dr_grpo_merged)** | 변화 |
+|------|-------------------|------------------------------|------|
+| **정확도** | 0.21 | **0.35** | **+0.14 (+67% 상대)** |
+| 형식 준수(`<answer>`) | 0.23 | **0.46** | +100% |
+| 평균 길이(자) | 5618 | 4414 | −21%(장황↓) |
+
+→ 학습이 **정확도·형식·간결성** 모두 개선. (N=100·max_tokens 2048·DeepVision in-domain. 외부 멀티모달 벤치마크는 Stage-4 평가에서 추가.) 산출 init = `dr_grpo_merged`(Stage-3 init 겸).
+
 ### 핵심 의사결정 이력 (상세: 해당 섹션 / worklog)
 - **NVLink 없음 → 전 단계 LoRA**: PCIe A100·SHM 폴백으로 full-FT 375~660s/step → LoRA ~5배↑. ☞ "학습 방식" 절.
 - **추론 길이 폭주 → rejection-sampling 간결 콜드스타트**: base가 본래 3.5~4.6K토큰 장문, 잘림=0점이 정체 원인.

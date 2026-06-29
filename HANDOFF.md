@@ -27,7 +27,8 @@
 | step501~600 Acc | 0.500 | 0.465 ❌ | **0.526 ✅** |
 
 - 3기법 메커니즘·실증 비교는 README "Stage-2 A/B" 절(표·plot) 참조. A/B 자동추적 인프라: `scripts/grpo_watch.sh`+`grpo_ab_update.py`+`plot_grpo_compare.py`(레시피 일반화, watcher가 100-step마다 README·plot 갱신·push). **현재 watcher 비가동**(Stage-2 종료).
-- **Stage-3 init = dr_grpo `checkpoint-600`** (이 LoRA 어댑터를 base 병합 후 init 으로 사용 예정).
+- **Stage-3 init = `work/checkpoints/dr_grpo_merged`** (checkpoint-600 병합 완료, 18G).
+- **학습효과 검증**(`40_eval_compare.slurm`, DeepVision 홀드아웃 100건): base→학습모델 **정확도 0.21→0.35(+67%)·형식 0.23→0.46·길이 5618→4414자↓**. 결과 `logs/eval_compare_results.jsonl`.
 
 ---
 

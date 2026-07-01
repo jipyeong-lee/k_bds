@@ -10,7 +10,7 @@
 - ✅ **조치**: 정답유형 **층화 홀드아웃 분리**(`make_holdout.py` — math 453 + visual-logic 519 = 972, 학습 `trainonly` 102,531) + **init 부터 fresh 1 epoch 재학습**(누수 0). 현재 **job 58892** 외 afterany 체인(총 6잡), `checkpoint` 진행 중.
 - ⚠️ 이전 "정확도 0.21→0.35(+67%)" 벤치마크는 **in-distribution 오염 + 21% 학습**이라 **무효** — 1 epoch 완주 후 **층화 홀드아웃(math/visual-logic 분리)** 에서 재측정 예정.
 
-→ **Stage-3(의료 RL, RaR): 설계·검증 완료, Stage-2 완주까지 대기.** RaR 루브릭 보상 + judge(Qwen3.6-27B-FP8) 전부 검증(유닛 24/24·스모크·내부망·분포 프로브). **정적 vs 인스턴스 루브릭 실증 비교 → 정적 채택 확정**(환각변별 +0.338 vs +0.021). 남은 것: 본실행 `bash scripts/launch_stage3.sh`.
+→ **Stage-3(의료 RL, RaR): 설계·배선 end-to-end 검증 완료, Stage-2 완주까지 대기.** RaR 루브릭 보상 + judge(Qwen3.6-27B-FP8) 전부 검증(유닛 29/29·judge 스모크·내부망·분포 프로브·**GRPO 배선 스모크**). **정적 vs 인스턴스 루브릭 실증 비교 → 정적 채택 확정**(환각변별 +0.338 vs +0.021). **배선 스모크에서 실버그 발견·수정**: swift 가 `images` 를 str 경로가 아니라 dict `{bytes,path}` 로 넘겨 이미지가 judge 에 누락될 뻔 → 수정 후 재검증 PASS(ClinicalJudge 0.58→1.0, 보상 정상 통합). 남은 것: 본실행 `bash scripts/launch_stage3.sh`.
 
 일별 상세 기록은 `docs/worklog_*.md`.
 
@@ -119,7 +119,8 @@ mean_length 억제(DAPO는 길이↑→정확도 미전환). zero_std 는 DAPO·
 - ✅ **학습↔judge 내부망 도달성 테스트** 통과(컴퓨트노드 간 hostname·IP 200 OK, `32_net_test.slurm`).
 - ✅ **분포 프로브 통과** — good0.96/wrong0.00/halluc0.64, 단조성99%, c2변별Δ0.94(spec §8-결과). 보상 사용준비 완료.
 - ✅ **`30_medical_rl.slurm` 배선 완료** — LoRA + dr_grpo init + format_think/clinical_judge 보상 + judge 오케스트레이터(`launch_stage3.sh`).
-- ⏳ **Stage-3 본실행** — `bash scripts/launch_stage3.sh`(judge 잡 ready 후 학습 잡 자동 제출).
+- ✅ **GRPO 배선 end-to-end 스모크 PASS**(`35_stage3_smoke.slurm`, max_steps 2): 플러그인 로드·`clinical_judge` 해석·kwargs(solution/images) 도달·보상 GRPO 통합 실증. **실버그 발견·수정**: swift 가 `images` 를 dict`{bytes,path}` 로 넘김(str 아님) → `_image_to_data_url` str/dict/PIL 지원으로 수정, 유닛 29/29, 재검증 data_url_ok=True·ClinicalJudge 0.58→1.0.
+- ⏳ **Stage-3 본실행** — Stage-2 완주·재병합 후 `bash scripts/launch_stage3.sh`(judge 잡 ready 후 학습 잡 자동 제출).
 
 ## 진행 이력 (날짜별 · 상세는 `docs/worklog_*.md`)
 - **2026-06-15** — 환경(컨테이너 swift4.1.3)·모델(Qwen3.5-9B)·데이터 확정·검증. **NVLink 부재 발견→전 단계 LoRA 전환**.
@@ -149,6 +150,10 @@ mean_length 억제(DAPO는 길이↑→정확도 미전환). zero_std 는 DAPO·
 - **2026-06-30** — **홀드아웃 정비 + 1 epoch 재학습 착수**. 기존 평가가 학습 파일 stride 슬라이스라 누수 → 정답유형
   **층화 홀드아웃 분리**(`make_holdout.py`: math 453 + vl 519 = 972, trainonly 102,531) + **init 부터 fresh 재학습**
   (job 58892~58982, MAX_STEPS=3204). 이전 +67% 벤치마크 무효화. 속도 병목 진단(~365s/step = 구조적, stall 아님).
+- **2026-07-01** — **Stage-3 배선 end-to-end 스모크**(`35_stage3_smoke.slurm`, idle 8gpu 노드서 judge+소형 GRPO max_steps 2).
+  정적 검증이 못 잡는 **실버그 발견**: swift 가 `images` 를 str 경로 아닌 dict`{bytes,path}` 로 넘겨 judge 에 이미지 누락→
+  시각근거(c2) blind 될 뻔. `_image_to_data_url` str/dict/PIL 지원으로 수정, 유닛 29/29, **재검증 PASS**
+  (data_url_ok=True, ClinicalJudge 0.58→1.0, reward=0.2·Format+1.0·Clinical 정확 통합). ☞ `worklog_2026-07-01`
 
 ## 환경: Singularity 컨테이너 (확정·검증 완료)
 - 노드 OS가 **CentOS 7.9 / glibc 2.17**이라 최신 ML 패키지(특히 **vLLM·xformers**)는
@@ -232,7 +237,8 @@ judge 가 가중 다기준 체크리스트를 항목별 0/1 채점, explicit 집
 - **judge = `Qwen/Qwen3.6-27B-FP8`**(멀티모달, 같은 `qwen3_5` arch → 컨테이너 vLLM 0.19.1 그대로 서빙). `scripts/judge_server.sh`(40GB 보수설정: maxlen8K·enforce-eager·util0.92, TP).
   - 🚨 **로그인노드 불가**: 드라이버 470(CUDA11.4) → vLLM 로드 실패(`cuTensorMapEncodeTiled` 없음). **judge는 컴퓨트노드(드라이버550)**. 학습↔judge 모두 컴퓨트노드라 **내부망 통신**(외부 egress 불필요).
   - ✅ **스모크 검증**(`31_judge_smoke.slurm`, 1gpu): FP8 30GB **단일 40GB 적합**(36.6GB), 멀티모달 채점·JSON 파싱 OK, **정답1.0>오답0.0 단조성 PASS**.
-- **남은 선행과제**: 학습↔judge **내부망 도달성 테스트** → spec §8 분포 프로브(c2 캘리브레이션) → `30_medical_rl.slurm` 배선.
+- ✅ **선행과제 전부 완료**: 내부망 도달성(§32) → 분포 프로브(§8, c2 캘리브레이션) → `30_medical_rl.slurm` 배선 → **GRPO end-to-end 스모크**(`35_stage3_smoke.slurm`).
+- ✅ **배선 스모크(2026-07-01) 실증**: 플러그인 로드·`clinical_judge` 해석·kwargs(solution/images) 도달·보상 GRPO 통합. **실버그 수정** — swift 는 `images` 를 dict`{bytes,path}` 로 넘기므로(str 아님) `_image_to_data_url` 가 str/dict/PIL 모두 처리해야 함(안 하면 시각근거 c2 blind). 재검증 data_url_ok=True·ClinicalJudge 0.58→1.0.
 
 ## 자원 정합성 (가이드 확인 완료)
 - 계획서의 **8×A100-80GB·896GB·128core 노드** = 일반 **`8gpu` 파티션**(가이드 공식표상

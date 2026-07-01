@@ -77,6 +77,8 @@
 - **Qwen3 judge 는 추론모델** → `enable_thinking=False`(chat_template_kwargs)로 끄고 JSON만 받음.
 - **vLLM 0.19.1 `--limit-mm-per-prompt` 는 JSON 문법**(`'{"image":1}'`).
 - **base 평가는 로컬 스냅샷 경로**로(HF id 주면 컨테이너가 modelscope 접근→read-only 실패). `VLLM_USE_MODELSCOPE=False`.
+- **swift GRPO 는 reward 플러그인에 `images` 를 str 경로가 아니라 dict `{'bytes':..,'path':..}` 로 넘김**(스모크 실측). 커스텀 보상은 이 형식을 처리해야 함(안 하면 이미지 누락·시각근거 채점 blind). `medical_reward.py:_image_to_data_url` 가 str/dict/PIL 모두 처리. reward kwargs 실측 키: `['finish_reason','images','is_truncated','messages','prompt_id','request_id','response_token_ids','rollout_logprobs','solution','trainer_state']`.
+- **Stage-3 배선 스모크**(`35_stage3_smoke.slurm`): idle 8gpu 노드에서 GPU0=judge/GPU1=소형 트레이너(max_steps 2). `JUDGE_DEBUG=1` 로 images kwarg 도달 검증. **PASS 확인**: data_url_ok=True, ClinicalJudgeReward 0.58→1.0, reward=0.2·Format+1.0·Clinical 정확 통합.
 - **평가는 반드시 학습 미관측 홀드아웃에서** — stride 슬라이스는 학습 파일과 겹침(누수). §2.2.
 - 단일 step 지표 노이즈 큼 → 구간평균으로 판단. 출력 형식 `<think>…</think><answer>…</answer>` 공통.
 

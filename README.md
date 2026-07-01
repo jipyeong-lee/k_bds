@@ -1,34 +1,69 @@
 # K-BDS 의료 멀티모달 교차추론 — 학습 파이프라인
 
-계획서(`plan.hwp`) 기반, **ms-swift**로 (format cold-start) SFT → 범용 RLVR/GRPO → 의료 특화 RL → 평가
-4단계를 KISTI Slurm 클러스터 환경에 맞춰 구성. 일별 진행 기록은 `docs/worklog_*.md` 참고.
+계획서(`plan.hwp`) 기반, **ms-swift**로 4단계 파이프라인을 KISTI Slurm 클러스터에 맞춰 구성:
+**① (format) 콜드스타트 SFT → ② 범용 RLVR/GRPO → ③ 의료 특화 RL(RaR) → ④ 평가**.
+일별 상세는 `docs/worklog_*.md`.
 
-## 현황 (2026-07-01 기준)
+---
 
-**파이프라인 위치**: Stage-2(범용 RLVR/GRPO) — GRPO 파생기법 A/B 로 **dr_grpo 승자 확정**(baseline·DAPO plateau 미돌파). 이후 두 문제 발견 → **정비 후 1 epoch 재학습 진행 중 (step 441/3204 ≈ 14%)**:
-- ⚠️ ① 파일럿 dr_grpo 는 데이터 **21%(step~650)만** 학습(중간 중단), ② 평가가 학습 파일 stride 슬라이스라 **진짜 홀드아웃 아님**(누수).
-- ✅ **조치**: 정답유형 **층화 홀드아웃 분리**(`make_holdout.py` — math 453 + visual-logic 519 = 972, 학습 `trainonly` 102,531) + **init 부터 fresh 1 epoch 재학습**(누수 0). **job 58892 RUNNING** + afterany 체인(총 6잡, QOS 상한). 건전성 양호(`frac_reward_zero_std=0`, Format 0.32→0.5↑, ~365s/step=구조적). 완주까지 실시간 약 5~6일.
-- ⚠️ 이전 "정확도 0.21→0.35(+67%)" 벤치마크는 **in-distribution 오염 + 21% 학습**이라 **무효** — 1 epoch 완주 후 **층화 홀드아웃(math/visual-logic 분리)** 에서 재측정 예정.
+## 현황 (2026-07-01)
 
-→ **Stage-3(의료 RL, RaR): 설계·배선 end-to-end 검증 완료, Stage-2 완주까지 대기.** RaR 루브릭 보상 + judge(Qwen3.6-27B-FP8) 전부 검증(유닛 29/29·judge 스모크·내부망·분포 프로브·**GRPO 배선 스모크**). **정적 vs 인스턴스 루브릭 실증 비교 → 정적 채택 확정**(환각변별 +0.338 vs +0.021). **배선 스모크에서 실버그 발견·수정**: swift 가 `images` 를 str 경로가 아니라 dict `{bytes,path}` 로 넘겨 이미지가 judge 에 누락될 뻔 → 수정 후 재검증 PASS(ClinicalJudge 0.58→1.0, 보상 정상 통합). 남은 것: 본실행 `bash scripts/launch_stage3.sh`.
+**지금 위치**: Stage-2(범용 RLVR/GRPO) **1 epoch 재학습 진행 중** · Stage-3(의료 RL) **배선까지 검증 완료·대기**.
 
-일별 상세 기록은 `docs/worklog_*.md`.
+| 항목 | 상태 |
+|---|---|
+| **Stage-2 기법** | GRPO 파생 A/B 로 **dr_grpo 승자 확정**(baseline·DAPO plateau 미돌파). → [상세](#stage-2--범용-rlvrgrpo) |
+| **Stage-2 재학습** | `job 58892 RUNNING` (**step ~450/3204, ~14%**) + afterany 체인. 건전성 양호(`zero_std=0`, Format 0.32→0.5↑). 완주 ~5–6일 |
+| **최신기법 A/B** | **GSPO**(시퀀스레벨 IS)를 dr_grpo와 **병렬 A/B 중**(`job 59004`, step501~600 동일창 비교) |
+| **Stage-3 (RaR)** | 루브릭·judge·배선 **end-to-end 검증 완료**(유닛 29/29·스모크·내부망·분포). 본실행만 남음 → [상세](#stage-3--의료-rl-rar-루브릭-보상) |
+
+⚠️ **주의(정비 이력)**: 파일럿 dr_grpo 는 ① 데이터 **21%만** 학습(중간 중단) ② 평가가 학습 파일 stride 슬라이스라 **누수**였음.
+→ **정답유형 층화 홀드아웃 분리**(math 453 + visual-logic 519) + **init 부터 fresh 1 epoch 재학습**으로 교정 중.
+이전 **"+67%" 벤치마크는 무효**(오염) — 완주 후 층화 홀드아웃에서 재측정.
+
+---
 
 ## 목차
-1. **현황** — 파이프라인 위치·핵심 결과 (맨 위)
-2. **Stage-2 결과** (범용 RLVR/GRPO · 종결) — 3기법 비교·통합 plot·base vs 학습모델 벤치마크
-3. **Stage-3** (의료 RL · RaR judge) — 설계·검증·배선 (본실행 대기)
-4. **기술 레퍼런스** — 환경·모델·학습방식(LoRA)·보상·DAPO 레시피
-5. **운영·데이터** — 자원·정책·데이터 경로·디렉토리·사용순서·노드시간 예산
-6. **진행 이력 / TODO** — 일자별 기록·체크리스트
+1. [현황](#현황-2026-07-01)
+2. [파이프라인 4단계](#파이프라인-4단계)
+3. [Stage-1 · 콜드스타트 SFT](#stage-1--콜드스타트-sft)
+4. [Stage-2 · 범용 RLVR (GRPO)](#stage-2--범용-rlvrgrpo) — baseline·A/B·기법비교(GRPO/DAPO/dr_grpo/GSPO)·벤치마크
+5. [Stage-3 · 의료 RL (RaR)](#stage-3--의료-rl-rar-루브릭-보상)
+6. [기술 레퍼런스](#기술-레퍼런스) — 환경·모델·LoRA·보상
+7. [운영 · 데이터](#운영--데이터) — 자원·정책·데이터·디렉토리·사용순서
+8. [진행 이력 & 체크리스트](#진행-이력--체크리스트)
+9. [과제 종료 의무](#과제-종료-의무)
 
-## Stage-2 결과 (범용 RLVR/GRPO · dr_grpo 승자 → 1 epoch 재학습 중)
+---
 
-> **요약**: 기법 A/B(아래 파일럿, 데이터 21%)로 **dr_grpo 승자 확정**. 이후 홀드아웃 누수·과소학습을 바로잡아 **층화 홀드아웃 분리 + init 부터 fresh 1 epoch 재학습**(job 58892~, `grpo_general_adv_dr_grpo_he/`) 진행 중. 정식 벤치마크는 완주 후 층별로 교체.
+## 파이프라인 4단계
 
-### baseline (job 57249 · step 1000 완주)
-RFT 간결 콜드스타트 init + LoRA-DDP + max_completion 6144. step 1000에서 autostop(`checkpoint-1000` 저장 후
-자동 scancel). 산출: `work/checkpoints/grpo_general/v11-20260616-165537/checkpoint-1000`. 100-step 구간평균 추세:
+| 단계 | 목적 | 데이터 | 방법 | 상태 |
+|---|---|---|---|---|
+| **①** 콜드스타트 SFT | `<think>/<answer>` 추론 형식 주입 | VLAA clevr_math → RFT 간결본 | LoRA SFT | ✅ 완료(`sft_rft_coldstart_merged`) |
+| **②** 범용 RLVR | 검증가능 정답으로 추론 강화 | DeepVision-103K | GRPO 계열(dr_grpo) | 🔄 1 epoch 재학습 중 |
+| **③** 의료 특화 RL | 개방형 의료 VQA 추론 | medix-rl-data 51K | GRPO + RaR 루브릭 보상 | ⏳ 배선 검증완료·대기 |
+| **④** 평가 | base 대비 성능 정량화 | 층화 홀드아웃 / 의료 벤치 | vLLM 추론·채점 | ⏳ Stage-2 완주 후 |
+
+**공통 제약**(→ [기술 레퍼런스](#기술-레퍼런스)): NVLink 없음 → **전 단계 LoRA-DDP** · glibc 2.17 → **Singularity 컨테이너** · 로그인노드 vLLM 불가 → **모든 GPU 작업은 컴퓨트노드**.
+
+---
+
+## Stage-1 · 콜드스타트 SFT
+
+- **목적**: base(Qwen3.5-9B)가 본래 장문 추론(3.5~4.6K토큰)이라 잘림=0점이 RL 정체 원인 → **간결한 `<think>/<answer>` 형식**을 먼저 주입.
+- **핵심 결정**: ZeRO-3 길이확대는 no-NVLink에서 5배 느려 불채택 → **rejection-sampling 간결 콜드스타트**(`build_rft_coldstart.py`): 롤아웃 정답+간결 완성문만 SFT.
+- **효과 검증**: 후속 GRPO에서 FormatThink 0.05→0.27(5배)·clip↓ (`merge_probe_rft.slurm`). 산출 `sft_rft_coldstart_merged` = Stage-2 init.
+
+---
+
+## Stage-2 · 범용 RLVR (GRPO)
+
+> **요약**: baseline GRPO 에서 **Acc plateau** 진단 → GRPO 파생기법 **clean A/B** → **dr_grpo 승자**(plateau 돌파). 이후 홀드아웃 누수·과소학습을 바로잡아 **층화 홀드아웃 + fresh 1 epoch 재학습** 진행 중. 정식 벤치마크는 완주 후 교체.
+
+### 1) baseline → Acc plateau 진단 (job 57249, step 1000 완주)
+
+RFT 콜드스타트 init + LoRA-DDP + max_completion 6144. 100-step 구간평균:
 
 | 구간 | reward | Acc | FormatThink | clip | mean_len | zero_std |
 |------|--------|-----|-------------|------|----------|----------|
@@ -36,89 +71,83 @@ RFT 간결 콜드스타트 init + LoRA-DDP + max_completion 6144. step 1000에�
 | 501–600 | 0.534 | **0.500** | 0.525 | 0.307 | 3309 | 0.249 |
 | 901–1000 | **0.557** | 0.491 | **0.660** | **0.279** | **3267** | **0.328** |
 
-- ✅ 발산/붕괴 없음. FormatThink +155%·clip↓·길이↓ → RFT 콜드스타트 효과 지속 강화.
-- ⚠️ **[진단] Acc plateau**: Acc는 step~500서 0.50 정점 후 정체. 원인 = **`frac_reward_zero_std` 0.24→0.33 상승**
-  (그룹 rollout이 전부정답/전부오답화 → 정확도 gradient 소실). 후반 reward 상승은 형식·길이 주도.
+- ✅ 발산/붕괴 없음. FormatThink +155%·clip↓·길이↓.
+- ⚠️ **[진단] Acc plateau**: Acc가 step~500서 0.50 정점 후 정체. 원인 = **`frac_reward_zero_std` 0.24→0.33 상승**(그룹 rollout이 전부정답/전부오답 → 정확도 gradient 소실). 후반 reward 상승은 형식·길이 주도.
 
-### Stage-2 A/B: GRPO 파생기법 (plateau 돌파 · ✅ 종결)
-`scripts/21_rlvr_grpo_adv.slurm` — baseline과 **기법 외 전 조건 동일**. 공통 코어 = `dynamic_sample`(zero_std 그룹
-폐기·재샘플, 진단 직격) + `overlong_filter`. 레시피 3종: `dapo`(clip-higher+`loss_type=dapo`) / `gspo`(sequence-level IS) /
-`dr_grpo`(길이·난이도 편향 제거).
-- ✅ **dapo 본실행 종결**(job 57527, step 623서 scancel·`checkpoint-600` 확정). 결과: 안정성 압도(grad_norm 무폭주·zero_std 0.00)
-  하나 **돌파 미확인**(step 501~600 Acc DAPO 0.465 < baseline 0.500). 길이↑→clip↑ 재폭주가 정확도 미전환 원인 추정.
-- ✅ **dr_grpo 본실행 종결·돌파 확인**(job 57624, step 689 TIMEOUT). DAPO 진단 직격: `loss_type=dr_grpo`(길이정규화 편향 제거)
-  + `scale_rewards=none`(그룹 std 난이도 편향 제거). **step 501~600 Acc 0.526 > baseline 0.500**(DAPO 0.465 실패)하며
-  길이 억제(mean_len 3259)까지 동반 → **가설 검증**. 후반 꼬리(601~689) Acc 0.494 소폭 냉각 → **최적 산출물 `checkpoint-600`**.
+### 2) A/B: GRPO 파생기법 → dr_grpo 승자
 
-#### 쉬운 설명 (비유로 이해하기)
-
-> **비유**: 한 문제에 모델이 **답안 4장(그룹)**을 낸다 → 정답 여부만 채점 → **그룹 평균보다 잘 쓴 답은 "더 그렇게", 못 쓴 답은 "덜 그렇게"** 확률을 민다.
-> PPO와 달리 **별도 채점관(가치망)이 필요 없다** — *그룹 평균*이 기준선 역할을 하기 때문(=GRPO의 핵심 절약).
-
-세 기법은 이 골격을 공유하고, "채점을 점수로 환산하는 규칙"에서만 갈린다:
-
-- **GRPO** (DeepSeekMath, 2024) = **기본형**. 그룹 평균을 빼고 **그룹 표준편차로 나눠** 점수화. 단순하지만 두 약점:
-  ① 그룹이 *전부 정답/전부 오답*이면 표준편차=0 → 배울 게 없어 낭비(→ **Acc 정체**), ② **긴 답·쉬운 문제**가 과대평가되는 편향.
-- **DAPO** (ByteDance, 2025) = GRPO에 **"탐색·효율 보강" 4종 세트**. ① 무신호 그룹은 버리고 다시 뽑기(dynamic sampling) ② 확률 올릴 여지 확대(clip-higher) ③ 길이 무관 토큰단위 손실 ④ 잘린 답 노이즈 차단(overlong).
-  → 우리 결과: 안정성은 크게 좋아졌으나 **답이 길어지며** 정확도는 baseline을 못 넘음.
-- **dr.GRPO** (2025, "R1-Zero 비판적 분석") = GRPO의 **"편향 자체를 수술"**. ① 손실을 시퀀스 길이가 아닌 **상수로 정규화**(길이 편향 제거) ② **표준편차 나눗셈 삭제**(난이도 편향 제거).
-  → DAPO가 겪은 "답 길어짐"을 정면으로 겨냥. **우리 승자** — Acc 0.526>0.500, 길이도 억제.
-
-한 줄 요약: **GRPO=기본 · DAPO=탐색을 더함(＋4기법) · dr.GRPO=편향을 뺌(－2정규화) · GSPO=채점 단위를 시퀀스로 바꿈**.
-
-#### 기법 메커니즘 비교 (GRPO / DAPO / dr_grpo)
-세 기법은 **advantage = 그룹상대(group-relative)** 라는 골격을 공유하며, 아래 축에서만 갈린다. (소스: `grpo_trainer.py` 손실 분기 직접 확인)
-
-| 차원 | **GRPO** (baseline) | **DAPO** | **dr_grpo** |
-|------|---------------------|----------|-------------|
-| 논문 | DeepSeekMath (2402.03300) | DAPO (2503.14476) | Dr.GRPO (2503.20783) |
-| 한 줄 요약 | 그룹상대 PG 기본형 | 비대칭클립 + 동적샘플 | 두 정규화 **편향 제거** |
-| **손실 정규화** | ÷ **시퀀스 길이**(per-seq) → 길이 편향 | ÷ **배치 총토큰**(token-level) | ÷ **(B×max_len) 상수** → 편향 제거 |
-| **advantage 정규화** | ÷ 그룹 std → 난이도 편향 | ÷ 그룹 std (유지) | **안 함**(`scale_rewards=none`) → 난이도 편향 제거 |
-| **클리핑** | 대칭 ε=0.2 | **clip-higher** 비대칭 ε=0.2/0.28(탐색↑·엔트로피붕괴 억제) | 대칭 ε=0.2 |
-| **zero-std 그룹** | 방치 → 정확도 gradient 소실(plateau 원인) | `dynamic_sample` 재샘플 | `dynamic_sample` 재샘플 |
-| **잘린 롤아웃** | loss 포함(신호 오염) | `overlong_filter` 제외 | `overlong_filter` 제외 |
-| IS 레벨 | token | token | token |
-| 주 타깃 문제 | (기준선) | zero_std plateau | **길이 폭주→clip→0점** |
-| **원논문 핵심 주장** | 가치망 없이 그룹평균을 기준선으로 → PPO 대비 메모리 절약 | 재현가능한 대규모 RL 시스템 + 4기법으로 긴 CoT 안정화 | GRPO의 길이·난이도 정규화가 **오답을 길게 만드는 편향** → 제거하면 unbiased·토큰효율↑ |
-| **원논문 성과** | 수학추론 SOTA(DeepSeekMath-7B) | AIME2024 **50점**(Qwen2.5-32B), 기존 47점을 **50% 적은 step**으로 | AIME2024 **43.3%**(7B), 토큰효율 개선 |
-| ms-swift 인자 | `--loss_type grpo --scale_rewards group` | `--loss_type dapo --epsilon_high 0.28 --dynamic_sample --overlong_filter` | `--loss_type dr_grpo --scale_rewards none --dynamic_sample --overlong_filter` |
-| 우리 결과 | Acc plateau(~0.50 정점, zero_std 0.24→0.33) | 안정성 압도(grad 무폭주·zero_std 0.00) **but 돌파 미확인**(step501~600 Acc 0.465<0.500) | ✅ **돌파 확인**(57624): step501~600 Acc **0.526>0.500**·mean_len 3259(길이↓)·clip↓ — DAPO 실패지점 통과. **Stage-2 승자** |
-
-> 요지: **DAPO 는 "탐색·신호 효율"**(clip-higher + 동적샘플)을, **dr_grpo 는 "정규화 편향 제거"**(길이·난이도)를 노린다.
-> 둘 다 공통 코어(`dynamic_sample`+`overlong_filter`)는 켠 채, baseline 과 그 외 조건은 동일(clean A/B). GSPO 등 추가 레시피는 "GRPO 파생기법" 절 참고.
->
-> **논문 출처**: GRPO=DeepSeekMath [arXiv:2402.03300](https://arxiv.org/abs/2402.03300) · DAPO [arXiv:2503.14476](https://arxiv.org/abs/2503.14476) · Dr.GRPO="Understanding R1-Zero-Like Training" [arXiv:2503.20783](https://arxiv.org/abs/2503.20783). (메커니즘은 ms-swift `grpo_trainer.py` 손실 분기와 대조 확인)
-
-#### 최신 확장: GSPO (Group Sequence Policy Optimization)
-
-위 3기법은 모두 **토큰 단위**로 importance sampling(IS, 새 정책이 옛 정책보다 그 토큰을 얼마나 더 낼지 보정)을 하는데, **GSPO는 이 축을 바꿔 시퀀스(답안) 단위로** IS 한다. (Alibaba/Qwen팀, [arXiv:2507.18071](https://arxiv.org/abs/2507.18071), 2025-07)
-
-- **왜**: 토큰 IS는 **응답이 길수록 분산 노이즈가 누적**되고 클리핑이 이를 증폭 → 학습 붕괴(특히 MoE·장문·LoRA). GSPO는 **시퀀스 우도 비율(길이 정규화)**로 이 불안정을 억제 → MoE RL 안정화가 논문의 대표 성과.
-- **위 표의 축으로 보면**: IS 레벨 = **sequence**(GSPO만) · advantage = 그룹상대 유지(÷group std) · 클리핑 = 시퀀스 비율이라 **훨씬 작은 ε**(우리 설정 `3e-4/4e-4`, 토큰 0.2 대비).
-- **한 줄**: GRPO=기본 / DAPO=탐색 보강 / dr.GRPO=정규화 편향 제거 / **GSPO=IS 채점 단위를 토큰→시퀀스로 교체**. dr_grpo와 **직교**(편향제거 vs IS granularity)라 결합도 가능.
-- **ms-swift**: `--loss_type grpo --importance_sampling_level sequence --epsilon 3e-4 --epsilon_high 4e-4`(우리 `21_..adv.slurm` gspo 레시피에 배선됨).
-- **우리 검증(진행 중)**: Qwen팀 작품 + swift 지원 + 멀티모달/LoRA 안정성 보고 → **dr_grpo 다음 1순위**로, "최신이라서"가 아니라 **동일 clean A/B로 판정 중**(job 59004, dr_grpo와 병렬, step501~600 동일 창 비교). 이기면 채택, 지면 dr_grpo 유지.
-
-**3기법 최종 비교** (동일구간 누적 + 돌파판정 구간):
+`scripts/21_rlvr_grpo_adv.slurm` — baseline과 **기법 외 전 조건 동일**(clean A/B). 공통 코어 = `dynamic_sample`(zero_std 그룹 폐기·재샘플, 진단 직격) + `overlong_filter`.
 
 | 지표 | baseline(57249) | DAPO(57527) | **dr_grpo(57624)** |
 |------|-----------------|-------------|--------------------|
 | **step 501~600 Acc** (돌파판정) | 0.500 | 0.465 ❌ | **0.526 ✅** |
-| `frac_reward_zero_std` | 0.24→0.33 (↑=plateau 원인) | **0.00** | **0.00** |
+| `frac_reward_zero_std` | 0.24→0.33 (↑=plateau) | **0.00** | **0.00** |
 | mean_len (후반) | 3267 | ~3600 (↑재폭주) | **3259 (억제)** |
 | 누적 Acc (동일구간) | ~0.45 | 0.444 | **0.498** |
 | 판정 | plateau 정체 | 안정하나 **미돌파** | **✅ 돌파 (승자)** |
 
 ![Stage-2 3기법 비교](docs/assets/grpo_stage2_all.png)
 
-*(50-step 구간평균. baseline(실선)·DAPO(파선)·dr_grpo(점선). **dr_grpo만 step 501~600(노란 띠)서 Acc 0.50 돌파**하며
-mean_length 억제(DAPO는 길이↑→정확도 미전환). zero_std 는 DAPO·dr_grpo 둘 다 0 평탄, baseline 만 상승(=plateau 원인).
-재생성: `singularity exec work/images/ms-swift-413-sandbox python scripts/plot_grpo_all.py logs/grpo_stage2_57249.log logs/grpo_adv_57527.log logs/grpo_adv_57624.log docs/assets/grpo_stage2_all.png`)*
+*(50-step 구간평균. baseline(실선)·DAPO(파선)·dr_grpo(점선). **dr_grpo만 step 501~600(노란 띠)서 Acc 0.50 돌파**하며 mean_length 억제. zero_std 는 DAPO·dr_grpo 둘 다 0 평탄, baseline만 상승(=plateau 원인). 재생성: `singularity exec work/images/ms-swift-413-sandbox python scripts/plot_grpo_all.py logs/grpo_stage2_57249.log logs/grpo_adv_57527.log logs/grpo_adv_57624.log docs/assets/grpo_stage2_all.png`)*
 
-### Stage-2 학습 효과: base vs 학습모델 — ⚠️ 재측정 예정
+### 3) 기법 이해: GRPO / DAPO / dr.GRPO / GSPO
 
-> **아래 수치(파일럿)는 무효화됨.** 평가셋이 학습 파일의 stride 슬라이스라 **진짜 홀드아웃이 아니었고**(누수), 학습도 데이터의 **21%(step~650)만** 진행된 상태였음. → 정답유형 **층화 홀드아웃 분리** + **1 epoch fresh 재학습** 후, 아래를 **math/visual-logic 분리 정식 수치로 교체**한다. (분리기 `scripts/make_holdout.py`, 평가 `eval_compare.py`)
+#### 쉬운 설명 (비유)
+
+> **비유**: 한 문제에 모델이 **답안 4장(그룹)**을 낸다 → 정답 여부만 채점 → **그룹 평균보다 잘 쓴 답은 "더 그렇게", 못 쓴 답은 "덜 그렇게"** 확률을 민다.
+> PPO와 달리 **별도 채점관(가치망)이 불필요** — *그룹 평균*이 기준선 역할(=GRPO의 핵심 절약).
+
+세 기법은 이 골격을 공유하고 "채점을 점수로 환산하는 규칙"에서만 갈린다:
+
+- **GRPO** (DeepSeekMath, 2024) = **기본형**. 그룹 평균 빼고 **그룹 std로 나눠** 점수화. 약점: ① 그룹이 전부정답/전부오답이면 std=0 → 못 배움(**Acc 정체**) ② **긴 답·쉬운 문제** 과대평가 편향.
+- **DAPO** (ByteDance, 2025) = GRPO에 **탐색·효율 4종 보강**(dynamic sampling·clip-higher·token-level loss·overlong). → 우리 결과: 안정성↑이나 **답이 길어지며** 정확도는 baseline 미달.
+- **dr.GRPO** (2025, "R1-Zero 비판적 분석") = GRPO의 **편향을 수술**: ① 손실을 시퀀스 길이 아닌 **상수로 정규화** ② **std 나눗셈 삭제**. → DAPO의 "답 길어짐"을 정면 겨냥. **우리 승자**.
+- **GSPO** (Alibaba/Qwen, 2025) = importance sampling을 **토큰→시퀀스 단위**로 교체. → [아래 상세](#최신-확장-gspo).
+
+한 줄: **GRPO=기본 · DAPO=탐색 더함(＋4기법) · dr.GRPO=편향 뺌(－2정규화) · GSPO=IS 단위를 시퀀스로 교체**.
+
+#### 메커니즘 비교표
+
+advantage = 그룹상대(group-relative) 골격 공유, 아래 축에서만 갈림 (소스: ms-swift `grpo_trainer.py` 손실 분기 직접 확인):
+
+| 차원 | **GRPO** (baseline) | **DAPO** | **dr_grpo** (승자) |
+|------|---------------------|----------|-------------|
+| 논문 | DeepSeekMath [2402.03300](https://arxiv.org/abs/2402.03300) | DAPO [2503.14476](https://arxiv.org/abs/2503.14476) | Dr.GRPO [2503.20783](https://arxiv.org/abs/2503.20783) |
+| 한 줄 | 그룹상대 PG 기본형 | 비대칭클립 + 동적샘플 | 두 정규화 **편향 제거** |
+| **손실 정규화** | ÷ **시퀀스 길이** → 길이 편향 | ÷ **배치 총토큰**(token-level) | ÷ **(B×max_len) 상수** → 편향 제거 |
+| **advantage 정규화** | ÷ 그룹 std → 난이도 편향 | ÷ 그룹 std (유지) | **안 함**(`scale_rewards=none`) |
+| **클리핑** | 대칭 ε=0.2 | **clip-higher** 비대칭 0.2/0.28 | 대칭 ε=0.2 |
+| **zero-std 그룹** | 방치 → plateau 원인 | `dynamic_sample` 재샘플 | `dynamic_sample` 재샘플 |
+| **잘린 롤아웃** | loss 포함(오염) | `overlong_filter` 제외 | `overlong_filter` 제외 |
+| IS 레벨 | token | token | token |
+| **원논문 성과** | 수학추론 SOTA(7B) | AIME24 **50**(32B), 47을 50% 적은 step | AIME24 **43.3%**(7B), 토큰효율↑ |
+| ms-swift 인자 | `--loss_type grpo --scale_rewards group` | `--loss_type dapo --epsilon_high 0.28 --dynamic_sample --overlong_filter` | `--loss_type dr_grpo --scale_rewards none --dynamic_sample --overlong_filter` |
+| 우리 결과 | plateau(zero_std 0.24→0.33) | 안정하나 **미돌파**(Acc 0.465<0.500) | ✅ **돌파**(Acc **0.526**·길이 억제) — **승자** |
+
+<details><summary>DAPO 4대 기법 상세 (ms-swift 인자·plateau 관련성)</summary>
+
+| 기법 | ms-swift 인자 | 효과 | plateau 관련성 |
+|------|--------------|------|---------------|
+| **Dynamic Sampling** | `--dynamic_sample true --max_resample_times 3` | reward_std=0 그룹 폐기·재샘플 → 유효 gradient 비율↑ | ⭐ **직격**(zero_std 급등이 진단 원인) |
+| **Clip-Higher** | `--epsilon 0.2 --epsilon_high 0.28` | 상단 클립 완화 → 저확률 토큰 탐색 보존, 엔트로피 붕괴 억제 | 조기 수렴/다양성 소실 방지 |
+| **Token-level Loss** | `--loss_type dapo` | 토큰 단위 정규화 → 길이 정규화 편향 제거 | 형식·길이 주도 reward 보정 |
+| **Overlong handling** | `--overlong_filter true` (+`soft_overlong` 보상) | 잘린 롤아웃 loss 제외 → 길이초과 노이즈 차단 | 잘림=0점 신호 오염 제거 |
+
+- 비용: DAPO 본실행(57527) 실측 **~369s/it (baseline 202의 ~1.8배)** — `dynamic_sample` 재샘플이 step당 생성량↑. 신호효율의 대가.
+</details>
+
+#### 최신 확장: GSPO
+
+**GSPO**(Group Sequence Policy Optimization, Alibaba/Qwen, [arXiv:2507.18071](https://arxiv.org/abs/2507.18071), 2025-07): 위 3기법이 모두 **토큰 단위** importance sampling(IS)하는 것을 **시퀀스(답안) 단위**로 바꿈.
+
+- **왜**: 토큰 IS는 응답이 길수록 **분산 노이즈 누적** + 클리핑이 증폭 → 붕괴(특히 MoE·장문·LoRA). GSPO는 **시퀀스 우도 비율(길이 정규화)**로 억제 → MoE RL 안정화가 대표 성과.
+- **축 대응**: IS 레벨 = **sequence**(GSPO만) · advantage = 그룹상대 유지 · 클리핑 = **훨씬 작은 ε**(우리 `3e-4/4e-4`).
+- dr_grpo와 **직교**(편향제거 vs IS granularity) → 결합 가능.
+- **우리 검증(진행 중)**: "최신이라서"가 아니라 dr_grpo가 자리를 얻은 것과 **동일 clean A/B로 판정**(`job 59004`, dr_grpo와 병렬, step501~600 동일창). 이기면 채택, 지면 dr_grpo 유지. 런처 `scripts/launch_gspo_ab.sh`.
+
+### 4) base vs 학습모델 벤치마크 — ⚠️ 재측정 예정
+
+> **아래 파일럿 수치는 무효화됨.** 평가셋이 학습 파일 stride 슬라이스라 **진짜 홀드아웃 아님**(누수) + 학습 **21%만** 진행. → 정답유형 **층화 홀드아웃 분리**(`make_holdout.py`: math 453 + visual-logic 519 = 972, trainonly 102,531) + **1 epoch fresh 재학습** 후 **math/visual-logic 분리 정식 수치로 교체**한다.
 
 <details><summary>파일럿 수치(무효, 참고용) — DeepVision stride 100건</summary>
 
@@ -130,249 +159,87 @@ mean_length 억제(DAPO는 길이↑→정확도 미전환). zero_std 는 DAPO·
 
 </details>
 
-## 핵심 의사결정 이력 (상세: 해당 섹션 / worklog)
-- **NVLink 없음 → 전 단계 LoRA**: PCIe A100·SHM 폴백으로 full-FT 375~660s/step → LoRA ~5배↑. ☞ "학습 방식" 절.
-- **추론 길이 폭주 → rejection-sampling 간결 콜드스타트**: base가 본래 3.5~4.6K토큰 장문, 잘림=0점이 정체 원인.
-  ZeRO-3 길이확대는 5배 느려 불채택. ☞ `worklog_2026-06-16`.
-- **보상 = accuracy_mix + format_think + soft_overlong**: 내장 accuracy의 letter 미파싱 보완. ☞ "보상 설계" 절.
+---
 
-## 다음 (예정)
-- ✅ Stage-2 A/B 완료 → **dr_grpo plateau 돌파**(승자 `grpo_general_adv_dr_grpo/.../checkpoint-600`).
-- ✅ **Stage-3 RaR 루브릭 보상 설계·구현**(`medical_reward.py`, spec §4.2, 유닛테스트 24/24).
-- ✅ **judge 확정·검증** — `Qwen3.6-27B-FP8`(멀티모달), 컴퓨트노드 vLLM 단일 40GB 적합·단조성 PASS(`31_judge_smoke.slurm`).
-- ✅ **학습↔judge 내부망 도달성 테스트** 통과(컴퓨트노드 간 hostname·IP 200 OK, `32_net_test.slurm`).
-- ✅ **분포 프로브 통과** — good0.96/wrong0.00/halluc0.64, 단조성99%, c2변별Δ0.94(spec §8-결과). 보상 사용준비 완료.
-- ✅ **`30_medical_rl.slurm` 배선 완료** — LoRA + dr_grpo init + format_think/clinical_judge 보상 + judge 오케스트레이터(`launch_stage3.sh`).
-- ✅ **GRPO 배선 end-to-end 스모크 PASS**(`35_stage3_smoke.slurm`, max_steps 2): 플러그인 로드·`clinical_judge` 해석·kwargs(solution/images) 도달·보상 GRPO 통합 실증. **실버그 발견·수정**: swift 가 `images` 를 dict`{bytes,path}` 로 넘김(str 아님) → `_image_to_data_url` str/dict/PIL 지원으로 수정, 유닛 29/29, 재검증 data_url_ok=True·ClinicalJudge 0.58→1.0.
-- ⏳ **Stage-3 본실행** — Stage-2 완주·재병합 후 `bash scripts/launch_stage3.sh`(judge 잡 ready 후 학습 잡 자동 제출).
+## Stage-3 · 의료 RL (RaR 루브릭 보상)
 
-## 진행 이력 (날짜별 · 상세는 `docs/worklog_*.md`)
-- **2026-06-15** — 환경(컨테이너 swift4.1.3)·모델(Qwen3.5-9B)·데이터 확정·검증. **NVLink 부재 발견→전 단계 LoRA 전환**.
-  format 콜드스타트 SFT, 커스텀 `accuracy_mix` 보상, GRPO LoRA 파일럿 검증. ☞ `worklog_2026-06-15`
-- **2026-06-16** — 추론모드 강제(`enable_thinking`+`format_think`), flash_attn, soft_overlong. **길이폭주 진단**,
-  ZeRO-3 길이확대 불채택, **rejection-sampling 간결 콜드스타트**로 해결. Stage-2 GRPO 본실행 시작(57249). ☞ `worklog_2026-06-16`
-- **2026-06-17** — Stage-2 추세 우상향 확인(step~300), step 1000 자동정지(autostop) 설정, 디스크 ~42G 정리. ☞ `worklog_2026-06-17`
-- **2026-06-19** — **Stage-2 baseline 완주**(step 1000, `checkpoint-1000`). 1000-step 추세 정리, **Acc plateau 진단**
-  (`frac_reward_zero_std` 0.24→0.33). ☞ `worklog_2026-06-19`
-- **2026-06-22** — ms-swift GRPO 파생기법 인벤토리 조사. **plateau 돌파 A/B config**(`scripts/21_rlvr_grpo_adv.slurm`,
-  dynamic_sample+overlong_filter / dapo·gspo 레시피), 스모크 테스트(57526), **dapo 본실행 착수(57527)**. ☞ `worklog_2026-06-22`
-- **2026-06-23** — **DAPO 본실행 중간 비교**(57527 step~176 vs baseline 동일구간): `frac_reward_zero_std` 0.24→**0.00**
-  (dynamic_sample 가설 검증), FormatThink 수렴 ~2배 가속. 단 ~1.8배 느림·Acc 이득 미확정. ☞ `worklog_2026-06-22`
-- **2026-06-24** — **DAPO 진행 모니터링**(step 408→475). **안정성 정량 검증**: grad_norm DAPO 0.012 무spike vs
-  baseline 최대 67만·spike 107회 → 안정성 우위 확정. ⚠️ **Acc 약한 적신호**(0.48→0.43 완만 하락, KL↑·형식포화).
-  **step 600 돌파 판정 자동화**(`grpo_ab_update.py` 구간 501~600 Acc 직접비교). step 475 README·plot 갱신. ☞ `worklog_2026-06-24`
-- **2026-06-25** — **DAPO 종결**(돌파 미확인: step501~600 Acc 0.465<0.500, step 623 scancel·`checkpoint-600`).
-  ms-swift GRPO 파생기법 인벤토리(소스검증: `dr_grpo`·`cispo`·`bnpo`·`rloo`·`reinforce++`·`top_entropy_quantile` 등),
-  **dr_grpo 착수**(57624), watcher/updater 레시피 일반화. ☞ `worklog_2026-06-25`
-- **2026-06-28** — **Stage-2 종결: dr_grpo 돌파 확인**(step501~600 Acc 0.526>baseline 0.500, DAPO 0.465 실패지점 통과·길이 억제 동반).
-  step 689 TIMEOUT 종료. **승자 = dr_grpo `checkpoint-600`** → Stage-3 init. ☞ `worklog_2026-06-28`
-- **2026-06-29** — **Stage-3 착수: RaR(Rubric-as-a-Reward) 루브릭 보상 설계·구현**. medix=단답 VQA 실측 → 정적 4차원
-  루브릭(정확성5/시각근거3/정밀도3/환각4, 참조답 템플릿 주입 → LLM생성 불필요). `medical_reward.py` 멀티모달
-  judge(AsyncORM) 구현 + 유닛테스트 24/24 통과. judge = Qwen3.6-27B-FP8 자체호스팅 확정·검증. ☞ `worklog_2026-06-29`
-- **2026-06-29** — **정적 vs 인스턴스 루브릭 실증 비교**(medix 40): 정적이 오답기각(0.000 vs 0.118)·환각변별(+0.338 vs
-  +0.021) 우세 → **정적 통일 루브릭 채택 확정**. 인스턴스는 이미지 없이 생성돼 시각근거 항목 부재.
-- **2026-06-30** — **홀드아웃 정비 + 1 epoch 재학습 착수**. 기존 평가가 학습 파일 stride 슬라이스라 누수 → 정답유형
-  **층화 홀드아웃 분리**(`make_holdout.py`: math 453 + vl 519 = 972, trainonly 102,531) + **init 부터 fresh 재학습**
-  (job 58892~58982, MAX_STEPS=3204). 이전 +67% 벤치마크 무효화. 속도 병목 진단(~365s/step = 구조적, stall 아님).
-- **2026-07-01** — **Stage-3 배선 end-to-end 스모크**(`35_stage3_smoke.slurm`, idle 8gpu 노드서 judge+소형 GRPO max_steps 2).
-  정적 검증이 못 잡는 **실버그 발견**: swift 가 `images` 를 str 경로 아닌 dict`{bytes,path}` 로 넘겨 judge 에 이미지 누락→
-  시각근거(c2) blind 될 뻔. `_image_to_data_url` str/dict/PIL 지원으로 수정, 유닛 29/29, **재검증 PASS**
-  (data_url_ok=True, ClinicalJudge 0.58→1.0, reward=0.2·Format+1.0·Clinical 정확 통합). ☞ `worklog_2026-07-01`
+개방형 의료 VQA(medix)는 단일정답 규칙검증 불가 → **Rubric-as-a-Reward**([arXiv:2507.17746](https://arxiv.org/abs/2507.17746)): judge가 가중 다기준 체크리스트를 항목별 0/1 채점, explicit 집계 `r = Σwⱼcⱼ / Σwⱼ ∈ [0,1]`(부분점수 dense). 상세 `docs/medical_reward_spec.md`.
 
-## 환경: Singularity 컨테이너 (확정·검증 완료)
-- 노드 OS가 **CentOS 7.9 / glibc 2.17**이라 최신 ML 패키지(특히 **vLLM·xformers**)는
-  pip wheel(manylinux_2_28)이 안 맞아 **conda/pip 설치 불가**. → 공식 ms-swift 컨테이너 사용.
-- **기본 이미지(Gemma 4 지원 = swift≥4.0.4)**:
-  `modelscope-registry.us-west-1.cr.aliyuncs.com/modelscope-repo/modelscope:`
-  `ubuntu22.04-cuda12.9.1-py312-torch2.10.0-vllm0.19.1-modelscope1.35.4-swift4.1.3`
-- **계산노드 검증 완료**(드라이버 550.54.14=CUDA12.4): swift 4.1.3 / torch 2.10.0+cu129 /
-  vllm 0.19.1 (`vllm._C` OK) / transformers 5.6.2 / 실제 CUDA matmul 커널 OK.
-  CUDA **마이너 버전 호환**(12.9 빌드를 12.4 드라이버에서)이 정상 동작.
-  Gemma4 지원 확인: swift `MLLMModelType.gemma4`+`Gemma4Template`, transformers `gemma4`,
-  **vllm `gemma4_mm`(멀티모달 rollout 가능)**.
-- 대안 이미지: swift3.8.3/cuda12.6.3(`ms-swift-383.sif`, Qwen용) / swift3.6.4/cuda12.4.0
-  (`ms-swift.sif`, 정확일치 콜드폴백). 최신 4.2.3 은 CUDA 13 요구라 이 드라이버에선 불가.
-- SIF 는 squashfuse·setuid 제약으로 실행마다 추출이 느려 **sandbox(디렉토리)** 로 변환해 사용
-  (`work/images/ms-swift-413-sandbox`). `00_common.sh` `ENV_MODE=container`+`CONTAINER_IMG` 기본.
+### 루브릭 설계
+- **데이터 실측**: medix = 단답 VQA(정답 중앙값 46자, 예 "28×27mm"). RaR-Medicine-20k(텍스트전용·장문)는 **스키마만 차용**.
+- **정적 4차원 루브릭**(가중=RaR 정수): 정답정확성(5) / **시각근거(3, `<think>`·교차추론)** / 정밀도·단위(3, 측정형 자동분기) / 환각Pitfall(4). 단답이라 핵심사실=참조답 1개 → **참조답을 Essential 기준에 템플릿 주입**(LLM 루브릭 생성 불필요).
+- **정적 vs 인스턴스(논문식) 실증 비교**(medix 40): 정적이 오답기각(0.000 vs 0.118)·**환각변별(+0.338 vs +0.021)** 우세 → **정적 채택 확정**. 인스턴스는 이미지 없이 생성돼 시각근거 항목 부재.
 
-## 베이스 모델 & ms-swift 4.x 주의
-- **`Qwen/Qwen3.5-9B`** (멀티모달, `MODEL_TYPE=qwen3_5`). **다운로드+검증 완료**:
-  config `qwen3_5`/`Qwen3_5ForConditionalGeneration`, processor `Qwen3VLProcessor`(image+video),
-  컨테이너 풀스택 지원(swift4.1.3·transformers5.6.2·vllm0.19.1). 9B라 8×A100-80GB GRPO 여유, 게이트 없음.
-  `work/hf_cache` 에 캐시됨(`HF_HOME`), `00_common.sh` `USE_HF=1`+`HF_HUB_OFFLINE=1` 로 컨테이너가 오프라인 사용.
-- ❌ **Gemma 4 12B 는 이 클러스터에서 불가**(검증으로 확인): 실제 모델은 `model_type=gemma4_unified`
-  + `transformers 5.10.dev` + gemma4_unified 지원 vLLM 필요 → 그 스택은 CUDA 13 이미지에만 있어
-  드라이버 550(CUDA 12.4)로 구동 불가. (다운로드한 23GB 는 사용 불가라 정리.)
-- 모델 사전 다운로드: `scripts/download_model.py`(컨테이너 내 실행, 로그인노드). 게이트 모델이면
-  `export HF_TOKEN=...`(토큰은 `~/model_download.py` 에 보유). Qwen 은 게이트 없어 토큰 불필요.
-- ⚠️ **ms-swift 3.x→4.x 인자 변경 반영됨**: `--train_type` → **`--tuner_type`**(full),
-  `--reward_funcs_plugin X` 폐지 → **`--reward_funcs ... X`** 에 직접 나열. 보상 plugin은
-  `swift.rewards`(`ORM`/`AsyncORM`/`orms`) API 사용(configs/medical_reward.py 갱신됨).
-  첫 실전 작업 전 `singularity exec --nv $CONTAINER_IMG swift sft --help` 로 인자 최종 확인 권장.
+### 구현 & judge
+- `configs/medical_reward.py` `ClinicalJudgeReward(AsyncORM)`: 형식게이트→멀티모달 judge(env `JUDGE_BASE_URL/MODEL/API_KEY`)→JSON 0/1 파싱→집계. 타임아웃·파싱실패→0.0. 사용 `--reward_funcs format_think clinical_judge --external_plugins configs/accuracy.py configs/medical_reward.py --reward_weights 0.2 1.0`.
+- **judge = `Qwen/Qwen3.6-27B-FP8`**(멀티모달, 같은 `qwen3_5` arch → 컨테이너 vLLM 그대로 서빙). `scripts/judge_server.sh`.
+  - 🚨 **로그인노드 불가**(드라이버 470 → vLLM 로드 실패). judge·학습 모두 **컴퓨트노드**(내부망 통신, 외부 egress 불필요).
 
-## 학습 방식: LoRA (하드웨어 제약 대응)
-- **GPU 인터커넥트에 NVLink가 없음**(실측 2026-06-15): 8gpu 노드 = **A100 80GB PCIe**, OpenStack 가상화
-  (`gpu-8-00x.novalocal`). `nvidia-smi topo -m` 전부 **PHB**(단일 CPU 호스트브리지 경유), PCIe passthrough라
-  **GPU P2P 차단** → NCCL이 **SHM(호스트 RAM 경유)** 로 폴백(`Channel 00 : 0[0]->1[1] via SHM`).
-- 결과: **full-FT 멀티GPU는 18GB gradient all-reduce가 통신병목** → 9B·짧은 시퀀스인데도 **375~660초/step**.
-  하이퍼바이저 ACS 영역이라 사용자가 못 고침.
-- **대응 = 전 단계 LoRA**: adapter grad(수십 MB)만 통신 → SHM에서도 **~128초/step(GRPO), ~5초/step(SFT)** 로
-  ~5~75배 빠름. base 동결이라 LoRA SFT는 **DeepSpeed 없이 DDP**로 충분.
-  - `10_sft.slurm` / `20_rlvr_grpo.slurm` 모두 **`TUNER_TYPE` 분기**: `lora`(기본, DDP) / `full`(느림, ZeRO-2 or ZeRO-3+offload).
-  - cold-start LoRA → `swift export --merge_lora`로 base 병합(`sft_coldstart_merged`) → GRPO의 `INIT_MODEL`로 사용.
-  - **LR 기본값(LoRA가 더 높음)**: SFT lora `1e-4`/full `1e-5`, GRPO lora `1e-5`/full `1e-6`. `LR=` 환경변수로 override.
+### 검증 (전부 완료)
+- ✅ 유닛테스트 **29/29** · judge 스모크(FP8 단일40GB 적합·정답1.0>오답0.0) · 내부망 도달성 · 분포 프로브(good0.96/wrong0.00, c2변별Δ0.94)
+- ✅ **GRPO 배선 end-to-end 스모크**(`35_stage3_smoke.slurm`): 플러그인 로드·`clinical_judge` 해석·kwargs 도달·보상 통합 실증.
+  - 🐛 **실버그 발견·수정**: swift가 `images`를 str 경로 아닌 **dict `{bytes,path}`**로 넘김 → `_image_to_data_url` str/dict/PIL 지원으로 수정(안 하면 시각근거 c2 blind). 재검증 PASS(data_url_ok=True, ClinicalJudge 0.58→1.0, reward=0.2·Format+1.0·Clinical 정확 통합).
+- **RL 알고리즘**: RaR는 보상 설계일 뿐 → 최적화는 GRPO 계열. 조밀 보상이라 zero-std 붕괴가 약해 **`scale_rewards=none`(dr_grpo 코어) 권장**, dynamic_sample은 경량 보험.
 
-## 보상 설계 (stage 2)
-- **출력 형식**: `<think>간결한 추론</think><answer>최종답</answer>` (`\boxed{}` 미사용 — math_verify가 평문 검증).
-- **`accuracy_mix`**(`configs/accuracy.py`): 내장 `accuracy`는 객관식 letter("B")·기호를 파싱못해 정답이어도 0점
-  (DeepVision의 ~48%가 letter라 보상 절반이 죽음) → 커스텀 보상으로 **수식=math_verify / letter=정규화일치 /
-  문자열=정규화일치** 분기. `--external_plugins configs/accuracy.py --reward_funcs accuracy_mix format`.
-- **format**(내장): 위 구조 정규식 매치. 가중치 `accuracy_mix 1.0 : format 0.2`.
-- **vLLM colocate** 디버깅: `--vllm_mode colocate`(단일노드), `--vllm_mm_processor_cache_gb 0`(멀티모달 mm_hash
-  AssertionError 회피), `--sleep_level 1`(2는 ZeRO-3와 비호환). full-FT OOM 시 `ds_zero3_offload.json`(옵티마이저 CPU).
+### 남은 것
+⏳ Stage-2 완주·재병합 후 **`bash scripts/launch_stage3.sh`**(judge ready → 학습 자동 제출). 망각 방지용 DeepVision 혼합은 옵션.
 
-## GRPO 파생기법: DAPO 레시피 (Stage-2 A/B)
-baseline(57249) 진단 결과 **Acc plateau**의 원인이 `frac_reward_zero_std` 0.24→0.33 상승(그룹 rollout이
-전부정답/전부오답화 → 정확도 gradient 소실)으로 규명됨. 이를 직격하기 위해 **DAPO**(Decoupled clip and
-dynamic sAmpling Policy Optimization, [arXiv:2503.14476](https://arxiv.org/abs/2503.14476)) 레시피를 적용.
-`scripts/21_rlvr_grpo_adv.slurm RECIPE=dapo` — baseline과 **기법 외 전 조건 동일**(clean A/B).
+---
 
-DAPO 4대 기법과 본 프로젝트 적용:
+## 기술 레퍼런스
 
-| 기법 | ms-swift 인자 | 효과 | plateau 관련성 |
-|------|--------------|------|---------------|
-| **Dynamic Sampling** | `--dynamic_sample true --max_resample_times 3` | reward_std=0 그룹을 폐기하고 재샘플 → 매 step 유효 gradient 비율↑ | ⭐ **직격** — zero_std 급등이 진단된 원인 |
-| **Clip-Higher** | `--epsilon 0.2 --epsilon_high 0.28` | 상·하단 클립 분리(상단 완화) → 저확률 토큰 탐색 보존, 엔트로피 붕괴 억제 | 조기 수렴/다양성 소실 방지 |
-| **Token-level Loss** | `--loss_type dapo` | 토큰 단위 정규화 → 긴 시퀀스의 토큰 기여 희석(길이 정규화 편향) 제거 | 형식·길이 주도 reward 상승 보정 |
-| **Overlong handling** | `--overlong_filter true` (+ 기존 `soft_overlong` 보상) | 잘린(=무답) 롤아웃을 loss에서 제외 → 길이 초과 노이즈 차단 | 잘림=0점의 신호 오염 제거 |
+### 환경: Singularity 컨테이너 (확정·검증 완료)
+- 노드 OS **CentOS 7.9 / glibc 2.17** → 최신 ML 패키지(특히 vLLM·xformers) pip/conda 설치 불가 → **공식 ms-swift 컨테이너**.
+- 이미지: `...modelscope:ubuntu22.04-cuda12.9.1-py312-torch2.10.0-vllm0.19.1-modelscope1.35.4-swift4.1.3` (Gemma4 지원=swift≥4.0.4).
+- **계산노드 검증**(드라이버 550=CUDA12.4): swift4.1.3 / torch2.10+cu129 / vllm0.19.1(`vllm._C` OK) / transformers5.6.2. CUDA **마이너 호환**(12.9 빌드를 12.4 드라이버) 정상.
+- SIF는 실행마다 추출이 느려 **sandbox(디렉토리)** 변환 사용(`work/images/ms-swift-413-sandbox`). `00_common.sh` `ENV_MODE=container`.
+- 최신 swift 4.2.3은 CUDA 13 요구라 이 드라이버서 불가. 대안 이미지: swift3.8.3/cuda12.6.3, swift3.6.4/cuda12.4.0.
 
-- 진단 모니터링: `--log_entropy true`(클립-하이어 효과 추적), 판정 = `frac_reward_zero_std`↓ + `AccuracyMix`↑(0.49 돌파) + entropy 비붕괴.
-- 비용: 본실행(57527) 실측 **~369s/it (baseline 202의 ~1.8배)**. 스모크(5 step)의 ~177s는 재샘플 부하가 거의 없는 초기값이라 과소추정 — 실제로는 `dynamic_sample` 재샘플(최대 3회)이 step당 생성량을 늘려 느려짐. 신호효율 향상의 대가.
-- 대안 레시피 `RECIPE=gspo`(sequence-level importance sampling, [arXiv:2507.18071](https://arxiv.org/abs/2507.18071))도 동일 스크립트에서 토글 가능.
+### 베이스 모델 & ms-swift 4.x 주의
+- **`Qwen/Qwen3.5-9B`**(멀티모달, `MODEL_TYPE=qwen3_5`). config `qwen3_5`/processor `Qwen3VLProcessor`. 게이트 없음, `work/hf_cache` 캐시(`HF_HUB_OFFLINE=1` 오프라인).
+- ❌ **Gemma 4 12B 불가**: 실제 `model_type=gemma4_unified` + transformers 5.10.dev + CUDA 13 이미지 필요 → 드라이버 550서 구동 불가(다운로드본 정리).
+- ⚠️ **swift 3.x→4.x 인자 변경**: `--train_type`→**`--tuner_type`**, `--reward_funcs_plugin X` 폐지→**`--reward_funcs ... X`** 직접 나열. 보상 plugin은 `swift.rewards`(`ORM`/`AsyncORM`/`orms`) API.
 
-## Stage-3: 의료 RL — RaR 루브릭 보상 (설계 확정·judge 검증 완료 · 상세 `docs/medical_reward_spec.md`)
-개방형 의료 VQA(medix)는 단일정답 규칙검증이 불가 → **Rubric-as-a-Reward**([arXiv:2507.17746](https://arxiv.org/abs/2507.17746)):
-judge 가 가중 다기준 체크리스트를 항목별 0/1 채점, explicit 집계 `r = Σwⱼcⱼ / Σwⱼ ∈ [0,1]`(부분점수 dense).
-- **데이터 실측**: medix = 단답 VQA(정답 중앙값 46자, 예 "28×27mm"). RaR-Medicine-20k(텍스트전용·장문)는 **스키마만 차용**, 비채택.
-- **정적 4차원 루브릭**(가중 = RaR 정수): 정답정확성(5) / **시각근거(3, `<think>`·교차추론)** / 정밀도·단위(3, 측정형 자동분기) / 환각Pitfall(4).
-  단답이라 핵심사실=참조답 1개 → **참조답을 Essential 기준에 템플릿 주입**(오프라인 LLM 루브릭 생성 불필요).
-- **구현** `configs/medical_reward.py` `ClinicalJudgeReward(AsyncORM)`: 형식게이트→멀티모달 judge(env `JUDGE_BASE_URL/MODEL/API_KEY`)
-  →JSON 0/1 파싱→집계. 타임아웃·파싱실패→0.0. Qwen3 추론모델 대응(thinking off). 유닛테스트 `scripts/test_medical_reward.py` **24/24**.
-- **judge = `Qwen/Qwen3.6-27B-FP8`**(멀티모달, 같은 `qwen3_5` arch → 컨테이너 vLLM 0.19.1 그대로 서빙). `scripts/judge_server.sh`(40GB 보수설정: maxlen8K·enforce-eager·util0.92, TP).
-  - 🚨 **로그인노드 불가**: 드라이버 470(CUDA11.4) → vLLM 로드 실패(`cuTensorMapEncodeTiled` 없음). **judge는 컴퓨트노드(드라이버550)**. 학습↔judge 모두 컴퓨트노드라 **내부망 통신**(외부 egress 불필요).
-  - ✅ **스모크 검증**(`31_judge_smoke.slurm`, 1gpu): FP8 30GB **단일 40GB 적합**(36.6GB), 멀티모달 채점·JSON 파싱 OK, **정답1.0>오답0.0 단조성 PASS**.
-- ✅ **선행과제 전부 완료**: 내부망 도달성(§32) → 분포 프로브(§8, c2 캘리브레이션) → `30_medical_rl.slurm` 배선 → **GRPO end-to-end 스모크**(`35_stage3_smoke.slurm`).
-- ✅ **배선 스모크(2026-07-01) 실증**: 플러그인 로드·`clinical_judge` 해석·kwargs(solution/images) 도달·보상 GRPO 통합. **실버그 수정** — swift 는 `images` 를 dict`{bytes,path}` 로 넘기므로(str 아님) `_image_to_data_url` 가 str/dict/PIL 모두 처리해야 함(안 하면 시각근거 c2 blind). 재검증 data_url_ok=True·ClinicalJudge 0.58→1.0.
+### 학습 방식: LoRA (하드웨어 제약 대응)
+- **NVLink 없음**(실측): 8gpu = A100 80GB **PCIe**, `nvidia-smi topo -m` 전부 PHB → GPU P2P 차단 → NCCL **SHM(호스트 RAM) 폴백**.
+- 결과: **full-FT 멀티GPU는 18GB gradient all-reduce 병목** → 9B·짧은 시퀀스인데도 **375~660초/step**(하이퍼바이저 ACS라 수정 불가).
+- **대응 = 전 단계 LoRA**: adapter grad(수십 MB)만 통신 → **~128s/step(GRPO)·~5s/step(SFT)** = ~5~75배↑. base 동결이라 **DeepSpeed 없이 DDP** 충분.
+  - cold-start LoRA → `swift export --merge_lora`로 병합 → 다음 단계 `INIT_MODEL`.
+  - LR 기본: SFT lora `1e-4`/full `1e-5`, GRPO lora `1e-5`/full `1e-6`. `LR=` override.
 
-## 자원 정합성 (가이드 확인 완료)
-- 계획서의 **8×A100-80GB·896GB·128core 노드** = 일반 **`8gpu` 파티션**(가이드 공식표상
-  4gpu·8gpu는 A100 **80GB**, 1gpu·2gpu만 40GB). `bdata_user`로 **바로 사용 가능**,
-  diba 계정 불필요. 노드시간 ×8 차감 계수도 8gpu 기준으로 계획서 산정과 일치.
-- ⚠️ 가이드 상세스펙 페이지엔 "40GB" 표기 모순이 있으니, **첫 8gpu 작업에서
-  `nvidia-smi`로 80GB를 실측 확인**할 것 (40GB로 판명되면 batch/length 하향 필요).
-- GRPO는 **colocate 모드**(vLLM이 학습 GPU 공유, sleep_level로 교대) 사용 — server 모드는 외부 vLLM 서버 필요.
-  LoRA라 full 옵티마이저가 없어 메모리 여유(파일럿 59.6GiB). 80GB 실측 확인 완료.
+### 보상 설계 (Stage-2)
+- **출력 형식**: `<think>간결 추론</think><answer>최종답</answer>` (`\boxed{}` 미사용).
+- **`accuracy_mix`**(`configs/accuracy.py`): 내장 `accuracy`는 객관식 letter("B")·기호 미파싱 → DeepVision ~48%가 letter라 보상 절반 소실 → 커스텀 **수식=math_verify / letter·문자열=정규화일치** 분기. 가중치 `accuracy_mix 1.0 : format_think 0.2 : soft_overlong 0.2`.
+- **vLLM colocate**: `--vllm_mode colocate`·`--vllm_mm_processor_cache_gb 0`(mm_hash AssertionError 회피)·`--sleep_level 1`.
 
-## 운영 정책 (가이드 §4)
-- **wall-clock 5일(120h)**: 70h 단일 작업 OK. 단 `--resume_from_checkpoint` 권장.
-- **배타적 노드**: 1노드=1작업(8gpu 제출 시 8 GPU 전체 독점).
-- **동시 제출 제한**: 8gpu는 PENDING+RUNNING **최대 6개**(노드수 3 ×2). ablation 6사이클
-  일괄 제출 시 한도에 정확히 도달 → 초과분은 앞 작업 종료 후 재제출.
-- **노드시간 차감**: 8gpu=8/h. 사용량 확인 `cat /scratch/account/kbds0754` 또는 포털.
-- **`#SBATCH --comment=pytorch`** 로 사용 앱 명시(가이드 권장, 스크립트에 포함됨).
+---
 
-## 데이터 경로 (가이드 §6)
-- K-BDS 공개데이터: `/kobic/ICECAP/DataStation/`
-- 데이터 매핑표: `/scratch/database/KBDSMAP/KBDS_Mapping.{txt,xlsx}`
-- 바이오 DB: `/scratch/database`  ·  공용 분석툴: `/scratch/tools`
-- 외부 데이터 업로드: `kbds-dm.kisti.re.kr` (FTP 21 / Aspera SSH·UDP 33001)
-- 계획서 데이터(DeepVision-103K, medix-rl-data)는 K-BDS 등록번호 보유
-  (10.23220/KBDSC_...) → 위 경로/매핑표에서 확인 후 `$DATA_DIR`로 연결.
+## 운영 · 데이터
 
-## 디렉토리
-```
-kbds_project/
-├── README.md
-├── plan.hwp / plan_clean.txt / plan_html/   # 원본 계획서 + 추출본
-├── env/
-│   ├── build_image.sh      # ★ Singularity 이미지 pull + sandbox 변환 (권장, 로그인 노드 1회)
-│   ├── setup_conda.sh      # (폴백) conda env — SFT만 가능, vLLM 불가
-│   └── constraints.txt     # conda 폴백용 glibc 2.17 호환 버전 핀
-├── configs/
-│   ├── accuracy.py         # ★ stage-2 커스텀 보상 accuracy_mix(math+letter+문자열) + format_think(빈 think=0)
-│   ├── ds_zero2.json       # ZeRO-2 (full-FT SFT용)
-│   ├── ds_zero3.json       # DeepSpeed ZeRO-3
-│   ├── ds_zero3_offload.json # ZeRO-3 + 옵티마이저 CPU 오프로드 (full-FT GRPO OOM 대비)
-│   └── medical_reward.py   # ★ 3단계 RaR 루브릭 보상 clinical_judge(AsyncORM, 멀티모달 judge·env 주입)
-├── scripts/
-│   ├── 00_common.sh        # 공통 경로/환경/실행 래퍼 (모든 단계가 source)
-│   ├── 10_sft.slurm        # 1단계 (format cold-start) SFT — TUNER_TYPE 분기
-│   ├── 20_rlvr_grpo.slurm  # 2단계 범용 RLVR/GRPO (DeepVision-103K) — TUNER_TYPE 분기
-│   ├── 30_medical_rl.slurm # 3단계 의료 특화 RL (medix-rl-data)
-│   ├── 40_eval.slurm       # 4단계 벤치마크 평가
-│   ├── build_coldstart_sft.py # VLAA clevr_math → (format) cold-start SFT jsonl
-│   ├── build_rft_coldstart.py # ★ rejection-sampling 간결 콜드스타트: 롤아웃 정답+간결 완성문 → SFT
-│   ├── probe_coldstart_infer.slurm # ★ 콜드스타트 격리 인퍼런스 진단(enable_thinking on/off 길이)
-│   ├── merge_probe_rft.slurm  # ★ RFT 콜드스타트 LoRA 병합 + 길이검증 인퍼런스
-│   ├── grpo_watch.sh / grpo_ab_update.py / plot_grpo_{compare,all}.py # ★ A/B 자동추적·비교 plot(통합 plot=plot_grpo_all)
-│   ├── judge_server.{sh,slurm} / 31_judge_smoke.slurm / judge_smoke_client.py / judge_probe.py / 33_judge_probe.slurm # ★ Stage-3 judge 서빙·검증
-│   ├── merge_drgrpo.slurm / launch_stage3.sh / 32_net_test.slurm / 40_eval_compare.slurm / eval_compare.py # ★ Stage-3 배선·평가
-│   ├── test_medical_reward.py # ★ 3단계 보상 유닛테스트(swift 스텁+mock judge, 24 검증)
-│   ├── watch_train.sh      # 학습 라이브 모니터(tmux)
-│   ├── build_sft.py        # (구) RL jsonl → SFT jsonl
-│   ├── convert_to_swift.py # parquet → ms-swift GRPO jsonl
-│   └── download_{model,dataset}.py
-├── docs/
-│   ├── medical_reward_spec.md  # 3단계 judge 보상 스펙
-│   └── worklog_*.md            # 일별 작업 일지
-└── logs/                   # Slurm 출력
-```
+### 자원 & 운영 정책 (가이드)
+- 계획서 **8×A100-80GB 노드** = `8gpu` 파티션(4gpu·8gpu=80GB, 1gpu·2gpu=40GB). `bdata_user` 바로 사용, diba 불필요. **80GB 실측 확인**(파일럿 59.6GiB).
+- **wall-clock 5일(120h)**: 70h 단일 OK(`--resume_from_checkpoint` 권장). **배타적 노드**(1노드=1작업). **동시 제출 8gpu 최대 6개**(노드 3×2). **노드시간** 8gpu=8/h(`cat /scratch/account/kbds0754`). `#SBATCH --comment=pytorch` 필수.
 
-## 사용 순서
-```bash
-# 0) 환경 — 컨테이너 빌드 (로그인 노드, 인터넷 O). 이미 빌드됨: work/images/ms-swift-sandbox
-bash env/build_image.sh                # SIF pull + sandbox 변환 (1회, ~30분)
-#   GPU 검증은 계산노드에서:
-#   srun -p debug-1gpu --nodes=1 --tasks-per-node=1 --time=00:05:00 --comment=etc \
-#     singularity exec --nv work/images/ms-swift-sandbox python -c "import swift,vllm,torch; print(torch.cuda.is_available())"
+<details><summary>노드시간 예산 (계획서 4,960 / Track III 한도 5,000)</summary>
 
-# 1) 경로/모델 확인 — scripts/00_common.sh 상단 변수 (WORK_DIR, BASE_MODEL, CONTAINER_IMG 등)
-#    데이터셋을 $DATA_DIR 에 ms-swift 포맷(jsonl)으로 배치 (아래 데이터 포맷 참고)
-
-# 2) 단계별 제출 (의존성 체이닝: 이전 단계 완료 후 자동 시작)
-JID1=$(sbatch --parsable scripts/10_sft.slurm)
-JID2=$(sbatch --parsable --dependency=afterok:$JID1 scripts/20_rlvr_grpo.slurm)
-JID3=$(sbatch --parsable --dependency=afterok:$JID2 scripts/30_medical_rl.slurm)
-sbatch          --dependency=afterok:$JID3 scripts/40_eval.slurm
-
-squeue -u $USER
-```
-
-## 노드시간 예산 (계획서 = 4,960 / Track III 한도 5,000)
 | 단계 | 스크립트 | 1회 | 반복 | 노드시간 |
 |------|----------|-----|------|----------|
-| SFT | 10_sft | 24h×8 | ×5 사이클 | 960 |
-| 범용 RLVR/GRPO | 20_rlvr_grpo | 70h×8 | ×6 ablation | 3,360 |
-| 평가 | 40_eval | 10h×8 | ×8 회 | 640 |
+| SFT | 10_sft | 24h×8 | ×5 | 960 |
+| 범용 RLVR/GRPO | 20_rlvr_grpo | 70h×8 | ×6 | 3,360 |
+| 평가 | 40_eval | 10h×8 | ×8 | 640 |
 | **합계** | | | | **4,960** |
+</details>
 
-> 반복(사이클/ablation)은 변수만 바꿔 `sbatch` 재제출. 5일(120h) 시간한도 내라
-> 70h 단일 작업도 가능하나, 체크포인트 재개(`--resume_from_checkpoint`)를 권장.
+### 데이터 (소스 확정 + 변환 검증)
+- **Stage-2**: `skylenage-ai/DeepVision-103K`(수학 77K + 시각논리 26K = 103K, 검증가능 정답). `DeepMath-103K`(텍스트) 혼동 주의.
+- **Stage-3**: `MBZUAI/medix-rl-data`(51K, 개방형 의료 멀티모달). 둘 다 `work/hf_cache` 다운로드 완료·게이트 없음.
+- K-BDS 공개데이터 경로: `/kobic/ICECAP/DataStation/` · 매핑표 `/scratch/database/KBDSMAP/` · 업로드 `kbds-dm.kisti.re.kr`.
+- 출력 포맷: `{"messages":[{"role":"user","content":"<image>...질문"}], "images":["/abs.png"], "solution":"정답"}`.
 
-## 데이터 (소스 확정 + 변환 검증 완료)
-- **2단계 RLVR**: `skylenage-ai/DeepVision-103K` (수학 77K + 시각논리 26K = 103K, 검증가능 정답).
-  계획서 "DeepVision-103K" 의 원본(동명 복제본 여럿 中 다운로드/likes 최다). `DeepMath-103K`(텍스트)와 혼동 주의.
-- **3단계 의료**: `MBZUAI/medix-rl-data` (51K train, 개방형 의료 멀티모달, MediX-R1 데이터).
-- 둘 다 다운로드 완료(`work/hf_cache`), 게이트 없음. K-BDS DataStation(`/kobic/...`)은 그룹 권한
-  필요(포털 신청) — 사전 적재 멀티모달 데이터 없어 위 HF 데이터를 받아 (계획서대로) K-BDS 업로드.
-- **추가 후보**(검증됨): 범용 `FanqingM/MMK12`·`lmms-lab/multimodal-open-r1-8k-verified`·`UCSC-VLAA/VLAA-Thinking`,
-  의료 `xmcmic/PMC-VQA`·`flaviagiammarino/vqa-rad`·`UCSC-VLAA/MedReason`.
+<details><summary>다운로드 → 변환 워크플로 (컨테이너 내, 로그인노드)</summary>
 
-### 다운로드 → 변환 워크플로 (컨테이너 내, 로그인 노드)
 ```bash
 SB=work/images/ms-swift-413-sandbox
-# 데이터셋 다운로드(이미 완료): python scripts/download_dataset.py <id>
-# parquet → ms-swift GRPO jsonl (이미지는 로컬 PNG 추출). 컨테이너 안에서:
 DV=$(ls -d work/hf_cache/hub/datasets--skylenage-ai--DeepVision-103K/snapshots/*/)
 singularity exec --bind $PWD/work --env HF_HUB_OFFLINE=1 $SB python scripts/convert_to_swift.py \
   skylenage-ai/DeepVision-103K --parquet "${DV}math-77k.parquet" "${DV}visual_logic-26k.parquet" \
@@ -382,45 +249,83 @@ singularity exec --bind $PWD/work --env HF_HUB_OFFLINE=1 $SB python scripts/conv
   MBZUAI/medix-rl-data --parquet "${MX}data/train-*.parquet" \
   --out work/data/medix_rl_train.jsonl --images-dir work/data/images/medix
 ```
-- 출력 포맷(검증 완료): `{"messages":[{"role":"user","content":"<image>...질문"}], "images":["/abs.png"], "solution":"정답"}`
-  - 2단계 `accuracy` 보상이 `solution`(=DeepVision ground_truth) 비교. 3단계는 `clinical_judge`(medix solution=참조답).
-- ⚠️ parquet 의 `List` feature 가 컨테이너 datasets 구버전과 충돌 → 변환기는 **pyarrow 스트리밍** 사용(저메모리).
-- ⚠️ 전체 변환은 이미지 ~154K개 추출(디스크·inode 큼) → 배치/백그라운드 권장. 샘플 50건씩은 검증 완료.
+- ⚠️ parquet `List` feature가 datasets 구버전과 충돌 → 변환기는 **pyarrow 스트리밍**. 전체 변환은 이미지 ~154K개 추출(디스크·inode 큼).
+</details>
 
-## TODO / 진행 상태
-- [x] 환경 구축 — 컨테이너(swift4.1.3) 빌드 + 계산노드 검증 완료
-- [x] `BASE_MODEL` = `Qwen/Qwen3.5-9B` (멀티모달, 다운로드+로드 검증 완료)
-- [x] 데이터 소스 확정 + 전체 변환: `deepvision103k_train.jsonl`(103K) / `medix_rl_train.jsonl`(51K)
-- [x] 8gpu VRAM **80GB 실측 확인** (+ NVLink 없음·SHM 폴백 발견 → LoRA 전환)
-- [x] **format cold-start SFT(LoRA)**: VLAA clevr_math → `sft_coldstart_{train,val}.jsonl`(2913/60),
-      학습 loss 0.89→0.46, 병합본 `sft_coldstart_merged` 생성
-- [x] **`accuracy_mix` 보상**(`configs/accuracy.py`) — 객관식 letter 정답 점수화(9/9 검증)
-- [x] **GRPO LoRA 파일럿 검증** — 128초/step, Format 0→0.156, OOM無
-- [x] **추론모드 강제 + 보상 정비**: `enable_thinking=true`, `format_think`(빈 think=0점), `soft_overlong`(길이),
-      `flash_attn`. GRPO 여러 사이클 시행(57221~57241)하며 설정 수렴.
-- [x] **[핵심 진단] 추론 길이 폭주** 규명: base가 본래 장문 추론(3.5~4.6K토큰) → budget·RL·enable_thinking로
-      못 잡음(`probe_coldstart_infer.slurm`로 검증). 잘림=0점이 학습 정체 원인.
-- [x] **ZeRO-3 실험·불채택**: 길이 확대엔 효과(clip 0.5→0.25)나 no-NVLink param all-gather로 5배 느림(s/it 1111).
-- [x] **rejection-sampling 간결 콜드스타트**(`build_rft_coldstart.py`→`sft_rft_coldstart_merged`):
-      GRPO에서 FormatThink 0.05→0.27(5배)·clip↓ **검증 완료**(`merge_probe_rft.slurm`).
-- [x] **Stage-2 GRPO baseline**(job 57249): LoRA-DDP + 6144 + RFT 콜드스타트 init. step 1000 완주(autostop) →
-      `checkpoint-1000`. 추세 우상향(reward+48%·FormatThink+155%)이나 **Acc plateau 진단**(zero_std 0.24→0.33).
-- [x] **GRPO 파생기법 A/B 종결**(`scripts/21_rlvr_grpo_adv.slurm`): `dynamic_sample`+`overlong_filter` 코어 + dapo/gspo/dr_grpo.
-      **DAPO 돌파 미확인**(57527) / **dr_grpo 돌파 확인**(57624, step501~600 Acc 0.526>0.500) → **승자 dr_grpo `checkpoint-600`**.
-- [x] **[운영] 디스크 정리 ~42G**: 미사용 .sif 2개 + 대체된 콜드스타트 체크포인트 삭제, 스크립트 스테일 참조 정정.
-- [x] **`medical_reward.py` RaR 루브릭 보상 구현**(clinical_judge AsyncORM, 정적 4차원, 유닛테스트 24/24) — spec §4.2
-- [x] **judge 확정·검증**: `Qwen3.6-27B-FP8`(멀티모달) 컴퓨트노드 vLLM 단일40GB 적합·단조성 PASS(`judge_server.sh`/`31_judge_smoke.slurm`). 로그인노드는 드라이버470이라 불가.
-- [x] **학습↔judge 내부망 도달성 테스트** 통과(`32_net_test.slurm`)
-- [x] spec §8 분포 프로브 통과(단조성99%·c2변별Δ0.94, c2 완화)
-- [x] **Stage-3 배선 완료**: `30_medical_rl.slurm`(LoRA+judge보상)·`judge_server.slurm`·`merge_drgrpo.slurm`·`launch_stage3.sh`(오케스트레이터)
-- [ ] **Stage 3 본실행**: medix + DeepVision 일부 혼합 LoRA RL (judge 보상, 망각 방지)
-- [ ] 평가 벤치마크(`EVAL_DATASETS`)를 실제 의료 멀티모달 벤치마크로 교체
-- [ ] 하이퍼파라미터 튜닝(num_generations·lora_rank 등 — 메모리 여유 있음)
+### 홀드아웃 분리 (Stage-2 평가 누수 차단)
+`scripts/make_holdout.py`: DeepVision엔 카테고리 라벨 없음 → **정답유형 프록시**(math=수치/수식, visual-logic=객관식 MC) 각 **1%** 층화 → `deepvision_holdout.jsonl`(972) / `deepvision103k_trainonly.jsonl`(102,531). 학습은 trainonly, 평가는 holdout(누수 0). 평가 `eval_compare.py`(math/vl 층별 분리 보고).
+
+<details><summary>디렉토리 트리</summary>
+
+```
+kbds_project/
+├── README.md · HANDOFF.md · plan.hwp
+├── configs/
+│   ├── accuracy.py          # Stage-2 보상 accuracy_mix + format_think
+│   ├── medical_reward.py    # Stage-3 RaR 루브릭 보상 clinical_judge(AsyncORM)
+│   └── ds_zero{2,3,3_offload}.json
+├── scripts/
+│   ├── 00_common.sh                     # 공통 경로/환경/실행 래퍼
+│   ├── 10_sft.slurm / 20_rlvr_grpo.slurm / 30_medical_rl.slurm / 40_eval.slurm  # 단계별
+│   ├── 21_rlvr_grpo_adv.slurm           # Stage-2 A/B(dapo/gspo/dr_grpo, RESUME/MAX_STEPS)
+│   ├── build_rft_coldstart.py           # 간결 콜드스타트
+│   ├── make_holdout.py                  # 층화 홀드아웃 분리
+│   ├── plot_grpo_all.py                 # 3기법 통합 plot
+│   ├── judge_server.sh / 31_judge_smoke.slurm / 33_judge_probe.slurm  # judge 서빙·검증
+│   ├── 35_stage3_smoke.slurm            # Stage-3 배선 end-to-end 스모크
+│   ├── merge_drgrpo.slurm / launch_stage3.sh / launch_gspo_ab.sh      # 오케스트레이터
+│   ├── 40_eval_compare.slurm / eval_compare.py                        # base vs 학습 벤치
+│   ├── test_medical_reward.py           # Stage-3 보상 유닛테스트(29)
+│   └── convert_to_swift.py / download_{model,dataset}.py
+├── docs/ (medical_reward_spec.md · worklog_*.md) · logs/
+```
+</details>
+
+### 사용 순서
+```bash
+# 0) 환경(1회, 로그인노드): bash env/build_image.sh  → work/images/ms-swift-413-sandbox
+# 1) 경로/모델 확인: scripts/00_common.sh 상단 변수
+# 2) 단계별 제출 (의존성 체이닝)
+JID1=$(sbatch --parsable scripts/10_sft.slurm)
+JID2=$(sbatch --parsable --dependency=afterok:$JID1 scripts/20_rlvr_grpo.slurm)
+JID3=$(sbatch --parsable --dependency=afterok:$JID2 scripts/30_medical_rl.slurm)
+sbatch          --dependency=afterok:$JID3 scripts/40_eval.slurm
+```
+
+---
+
+## 진행 이력 & 체크리스트
+
+### 핵심 의사결정 (요약)
+- **NVLink 없음 → 전 단계 LoRA** (full-FT 375~660s/step → LoRA ~5배↑).
+- **추론 길이 폭주 → rejection-sampling 간결 콜드스타트** (ZeRO-3 길이확대는 5배 느려 불채택).
+- **plateau 돌파 → dr_grpo** (두 정규화 편향 제거로 zero-std plateau 통과).
+- **평가 누수 차단 → 층화 홀드아웃 + fresh 1 epoch 재학습** (기존 stride 슬라이스는 학습 파일과 겹침).
+- **Stage-3 → 정적 RaR 루브릭** (인스턴스식 대비 시각근거 변별 우세).
+
+### 날짜별 이력 (상세 `docs/worklog_*.md`)
+- **06-15~17** — 환경·모델·데이터 확정. NVLink 부재 발견→LoRA 전환. format 콜드스타트, `accuracy_mix`, GRPO 파일럿. Stage-2 착수(57249).
+- **06-19** — Stage-2 baseline 완주(step1000). **Acc plateau 진단**(zero_std 0.24→0.33).
+- **06-22~24** — plateau 돌파 A/B config(`21_..adv`). **DAPO 착수**(57527) → 안정성↑(grad 무spike·zero_std 0.00)이나 Acc 적신호. step600 돌파판정 자동화.
+- **06-25** — **DAPO 종결**(미돌파). **dr_grpo 착수**(57624).
+- **06-28** — **dr_grpo 돌파 확인**(step501~600 Acc 0.526>0.500). 승자 = `checkpoint-600`.
+- **06-29** — **Stage-3 착수**: RaR 루브릭·`medical_reward.py`·judge(Qwen3.6-27B-FP8) 확정. **정적 vs 인스턴스 비교→정적 채택**.
+- **06-30** — **홀드아웃 정비 + 1 epoch 재학습 착수**(층화 972, trainonly 102,531, fresh, MAX_STEPS 3204). +67% 무효화. 속도 병목 진단(~365s/step 구조적).
+- **07-01** — **Stage-3 배선 end-to-end 스모크**: images dict 실버그 발견·수정, 유닛 29/29, 재검증 PASS. GRPO/DAPO/dr_grpo/GSPO 논문 정리. **GSPO A/B 착수**(59004, dr_grpo 병렬).
+
+### TODO
+- [x] 환경·모델·데이터 확정 + 전체 변환 (DeepVision 103K / medix 51K)
+- [x] LoRA 전환(NVLink 없음) · 간결 콜드스타트 · `accuracy_mix`
+- [x] Stage-2 baseline 완주 + **A/B 종결(dr_grpo 승자)**
+- [x] Stage-3 RaR 보상·judge·**배선 end-to-end 스모크**(유닛 29/29)
+- [x] **홀드아웃 정비 + 1 epoch 재학습 착수** (진행 중)
+- [ ] **Stage-2 완주** → 최종 ckpt 재병합 → **층화 홀드아웃 벤치마크**(math/vl 분리)
+- [ ] (선택) **GSPO A/B 판정** → dr_grpo와 비교해 채택 결정
+- [ ] **Stage-3 본실행**(`launch_stage3.sh`) → Stage-3 init 교체
+- [ ] 평가 벤치마크를 실제 의료 멀티모달 벤치로 교체 · 하이퍼파라미터 튜닝
+
+---
 
 ## 과제 종료 의무 (가이드 §7)
-- 종료 후 **1주 내** 데이터 다운로드(이후 접속 차단·삭제) · **1개월 내** 결과보고서 +
-  산출물 기탁(marketplace.kbds.re.kr) · **2년 내** 사사표기 논문 제출.
-- 사사 문구: *"이 논문은 K-BDS로부터 컴퓨팅 자원과 기술지원을 받아 수행된 연구성과임"*
-  / *"This work was supported by the Korea Bio Data Station(K-BDS) with computing
-  resources including technical support"*
-```
+- 종료 후 **1주 내** 데이터 다운로드(이후 차단·삭제) · **1개월 내** 결과보고서 + 산출물 기탁(marketplace.kbds.re.kr) · **2년 내** 사사표기 논문.
+- 사사: *"이 논문은 K-BDS로부터 컴퓨팅 자원과 기술지원을 받아 수행된 연구성과임"* / *"This work was supported by the Korea Bio Data Station(K-BDS) with computing resources including technical support"*

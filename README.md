@@ -50,11 +50,21 @@ RFT 간결 콜드스타트 init + LoRA-DDP + max_completion 6144. step 1000에�
   + `scale_rewards=none`(그룹 std 난이도 편향 제거). **step 501~600 Acc 0.526 > baseline 0.500**(DAPO 0.465 실패)하며
   길이 억제(mean_len 3259)까지 동반 → **가설 검증**. 후반 꼬리(601~689) Acc 0.494 소폭 냉각 → **최적 산출물 `checkpoint-600`**.
 
-#### 쉬운 설명 (한 문장 직관)
-공통 아이디어: **한 문제에 답을 여러 개(그룹) 뽑아, 그룹 평균보다 잘한 답은 강화·못한 답은 억제**한다(정답 채점만 있으면 됨).
-- **GRPO** = 기본형. 단순하지만 두 약점: ① 그룹 답이 *전부 정답/전부 오답*이면 배울 게 없어 낭비(→ Acc 정체) ② *긴 답·쉬운 문제*가 과대평가되는 편향.
-- **DAPO** = GRPO에 **"탐색·효율"을 보강**. 무신호 그룹은 버리고 다시 뽑고(dynamic sampling), 확률 올릴 여지를 키워(clip-higher) 다양성 유지. → 우리 결과: 안정성은 크게 좋아졌으나 *답이 길어지며* 정확도는 baseline 못 넘음.
-- **dr.GRPO** = GRPO의 **"편향 자체를 제거"**. 길이 보정·난이도 보정을 빼서 *긴 답에 유리하던 쏠림*을 없앰. → DAPO가 겪은 "답 길어짐" 문제를 정면으로 겨냥.
+#### 쉬운 설명 (비유로 이해하기)
+
+> **비유**: 한 문제에 모델이 **답안 4장(그룹)**을 낸다 → 정답 여부만 채점 → **그룹 평균보다 잘 쓴 답은 "더 그렇게", 못 쓴 답은 "덜 그렇게"** 확률을 민다.
+> PPO와 달리 **별도 채점관(가치망)이 필요 없다** — *그룹 평균*이 기준선 역할을 하기 때문(=GRPO의 핵심 절약).
+
+세 기법은 이 골격을 공유하고, "채점을 점수로 환산하는 규칙"에서만 갈린다:
+
+- **GRPO** (DeepSeekMath, 2024) = **기본형**. 그룹 평균을 빼고 **그룹 표준편차로 나눠** 점수화. 단순하지만 두 약점:
+  ① 그룹이 *전부 정답/전부 오답*이면 표준편차=0 → 배울 게 없어 낭비(→ **Acc 정체**), ② **긴 답·쉬운 문제**가 과대평가되는 편향.
+- **DAPO** (ByteDance, 2025) = GRPO에 **"탐색·효율 보강" 4종 세트**. ① 무신호 그룹은 버리고 다시 뽑기(dynamic sampling) ② 확률 올릴 여지 확대(clip-higher) ③ 길이 무관 토큰단위 손실 ④ 잘린 답 노이즈 차단(overlong).
+  → 우리 결과: 안정성은 크게 좋아졌으나 **답이 길어지며** 정확도는 baseline을 못 넘음.
+- **dr.GRPO** (2025, "R1-Zero 비판적 분석") = GRPO의 **"편향 자체를 수술"**. ① 손실을 시퀀스 길이가 아닌 **상수로 정규화**(길이 편향 제거) ② **표준편차 나눗셈 삭제**(난이도 편향 제거).
+  → DAPO가 겪은 "답 길어짐"을 정면으로 겨냥. **우리 승자** — Acc 0.526>0.500, 길이도 억제.
+
+한 줄 요약: **GRPO=기본 · DAPO=탐색을 더함(＋4기법) · dr.GRPO=편향을 뺌(－2정규화)**.
 
 #### 기법 메커니즘 비교 (GRPO / DAPO / dr_grpo)
 세 기법은 **advantage = 그룹상대(group-relative)** 라는 골격을 공유하며, 아래 축에서만 갈린다. (소스: `grpo_trainer.py` 손실 분기 직접 확인)
@@ -70,11 +80,15 @@ RFT 간결 콜드스타트 init + LoRA-DDP + max_completion 6144. step 1000에�
 | **잘린 롤아웃** | loss 포함(신호 오염) | `overlong_filter` 제외 | `overlong_filter` 제외 |
 | IS 레벨 | token | token | token |
 | 주 타깃 문제 | (기준선) | zero_std plateau | **길이 폭주→clip→0점** |
+| **원논문 핵심 주장** | 가치망 없이 그룹평균을 기준선으로 → PPO 대비 메모리 절약 | 재현가능한 대규모 RL 시스템 + 4기법으로 긴 CoT 안정화 | GRPO의 길이·난이도 정규화가 **오답을 길게 만드는 편향** → 제거하면 unbiased·토큰효율↑ |
+| **원논문 성과** | 수학추론 SOTA(DeepSeekMath-7B) | AIME2024 **50점**(Qwen2.5-32B), 기존 47점을 **50% 적은 step**으로 | AIME2024 **43.3%**(7B), 토큰효율 개선 |
 | ms-swift 인자 | `--loss_type grpo --scale_rewards group` | `--loss_type dapo --epsilon_high 0.28 --dynamic_sample --overlong_filter` | `--loss_type dr_grpo --scale_rewards none --dynamic_sample --overlong_filter` |
 | 우리 결과 | Acc plateau(~0.50 정점, zero_std 0.24→0.33) | 안정성 압도(grad 무폭주·zero_std 0.00) **but 돌파 미확인**(step501~600 Acc 0.465<0.500) | ✅ **돌파 확인**(57624): step501~600 Acc **0.526>0.500**·mean_len 3259(길이↓)·clip↓ — DAPO 실패지점 통과. **Stage-2 승자** |
 
 > 요지: **DAPO 는 "탐색·신호 효율"**(clip-higher + 동적샘플)을, **dr_grpo 는 "정규화 편향 제거"**(길이·난이도)를 노린다.
 > 둘 다 공통 코어(`dynamic_sample`+`overlong_filter`)는 켠 채, baseline 과 그 외 조건은 동일(clean A/B). GSPO 등 추가 레시피는 "GRPO 파생기법" 절 참고.
+>
+> **논문 출처**: GRPO=DeepSeekMath [arXiv:2402.03300](https://arxiv.org/abs/2402.03300) · DAPO [arXiv:2503.14476](https://arxiv.org/abs/2503.14476) · Dr.GRPO="Understanding R1-Zero-Like Training" [arXiv:2503.20783](https://arxiv.org/abs/2503.20783). (메커니즘은 ms-swift `grpo_trainer.py` 손실 분기와 대조 확인)
 
 **3기법 최종 비교** (동일구간 누적 + 돌파판정 구간):
 

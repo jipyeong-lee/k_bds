@@ -3,11 +3,11 @@
 계획서(`plan.hwp`) 기반, **ms-swift**로 (format cold-start) SFT → 범용 RLVR/GRPO → 의료 특화 RL → 평가
 4단계를 KISTI Slurm 클러스터 환경에 맞춰 구성. 일별 진행 기록은 `docs/worklog_*.md` 참고.
 
-## 현황 (2026-06-30 기준)
+## 현황 (2026-07-01 기준)
 
-**파이프라인 위치**: Stage-2(범용 RLVR/GRPO) — GRPO 파생기법 A/B 로 **dr_grpo 승자 확정**(baseline·DAPO plateau 미돌파). 이후 두 문제 발견 → **정비 후 1 epoch 재학습 진행 중**:
+**파이프라인 위치**: Stage-2(범용 RLVR/GRPO) — GRPO 파생기법 A/B 로 **dr_grpo 승자 확정**(baseline·DAPO plateau 미돌파). 이후 두 문제 발견 → **정비 후 1 epoch 재학습 진행 중 (step 441/3204 ≈ 14%)**:
 - ⚠️ ① 파일럿 dr_grpo 는 데이터 **21%(step~650)만** 학습(중간 중단), ② 평가가 학습 파일 stride 슬라이스라 **진짜 홀드아웃 아님**(누수).
-- ✅ **조치**: 정답유형 **층화 홀드아웃 분리**(`make_holdout.py` — math 453 + visual-logic 519 = 972, 학습 `trainonly` 102,531) + **init 부터 fresh 1 epoch 재학습**(누수 0). 현재 **job 58892** 외 afterany 체인(총 6잡), `checkpoint` 진행 중.
+- ✅ **조치**: 정답유형 **층화 홀드아웃 분리**(`make_holdout.py` — math 453 + visual-logic 519 = 972, 학습 `trainonly` 102,531) + **init 부터 fresh 1 epoch 재학습**(누수 0). **job 58892 RUNNING** + afterany 체인(총 6잡, QOS 상한). 건전성 양호(`frac_reward_zero_std=0`, Format 0.32→0.5↑, ~365s/step=구조적). 완주까지 실시간 약 5~6일.
 - ⚠️ 이전 "정확도 0.21→0.35(+67%)" 벤치마크는 **in-distribution 오염 + 21% 학습**이라 **무효** — 1 epoch 완주 후 **층화 홀드아웃(math/visual-logic 분리)** 에서 재측정 예정.
 
 → **Stage-3(의료 RL, RaR): 설계·배선 end-to-end 검증 완료, Stage-2 완주까지 대기.** RaR 루브릭 보상 + judge(Qwen3.6-27B-FP8) 전부 검증(유닛 29/29·judge 스모크·내부망·분포 프로브·**GRPO 배선 스모크**). **정적 vs 인스턴스 루브릭 실증 비교 → 정적 채택 확정**(환각변별 +0.338 vs +0.021). **배선 스모크에서 실버그 발견·수정**: swift 가 `images` 를 str 경로가 아니라 dict `{bytes,path}` 로 넘겨 이미지가 judge 에 누락될 뻔 → 수정 후 재검증 PASS(ClinicalJudge 0.58→1.0, 보상 정상 통합). 남은 것: 본실행 `bash scripts/launch_stage3.sh`.

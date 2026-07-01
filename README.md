@@ -3,13 +3,15 @@
 계획서(`plan.hwp`) 기반, **ms-swift**로 (format cold-start) SFT → 범용 RLVR/GRPO → 의료 특화 RL → 평가
 4단계를 KISTI Slurm 클러스터 환경에 맞춰 구성. 일별 진행 기록은 `docs/worklog_*.md` 참고.
 
-## 현황 (2026-06-29 기준)
+## 현황 (2026-06-30 기준)
 
-<!-- AUTO:status START (scripts/grpo_ab_update.py 자동 갱신 — 수동 편집 금지) -->
-**파이프라인 위치**: Stage-2(범용 RLVR/GRPO) — baseline 완주 → Acc plateau 진단 → **DAPO 종결**(step 623, `checkpoint-600` 확정, step 501~600 Acc 0.465<baseline 0.500 → **돌파 미확인**) → **dr_grpo ✅ 돌파 확인·종결**(job 57624, step 689 TIMEOUT): **step 501~600 Acc 0.526 > baseline 0.500**(DAPO 0.465 실패) — 길이 억제(mean_len 3259<baseline)와 함께 정확도 우위 전환. 후반 꼬리(601~689) Acc 0.494로 소폭 냉각(길이 3426 반등) → **최적 = `checkpoint-600`**(= Stage-2 승자, 병합본 `dr_grpo_merged`).
-**📊 학습효과(vs base Qwen3.5-9B, DeepVision 홀드아웃): 정확도 0.21→0.35(+67% 상대)·형식 0.23→0.46(2배)·길이 5618→4414자↓** (`40_eval_compare.slurm`). → **Stage-2 완전 종결.**
-→ **Stage-3(의료 RL): 본실행 준비 완료.** RaR 루브릭 보상 + judge(Qwen3.6-27B-FP8 멀티모달) **전부 검증** — 유닛 24/24·judge 스모크(단일40GB·단조성)·내부망 도달성·분포 프로브(good0.96/wrong0.00, c2변별Δ0.94)·slurm 배선 ✅. **남은 것: 본실행** `bash scripts/launch_stage3.sh`.
-<!-- AUTO:status END -->
+**파이프라인 위치**: Stage-2(범용 RLVR/GRPO) — GRPO 파생기법 A/B 로 **dr_grpo 승자 확정**(baseline·DAPO plateau 미돌파). 이후 두 문제 발견 → **정비 후 1 epoch 재학습 진행 중**:
+- ⚠️ ① 파일럿 dr_grpo 는 데이터 **21%(step~650)만** 학습(중간 중단), ② 평가가 학습 파일 stride 슬라이스라 **진짜 홀드아웃 아님**(누수).
+- ✅ **조치**: 정답유형 **층화 홀드아웃 분리**(`make_holdout.py` — math 453 + visual-logic 519 = 972, 학습 `trainonly` 102,531) + **init 부터 fresh 1 epoch 재학습**(누수 0). 현재 **job 58892** 외 afterany 체인(총 6잡), `checkpoint` 진행 중.
+- ⚠️ 이전 "정확도 0.21→0.35(+67%)" 벤치마크는 **in-distribution 오염 + 21% 학습**이라 **무효** — 1 epoch 완주 후 **층화 홀드아웃(math/visual-logic 분리)** 에서 재측정 예정.
+
+→ **Stage-3(의료 RL, RaR): 설계·검증 완료, Stage-2 완주까지 대기.** RaR 루브릭 보상 + judge(Qwen3.6-27B-FP8) 전부 검증(유닛 24/24·스모크·내부망·분포 프로브). **정적 vs 인스턴스 루브릭 실증 비교 → 정적 채택 확정**(환각변별 +0.338 vs +0.021). 남은 것: 본실행 `bash scripts/launch_stage3.sh`.
+
 일별 상세 기록은 `docs/worklog_*.md`.
 
 ## 목차
@@ -20,7 +22,9 @@
 5. **운영·데이터** — 자원·정책·데이터 경로·디렉토리·사용순서·노드시간 예산
 6. **진행 이력 / TODO** — 일자별 기록·체크리스트
 
-## Stage-2 결과 (범용 RLVR/GRPO · ✅ 종결)
+## Stage-2 결과 (범용 RLVR/GRPO · dr_grpo 승자 → 1 epoch 재학습 중)
+
+> **요약**: 기법 A/B(아래 파일럿, 데이터 21%)로 **dr_grpo 승자 확정**. 이후 홀드아웃 누수·과소학습을 바로잡아 **층화 홀드아웃 분리 + init 부터 fresh 1 epoch 재학습**(job 58892~, `grpo_general_adv_dr_grpo_he/`) 진행 중. 정식 벤치마크는 완주 후 층별로 교체.
 
 ### baseline (job 57249 · step 1000 완주)
 RFT 간결 콜드스타트 init + LoRA-DDP + max_completion 6144. step 1000에서 autostop(`checkpoint-1000` 저장 후
@@ -88,16 +92,19 @@ RFT 간결 콜드스타트 init + LoRA-DDP + max_completion 6144. step 1000에�
 mean_length 억제(DAPO는 길이↑→정확도 미전환). zero_std 는 DAPO·dr_grpo 둘 다 0 평탄, baseline 만 상승(=plateau 원인).
 재생성: `singularity exec work/images/ms-swift-413-sandbox python scripts/plot_grpo_all.py logs/grpo_stage2_57249.log logs/grpo_adv_57527.log logs/grpo_adv_57624.log docs/assets/grpo_stage2_all.png`)*
 
-### Stage-2 학습 효과: base vs 학습모델 (DeepVision 홀드아웃 100건, `40_eval_compare.slurm`)
-콜드스타트 SFT + Stage-2 GRPO(dr_grpo) 의 실제 효과를 base(Qwen3.5-9B)와 동일조건 비교(accuracy_mix 자동채점):
+### Stage-2 학습 효과: base vs 학습모델 — ⚠️ 재측정 예정
 
-| 지표 | base (Qwen3.5-9B) | **학습모델 (dr_grpo_merged)** | 변화 |
+> **아래 수치(파일럿)는 무효화됨.** 평가셋이 학습 파일의 stride 슬라이스라 **진짜 홀드아웃이 아니었고**(누수), 학습도 데이터의 **21%(step~650)만** 진행된 상태였음. → 정답유형 **층화 홀드아웃 분리** + **1 epoch fresh 재학습** 후, 아래를 **math/visual-logic 분리 정식 수치로 교체**한다. (분리기 `scripts/make_holdout.py`, 평가 `eval_compare.py`)
+
+<details><summary>파일럿 수치(무효, 참고용) — DeepVision stride 100건</summary>
+
+| 지표 | base (Qwen3.5-9B) | 학습모델 (구 dr_grpo_merged) | 변화 |
 |------|-------------------|------------------------------|------|
-| **정확도** | 0.21 | **0.35** | **+0.14 (+67% 상대)** |
-| 형식 준수(`<answer>`) | 0.23 | **0.46** | +100% |
-| 평균 길이(자) | 5618 | 4414 | −21%(장황↓) |
+| 정확도 | 0.21 | 0.35 | +0.14 (오염·21%학습) |
+| 형식 준수(`<answer>`) | 0.23 | 0.46 | — |
+| 평균 길이(자) | 5618 | 4414 | — |
 
-→ 학습이 **정확도·형식·간결성** 모두 개선. (N=100·max_tokens 2048·DeepVision in-domain. 외부 멀티모달 벤치마크는 Stage-4 평가에서 추가.) 산출 init = `dr_grpo_merged`(Stage-3 init 겸).
+</details>
 
 ## 핵심 의사결정 이력 (상세: 해당 섹션 / worklog)
 - **NVLink 없음 → 전 단계 LoRA**: PCIe A100·SHM 폴백으로 full-FT 375~660s/step → LoRA ~5배↑. ☞ "학습 방식" 절.
@@ -136,7 +143,12 @@ mean_length 억제(DAPO는 길이↑→정확도 미전환). zero_std 는 DAPO·
   step 689 TIMEOUT 종료. **승자 = dr_grpo `checkpoint-600`** → Stage-3 init. ☞ `worklog_2026-06-28`
 - **2026-06-29** — **Stage-3 착수: RaR(Rubric-as-a-Reward) 루브릭 보상 설계·구현**. medix=단답 VQA 실측 → 정적 4차원
   루브릭(정확성5/시각근거3/정밀도3/환각4, 참조답 템플릿 주입 → LLM생성 불필요). `medical_reward.py` 멀티모달
-  judge(AsyncORM) 구현 + 유닛테스트 24/24 통과. judge 엔드포인트(snuhub/self-host) 확정 대기. ☞ `worklog_2026-06-29`
+  judge(AsyncORM) 구현 + 유닛테스트 24/24 통과. judge = Qwen3.6-27B-FP8 자체호스팅 확정·검증. ☞ `worklog_2026-06-29`
+- **2026-06-29** — **정적 vs 인스턴스 루브릭 실증 비교**(medix 40): 정적이 오답기각(0.000 vs 0.118)·환각변별(+0.338 vs
+  +0.021) 우세 → **정적 통일 루브릭 채택 확정**. 인스턴스는 이미지 없이 생성돼 시각근거 항목 부재.
+- **2026-06-30** — **홀드아웃 정비 + 1 epoch 재학습 착수**. 기존 평가가 학습 파일 stride 슬라이스라 누수 → 정답유형
+  **층화 홀드아웃 분리**(`make_holdout.py`: math 453 + vl 519 = 972, trainonly 102,531) + **init 부터 fresh 재학습**
+  (job 58892~58982, MAX_STEPS=3204). 이전 +67% 벤치마크 무효화. 속도 병목 진단(~365s/step = 구조적, stall 아님).
 
 ## 환경: Singularity 컨테이너 (확정·검증 완료)
 - 노드 OS가 **CentOS 7.9 / glibc 2.17**이라 최신 ML 패키지(특히 **vLLM·xformers**)는

@@ -64,7 +64,7 @@ RFT 간결 콜드스타트 init + LoRA-DDP + max_completion 6144. step 1000에�
 - **dr.GRPO** (2025, "R1-Zero 비판적 분석") = GRPO의 **"편향 자체를 수술"**. ① 손실을 시퀀스 길이가 아닌 **상수로 정규화**(길이 편향 제거) ② **표준편차 나눗셈 삭제**(난이도 편향 제거).
   → DAPO가 겪은 "답 길어짐"을 정면으로 겨냥. **우리 승자** — Acc 0.526>0.500, 길이도 억제.
 
-한 줄 요약: **GRPO=기본 · DAPO=탐색을 더함(＋4기법) · dr.GRPO=편향을 뺌(－2정규화)**.
+한 줄 요약: **GRPO=기본 · DAPO=탐색을 더함(＋4기법) · dr.GRPO=편향을 뺌(－2정규화) · GSPO=채점 단위를 시퀀스로 바꿈**.
 
 #### 기법 메커니즘 비교 (GRPO / DAPO / dr_grpo)
 세 기법은 **advantage = 그룹상대(group-relative)** 라는 골격을 공유하며, 아래 축에서만 갈린다. (소스: `grpo_trainer.py` 손실 분기 직접 확인)
@@ -89,6 +89,16 @@ RFT 간결 콜드스타트 init + LoRA-DDP + max_completion 6144. step 1000에�
 > 둘 다 공통 코어(`dynamic_sample`+`overlong_filter`)는 켠 채, baseline 과 그 외 조건은 동일(clean A/B). GSPO 등 추가 레시피는 "GRPO 파생기법" 절 참고.
 >
 > **논문 출처**: GRPO=DeepSeekMath [arXiv:2402.03300](https://arxiv.org/abs/2402.03300) · DAPO [arXiv:2503.14476](https://arxiv.org/abs/2503.14476) · Dr.GRPO="Understanding R1-Zero-Like Training" [arXiv:2503.20783](https://arxiv.org/abs/2503.20783). (메커니즘은 ms-swift `grpo_trainer.py` 손실 분기와 대조 확인)
+
+#### 최신 확장: GSPO (Group Sequence Policy Optimization)
+
+위 3기법은 모두 **토큰 단위**로 importance sampling(IS, 새 정책이 옛 정책보다 그 토큰을 얼마나 더 낼지 보정)을 하는데, **GSPO는 이 축을 바꿔 시퀀스(답안) 단위로** IS 한다. (Alibaba/Qwen팀, [arXiv:2507.18071](https://arxiv.org/abs/2507.18071), 2025-07)
+
+- **왜**: 토큰 IS는 **응답이 길수록 분산 노이즈가 누적**되고 클리핑이 이를 증폭 → 학습 붕괴(특히 MoE·장문·LoRA). GSPO는 **시퀀스 우도 비율(길이 정규화)**로 이 불안정을 억제 → MoE RL 안정화가 논문의 대표 성과.
+- **위 표의 축으로 보면**: IS 레벨 = **sequence**(GSPO만) · advantage = 그룹상대 유지(÷group std) · 클리핑 = 시퀀스 비율이라 **훨씬 작은 ε**(우리 설정 `3e-4/4e-4`, 토큰 0.2 대비).
+- **한 줄**: GRPO=기본 / DAPO=탐색 보강 / dr.GRPO=정규화 편향 제거 / **GSPO=IS 채점 단위를 토큰→시퀀스로 교체**. dr_grpo와 **직교**(편향제거 vs IS granularity)라 결합도 가능.
+- **ms-swift**: `--loss_type grpo --importance_sampling_level sequence --epsilon 3e-4 --epsilon_high 4e-4`(우리 `21_..adv.slurm` gspo 레시피에 배선됨).
+- **우리 검증(진행 중)**: Qwen팀 작품 + swift 지원 + 멀티모달/LoRA 안정성 보고 → **dr_grpo 다음 1순위**로, "최신이라서"가 아니라 **동일 clean A/B로 판정 중**(job 59004, dr_grpo와 병렬, step501~600 동일 창 비교). 이기면 채택, 지면 dr_grpo 유지.
 
 **3기법 최종 비교** (동일구간 누적 + 돌파판정 구간):
 

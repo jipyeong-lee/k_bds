@@ -90,5 +90,18 @@ print(f"   scores={scores}")
 check("정상답 judge=all1 → 1.0", abs(scores[0] - 1.0) < 1e-6)
 check("형식위반 → judge생략 0.0", scores[1] == 0.0)
 
+print("== 7. 이미지 형식 처리 (swift 는 images 를 dict{bytes,path} 로 넘김 — 스모크 실측) ==")
+import tempfile, base64 as _b64
+_PNG = _b64.b64decode(  # 최소 유효 PNG(1x1)
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==')
+_tmp = tempfile.NamedTemporaryFile(suffix='.png', delete=False); _tmp.write(_PNG); _tmp.close()
+check("str 경로 → data_url", (M._image_to_data_url(_tmp.name) or '').startswith('data:image/png;base64,'))
+check("dict{path} → data_url (swift 실측 포맷)",
+      (M._image_to_data_url({'bytes': None, 'path': _tmp.name}) or '').startswith('data:image'))
+check("dict{bytes} → data_url", (M._image_to_data_url({'bytes': _PNG, 'path': None}) or '').startswith('data:image'))
+check("빈 dict → None", M._image_to_data_url({'bytes': None, 'path': None}) is None)
+check("없는 경로 → None", M._image_to_data_url('/no/such/file.png') is None)
+os.unlink(_tmp.name)
+
 print(f"\n== 결과: {PASS} pass / {FAIL} fail ==")
 sys.exit(1 if FAIL else 0)

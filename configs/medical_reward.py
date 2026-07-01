@@ -38,6 +38,9 @@ SEND_IMAGE = os.environ.get('JUDGE_SEND_IMAGE', '1') == '1'   # judge 가 멀티
 # Qwen3 계열 judge 는 추론모델 → JSON 판정만 필요하므로 thinking 끔(빈 content/토큰낭비 방지).
 JUDGE_THINK = os.environ.get('JUDGE_THINK', '0') == '1'
 _EXTRA_BODY = {} if JUDGE_THINK else {'chat_template_kwargs': {'enable_thinking': False}}
+# 스모크/디버그: swift 가 넘기는 kwargs(특히 images) 구조를 첫 호출에 1회 출력.
+JUDGE_DEBUG = os.environ.get('JUDGE_DEBUG', '0') == '1'
+_DEBUG_DONE = []
 
 
 def _msg_text(resp) -> str:
@@ -161,11 +164,33 @@ def parse_verdicts(text: str, rubric: List[dict]) -> Optional[dict]:
     return out
 
 
-def _image_to_data_url(path: str) -> Optional[str]:
+def _image_to_data_url(img) -> Optional[str]:
+    """이미지를 data URL 로. swift/GRPO 는 images 를 str 경로가 아니라
+    HF datasets 포맷 dict {'bytes': <bytes|None>, 'path': <str|None>} 로 넘긴다(실측).
+    str 경로 / 그 dict / PIL.Image 를 모두 지원."""
     try:
-        with open(path, 'rb') as f:
-            b64 = base64.b64encode(f.read()).decode()
-        ext = os.path.splitext(path)[1].lstrip('.').lower() or 'png'
+        raw = None
+        ext = 'png'
+        # HF datasets 이미지 dict: bytes 우선, 없으면 path
+        if isinstance(img, dict):
+            if img.get('bytes'):
+                raw = img['bytes']
+            elif img.get('path'):
+                img = img['path']
+            else:
+                return None
+        if raw is None and isinstance(img, str):
+            ext = os.path.splitext(img)[1].lstrip('.').lower() or 'png'
+            with open(img, 'rb') as f:
+                raw = f.read()
+        if raw is None and hasattr(img, 'save'):        # PIL.Image 폴백
+            import io
+            buf = io.BytesIO()
+            img.convert('RGB').save(buf, format='PNG')
+            raw = buf.getvalue()
+        if raw is None:
+            return None
+        b64 = base64.b64encode(raw).decode()
         return f'data:image/{ext};base64,{b64}'
     except Exception:
         return None
@@ -225,6 +250,21 @@ class ClinicalJudgeReward(AsyncORM):
             if isinstance(x, (list, tuple)):
                 return x[0] if x else None
             return x
+
+        if JUDGE_DEBUG and not _DEBUG_DONE:
+            _DEBUG_DONE.append(1)
+            im0 = first_img(images[0]) if images else None
+            du = _image_to_data_url(im0) if im0 else None
+            print('[JUDGE_DEBUG] kwargs keys =', sorted(kwargs.keys()), flush=True)
+            print(f'[JUDGE_DEBUG] n_completions={len(completions)} '
+                  f'solution[0]={str(solutions[0])[:60]!r}', flush=True)
+            p0 = im0.get('path') if isinstance(im0, dict) else (im0 if isinstance(im0, str) else None)
+            print(f'[JUDGE_DEBUG] images[0] type={type(images[0]).__name__} '
+                  f'first_img type={type(im0).__name__} value={str(im0)[:120]!r}', flush=True)
+            print(f'[JUDGE_DEBUG] resolved_path={p0!r} path_exists='
+                  f'{os.path.isfile(p0) if isinstance(p0, str) else "N/A"} '
+                  f'data_url_ok={bool(du)} '
+                  f'(→ 시각근거 c2 채점에 이미지 {"전달됨" if du else "누락"})', flush=True)
 
         tasks = [
             self._score_one(c, solutions[i] if i < len(solutions) else '',

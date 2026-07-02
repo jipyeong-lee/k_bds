@@ -12,8 +12,8 @@
 
 | 항목 | 상태 |
 |---|---|
-| **Stage-2 기법** | GRPO 파생 A/B 로 **dr_grpo 승자 확정**(baseline·DAPO plateau 미돌파). → [상세](#stage-2--범용-rlvrgrpo) |
-| **Stage-2 재학습** | `job 58892 RUNNING` (**step ~656/3204, ~20%**) + afterany 체인. 건전성 양호(`zero_std=0`). 완주까지 며칠 |
+| **Stage-2 기법** | GRPO 파생 A/B 로 **dr_grpo 승자 확정**(baseline·DAPO plateau 미돌파). → [상세](#stage-2--범용-rlvr-grpo) |
+| **Stage-2 재학습** | `job 58892 RUNNING` (**step ~660/3204, ~21%**) + afterany 체인. 건전성 양호(`zero_std=0`). 실측 ~356s/step → **완주까지 ~10일**(1 epoch 전량) |
 | **최신기법 A/B** | **GSPO**(시퀀스레벨 IS)를 dr_grpo와 **병렬 A/B 중**(`job 59004`, step ~198/600). **예비 비교(동일 step ~100–200): Acc 동률(0.516 vs 0.510), GSPO 클리핑↑** → 아직 dr_grpo 우위 신호 없음. 판정은 step501~600(GSPO ~1.7일 후) |
 | **Stage-3 (RaR)** | 루브릭·judge·배선 **end-to-end 검증 완료**(유닛 29/29·스모크·내부망·분포). 본실행만 남음 → [상세](#stage-3--의료-rl-rar-루브릭-보상) |
 
@@ -27,7 +27,7 @@
 1. [현황](#현황-2026-07-02)
 2. [파이프라인 4단계](#파이프라인-4단계)
 3. [Stage-1 · 콜드스타트 SFT](#stage-1--콜드스타트-sft)
-4. [Stage-2 · 범용 RLVR (GRPO)](#stage-2--범용-rlvrgrpo) — baseline·A/B·기법비교(GRPO/DAPO/dr_grpo/GSPO)·벤치마크
+4. [Stage-2 · 범용 RLVR (GRPO)](#stage-2--범용-rlvr-grpo) — baseline·A/B·기법비교(GRPO/DAPO/dr_grpo/GSPO)·벤치마크
 5. [Stage-3 · 의료 RL (RaR)](#stage-3--의료-rl-rar-루브릭-보상)
 6. [기술 레퍼런스](#기술-레퍼런스) — 환경·모델·LoRA·보상
 7. [운영 · 데이터](#운영--데이터) — 자원·정책·데이터·디렉토리·사용순서

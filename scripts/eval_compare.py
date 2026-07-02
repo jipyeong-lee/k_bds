@@ -75,7 +75,7 @@ async def main():
     for k in sorted(strata):
         print(f"          └ [{k:5}] accuracy={st.mean(strata[k]):.4f}  (n={len(strata[k])})")
     # 결과 파일(머신리더블) append
-    with open('logs/eval_compare_results.jsonl', 'a') as f:
+    with open(os.environ.get('EVAL_RESULT', 'logs/eval_compare_results.jsonl'), 'a') as f:
         f.write(json.dumps({'tag': TAG, 'model': MODEL, 'n': len(rows),
                             'accuracy': round(acc, 4), 'format': round(fmt, 3),
                             'mean_chars': round(mlen, 0), 'errors': errs,

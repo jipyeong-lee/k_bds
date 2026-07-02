@@ -6,15 +6,15 @@
 
 ---
 
-## 현황 (2026-07-01)
+## 현황 (2026-07-02)
 
-**지금 위치**: Stage-2(범용 RLVR/GRPO) **1 epoch 재학습 진행 중** · Stage-3(의료 RL) **배선까지 검증 완료·대기**.
+**지금 위치**: Stage-2(범용 RLVR/GRPO) **1 epoch 재학습 + GSPO A/B 병렬 진행 중** · Stage-3(의료 RL) **배선까지 검증 완료·대기**.
 
 | 항목 | 상태 |
 |---|---|
 | **Stage-2 기법** | GRPO 파생 A/B 로 **dr_grpo 승자 확정**(baseline·DAPO plateau 미돌파). → [상세](#stage-2--범용-rlvrgrpo) |
-| **Stage-2 재학습** | `job 58892 RUNNING` (**step ~450/3204, ~14%**) + afterany 체인. 건전성 양호(`zero_std=0`, Format 0.32→0.5↑). 완주 ~5–6일 |
-| **최신기법 A/B** | **GSPO**(시퀀스레벨 IS)를 dr_grpo와 **병렬 A/B 중**(`job 59004`, step501~600 동일창 비교) |
+| **Stage-2 재학습** | `job 58892 RUNNING` (**step ~656/3204, ~20%**) + afterany 체인. 건전성 양호(`zero_std=0`). 완주까지 며칠 |
+| **최신기법 A/B** | **GSPO**(시퀀스레벨 IS)를 dr_grpo와 **병렬 A/B 중**(`job 59004`, step ~198/600). **예비 비교(동일 step ~100–200): Acc 동률(0.516 vs 0.510), GSPO 클리핑↑** → 아직 dr_grpo 우위 신호 없음. 판정은 step501~600(GSPO ~1.7일 후) |
 | **Stage-3 (RaR)** | 루브릭·judge·배선 **end-to-end 검증 완료**(유닛 29/29·스모크·내부망·분포). 본실행만 남음 → [상세](#stage-3--의료-rl-rar-루브릭-보상) |
 
 ⚠️ **주의(정비 이력)**: 파일럿 dr_grpo 는 ① 데이터 **21%만** 학습(중간 중단) ② 평가가 학습 파일 stride 슬라이스라 **누수**였음.
@@ -24,7 +24,7 @@
 ---
 
 ## 목차
-1. [현황](#현황-2026-07-01)
+1. [현황](#현황-2026-07-02)
 2. [파이프라인 4단계](#파이프라인-4단계)
 3. [Stage-1 · 콜드스타트 SFT](#stage-1--콜드스타트-sft)
 4. [Stage-2 · 범용 RLVR (GRPO)](#stage-2--범용-rlvrgrpo) — baseline·A/B·기법비교(GRPO/DAPO/dr_grpo/GSPO)·벤치마크
@@ -143,7 +143,8 @@ advantage = 그룹상대(group-relative) 골격 공유, 아래 축에서만 갈�
 - **왜**: 토큰 IS는 응답이 길수록 **분산 노이즈 누적** + 클리핑이 증폭 → 붕괴(특히 MoE·장문·LoRA). GSPO는 **시퀀스 우도 비율(길이 정규화)**로 억제 → MoE RL 안정화가 대표 성과.
 - **축 대응**: IS 레벨 = **sequence**(GSPO만) · advantage = 그룹상대 유지 · 클리핑 = **훨씬 작은 ε**(우리 `3e-4/4e-4`).
 - dr_grpo와 **직교**(편향제거 vs IS granularity) → 결합 가능.
-- **우리 검증(진행 중)**: "최신이라서"가 아니라 dr_grpo가 자리를 얻은 것과 **동일 clean A/B로 판정**(`job 59004`, dr_grpo와 병렬, step501~600 동일창). 이기면 채택, 지면 dr_grpo 유지. 런처 `scripts/launch_gspo_ab.sh`.
+- **우리 검증(진행 중)**: "최신이라서"가 아니라 dr_grpo가 자리를 얻은 것과 **동일 clean A/B로 판정**(`job 59004`, dr_grpo와 병렬, 동일 init·trainonly, step501~600 동일창). 이기면 채택, 지면 dr_grpo 유지. 런처 `scripts/launch_gspo_ab.sh`.
+- **예비 비교(2026-07-02, 동일 step 100~200 구간평균, 초기·노이즈)**: AccuracyMix **동률**(dr_grpo 0.516 vs GSPO 0.510), reward dr_grpo 소폭 우세(0.53 vs 0.50), clip_ratio는 GSPO가 큼(0.001 vs 0.19, 작은 ε 설계상). → **아직 GSPO 우위 신호 없음.** 정식 판정은 GSPO의 step501~600 도달(~1.7일) 시.
 
 ### 4) base vs 학습모델 벤치마크 — ⚠️ 재측정 예정
 
@@ -312,6 +313,7 @@ sbatch          --dependency=afterok:$JID3 scripts/40_eval.slurm
 - **06-29** — **Stage-3 착수**: RaR 루브릭·`medical_reward.py`·judge(Qwen3.6-27B-FP8) 확정. **정적 vs 인스턴스 비교→정적 채택**.
 - **06-30** — **홀드아웃 정비 + 1 epoch 재학습 착수**(층화 972, trainonly 102,531, fresh, MAX_STEPS 3204). +67% 무효화. 속도 병목 진단(~365s/step 구조적).
 - **07-01** — **Stage-3 배선 end-to-end 스모크**: images dict 실버그 발견·수정, 유닛 29/29, 재검증 PASS. GRPO/DAPO/dr_grpo/GSPO 논문 정리. **GSPO A/B 착수**(59004, dr_grpo 병렬).
+- **07-02** — 병렬 진행: dr_grpo step~656/3204, GSPO step~198/600. dr_grpo 판정창 501~600 완성(Acc 0.487, on-policy). **예비 비교(동일 step 100~200)**: GSPO ≈ dr_grpo **동률**(Acc 0.516 vs 0.510), GSPO 클리핑↑ → 아직 우위 신호 없음. README 전면 재구조화(427→331줄).
 
 ### TODO
 - [x] 환경·모델·데이터 확정 + 전체 변환 (DeepVision 103K / medix 51K)

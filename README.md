@@ -15,7 +15,7 @@
 | **Stage-2 기법** | GRPO 파생 A/B 로 **dr_grpo 승자 확정**(baseline·DAPO plateau 미돌파). → [상세](#stage-2--범용-rlvr-grpo) |
 | **Stage-2 재학습** | dr_grpo 체인 RUNNING (**step ~883/3204, ~28%**). 건전성 양호(`zero_std=0`). 완주까지 ~9일(1 epoch 전량) |
 | **🎯 중간 벤치마크** | **RL 25%(step 800)에서 층화 홀드아웃 Acc: init 0.22 → trained 0.38 (+73%)** — RL이 정확도 확실히 개선 → **전량 학습 계속 확정**. base 0.15 대비 +153%. → [상세](#stage-2--범용-rlvr-grpo) |
-| **최신기법 A/B** | **GSPO**를 dr_grpo와 **병렬 A/B 중**(`job 59004`, step ~466/600, **판정창 임박**). 예비 비교(동일 step): **dr_grpo 소폭 우세**(Acc·reward), GSPO 클리핑↑ → 우위 신호 없음. 판정은 step501~600 |
+| **최신기법 A/B** | **GSPO ✅ A/B 완료·미채택**. 판정창 501~600 **사실상 동률**(Acc 0.500 vs 0.487, reward 0.519 vs 0.506, 차이 노이즈 범위). → **dr_grpo 유지**(동률+홀드아웃 검증+진행률 근거). GSPO 클리핑↑ |
 | **Stage-3 (RaR)** | 루브릭·judge·배선 **end-to-end 검증 완료**(유닛 29/29·스모크·내부망·분포). 본실행만 남음 → [상세](#stage-3--의료-rl-rar-루브릭-보상) |
 
 ⚠️ **주의(정비 이력)**: 파일럿 dr_grpo 는 ① 데이터 **21%만** 학습(중간 중단) ② 평가가 학습 파일 stride 슬라이스라 **누수**였음.
@@ -144,8 +144,9 @@ advantage = 그룹상대(group-relative) 골격 공유, 아래 축에서만 갈�
 - **왜**: 토큰 IS는 응답이 길수록 **분산 노이즈 누적** + 클리핑이 증폭 → 붕괴(특히 MoE·장문·LoRA). GSPO는 **시퀀스 우도 비율(길이 정규화)**로 억제 → MoE RL 안정화가 대표 성과.
 - **축 대응**: IS 레벨 = **sequence**(GSPO만) · advantage = 그룹상대 유지 · 클리핑 = **훨씬 작은 ε**(우리 `3e-4/4e-4`).
 - dr_grpo와 **직교**(편향제거 vs IS granularity) → 결합 가능.
-- **우리 검증(진행 중)**: "최신이라서"가 아니라 dr_grpo가 자리를 얻은 것과 **동일 clean A/B로 판정**(`job 59004`, dr_grpo와 병렬, 동일 init·trainonly, step501~600 동일창). 이기면 채택, 지면 dr_grpo 유지. 런처 `scripts/launch_gspo_ab.sh`.
-- **예비 비교(2026-07-02, 동일 step 100~200 구간평균, 초기·노이즈)**: AccuracyMix **동률**(dr_grpo 0.516 vs GSPO 0.510), reward dr_grpo 소폭 우세(0.53 vs 0.50), clip_ratio는 GSPO가 큼(0.001 vs 0.19, 작은 ε 설계상). → **아직 GSPO 우위 신호 없음.** 정식 판정은 GSPO의 step501~600 도달(~1.7일) 시.
+- **검증 방식**: "최신이라서"가 아니라 dr_grpo가 자리를 얻은 것과 **동일 clean A/B**(`job 59004`, dr_grpo와 병렬, 동일 init·trainonly, step501~600 동일창). 런처 `scripts/launch_gspo_ab.sh`.
+- **✅ A/B 결론(2026-07-04, 판정창 501~600 전 구간, dr_grpo n=100 vs GSPO n=99)**: **사실상 동률** — Acc는 GSPO 근소 우위(0.500 vs 0.487), reward는 dr_grpo 근소 우위(0.519 vs 0.506). 차이 ±0.013는 노이즈 범위, 명확한 승자 없음. GSPO는 클리핑 훨씬 큼(0.185 vs ~0.001, 작은 ε 설계상).
+- **→ dr_grpo 유지 (GSPO 미채택)**: 동률이면 전환 이유 없음 + dr_grpo는 이미 33% 진행·**홀드아웃 +73% 검증**됐고 GSPO는 on-policy 동률일 뿐 홀드아웃 미검증. 명확한 이득 없이 갈아타면 손해. (전량 학습·과제 성격상 시퀀스 IS가 필요한 MoE·초장문 상황이 아님도 배경.)
 
 ### 4) base vs 학습모델 벤치마크 (층화 홀드아웃, 정식)
 
@@ -345,7 +346,8 @@ sbatch          --dependency=afterok:$JID3 scripts/40_eval.slurm
 - **06-30** — **홀드아웃 정비 + 1 epoch 재학습 착수**(층화 972, trainonly 102,531, fresh, MAX_STEPS 3204). +67% 무효화. 속도 병목 진단(~365s/step 구조적).
 - **07-01** — **Stage-3 배선 end-to-end 스모크**: images dict 실버그 발견·수정, 유닛 29/29, 재검증 PASS. GRPO/DAPO/dr_grpo/GSPO 논문 정리. **GSPO A/B 착수**(59004, dr_grpo 병렬).
 - **07-02** — 병렬 진행: dr_grpo step~656/3204, GSPO step~198/600. dr_grpo 판정창 501~600 완성(Acc 0.487, on-policy). **예비 비교(동일 step 100~200)**: GSPO ≈ dr_grpo **동률**(Acc 0.516 vs 0.510), GSPO 클리핑↑ → 아직 우위 신호 없음. README 전면 재구조화(427→331줄).
-- **07-03** — **중간 홀드아웃 벤치마크**(`eval_midtrain.slurm`, RL 25%=step 800, 층화 N=100): **init 0.22 → trained 0.38(+73%)**, base 0.15 대비 +153% → **RL 홀드아웃 개선 확인, 전량 학습 계속 확정**(첫 유효 홀드아웃 수치, 무효 +67% 대체). dr_grpo step~883, GSPO step~466(판정창 임박, 예비 dr_grpo 소폭 우세).
+- **07-03** — **중간 홀드아웃 벤치마크**(`eval_midtrain.slurm`, RL 25%=step 800, 층화 N=100): **init 0.22 → trained 0.38(+73%)**, base 0.15 대비 +153% → **RL 홀드아웃 개선 확인, 전량 학습 계속 확정**(첫 유효 홀드아웃 수치, 무효 +67% 대체). dr_grpo step~883, GSPO step~466.
+- **07-04** — **GSPO A/B 완료·미채택**. 판정창 501~600 전 구간 비교 = **사실상 동률**(Acc 0.500 vs dr_grpo 0.487, reward 0.519 vs 0.506, 차이 노이즈). 동률+dr_grpo 홀드아웃 검증+33% 진행 → **dr_grpo 유지 확정**. dr_grpo step~1061(33%) 계속.
 
 ### TODO
 - [x] 환경·모델·데이터 확정 + 전체 변환 (DeepVision 103K / medix 51K)
@@ -355,7 +357,7 @@ sbatch          --dependency=afterok:$JID3 scripts/40_eval.slurm
 - [x] **홀드아웃 정비 + 1 epoch 재학습 착수** (진행 중)
 - [x] **중간 홀드아웃 벤치마크**(RL 25%): init 0.22→trained 0.38(+73%) → **전량 학습 계속 확정**
 - [ ] **Stage-2 완주** → 최종 ckpt 재병합 → **층화 홀드아웃 벤치마크 재측정**(정식 최종 수치)
-- [ ] (선택) **GSPO A/B 판정** → dr_grpo와 비교해 채택 결정
+- [x] **GSPO A/B 판정** → 판정창 동률 → **dr_grpo 유지**(미채택)
 - [ ] **Stage-3 본실행**(`launch_stage3.sh`) → Stage-3 init 교체
 - [ ] 평가 벤치마크를 실제 의료 멀티모달 벤치로 교체 · 하이퍼파라미터 튜닝
 

@@ -15,7 +15,7 @@
 | **Stage-2 기법** | GRPO 파생 A/B 로 **dr_grpo 승자 확정**(baseline·DAPO plateau 미돌파). → [상세](#stage-2--범용-rlvr-grpo) |
 | **Stage-2 재학습** | dr_grpo 체인 RUNNING (**step ~883/3204, ~28%**). 건전성 양호(`zero_std=0`). 완주까지 ~9일(1 epoch 전량) |
 | **🎯 중간 벤치마크** | **RL 25%(step 800)에서 층화 홀드아웃 Acc: init 0.22 → trained 0.38 (+73%)** — RL이 정확도 확실히 개선 → **전량 학습 계속 확정**. base 0.15 대비 +153%. → [상세](#stage-2--범용-rlvr-grpo) |
-| **최신기법 A/B** | **GSPO ✅ A/B 완료·미채택**. 판정창 501~600 **사실상 동률**(Acc 0.500 vs 0.487, reward 0.519 vs 0.506, 차이 노이즈 범위). → **dr_grpo 유지**(동률+홀드아웃 검증+진행률 근거). GSPO 클리핑↑ |
+| **최신기법 A/B** | **GSPO** ✅완료·**미채택**(판정창 동률). **GDPO**(멀티리워드 보상별 정규화) **A/B 진행중**(`job 59191`, dr_grpo+gdpo, dr_grpo(none)와 판정창 비교). 원칙: 최신이라서가 아니라 **clean A/B로 검증 후 채택** → [상세](#stage-2--범용-rlvr-grpo) |
 | **Stage-3 (RaR)** | 루브릭·judge·배선 **end-to-end 검증 완료**(유닛 29/29·스모크·내부망·분포). 본실행만 남음 → [상세](#stage-3--의료-rl-rar-루브릭-보상) |
 
 ⚠️ **주의(정비 이력)**: 파일럿 dr_grpo 는 ① 데이터 **21%만** 학습(중간 중단) ② 평가가 학습 파일 stride 슬라이스라 **누수**였음.
@@ -147,6 +147,27 @@ advantage = 그룹상대(group-relative) 골격 공유, 아래 축에서만 갈�
 - **검증 방식**: "최신이라서"가 아니라 dr_grpo가 자리를 얻은 것과 **동일 clean A/B**(`job 59004`, dr_grpo와 병렬, 동일 init·trainonly, step501~600 동일창). 런처 `scripts/launch_gspo_ab.sh`.
 - **✅ A/B 결론(2026-07-04, 판정창 501~600 전 구간, dr_grpo n=100 vs GSPO n=99)**: **사실상 동률** — Acc는 GSPO 근소 우위(0.500 vs 0.487), reward는 dr_grpo 근소 우위(0.519 vs 0.506). 차이 ±0.013는 노이즈 범위, 명확한 승자 없음. GSPO는 클리핑 훨씬 큼(0.185 vs ~0.001, 작은 ε 설계상).
 - **→ dr_grpo 유지 (GSPO 미채택)**: 동률이면 전환 이유 없음 + dr_grpo는 이미 33% 진행·**홀드아웃 +73% 검증**됐고 GSPO는 on-policy 동률일 뿐 홀드아웃 미검증. 명확한 이득 없이 갈아타면 손해. (전량 학습·과제 성격상 시퀀스 IS가 필요한 MoE·초장문 상황이 아님도 배경.)
+
+#### 최신 실험: GDPO (멀티리워드 정규화)
+
+**GDPO**(Group reward-Decoupled Normalization, NVIDIA, [arXiv:2601.05242](https://arxiv.org/abs/2601.05242), 2026-01): GRPO가 여러 보상을 **가중합→통짜 정규화**해 서로 다른 조합이 같은 advantage로 **뭉개지는(collapse)** 문제를, **보상 함수별로 그룹 내 개별 정규화(z-score) 후 결합**해 해결. (AIME서 GRPO 대비 +2.3~6.3%)
+
+- **왜 우리에게**: 우리는 **다중 보상**(Stage-2 accuracy_mix/format_think/soft_overlong, Stage-3 clinical_judge/format_think)이라 스케일이 제각각 → GDPO의 타깃과 정확히 일치. GSPO(시퀀스 IS)보다 우리 특성에 직접적.
+- **dr_grpo와의 관계**: `scale_rewards`는 하나만 고르는 knob → **`none`(dr_grpo) ↔ `gdpo` 배타적**. 나머지 dr_grpo 처리(`loss_type=dr_grpo`·dynamic_sample·overlong·token IS)는 **전부 유지 가능**. 즉 **현 dr_grpo 레시피에서 `scale_rewards`만 `none→gdpo`로 바꾼 1변수 A/B**.
+  - ⚠️ 트레이드: dr_grpo가 없앤 ÷std가 **보상함수별로** 되살아남(목적은 난이도편향 회피가 아니라 멀티리워드 균형). swift 제약: `kl_in_reward=True` 비호환(우리는 KL을 loss에 넣어 무관).
+- **우리 검증(진행 중)**: `RECIPE=dr_grpo SCALE_REWARDS=gdpo`(`job 59191`, dr_grpo 본선과 병렬), 600 step → dr_grpo(none)와 판정창 501~600 비교. 가장 유망한 적용처는 스케일차 큰 **Stage-3(judge 1.0 + format 0.2)**.
+
+#### 우리가 시도한 RLVR 방법론 종합
+
+| 방법 | 핵심 변경(vs GRPO) | 겨냥 문제 | 우리 결과·상태 |
+|------|------|------|------|
+| **GRPO** (baseline) | — (그룹상대 PG 기본형) | (기준선) | Acc plateau (zero_std 0.24→0.33) |
+| **DAPO** | clip-higher+동적샘플+토큰손실+overlong | plateau·탐색·엔트로피붕괴 | 안정하나 **미돌파**(Acc 0.465<0.500) |
+| **dr_grpo** ✅ | 길이·난이도 정규화 **편향 제거** | 길이폭주→clip→0점 | **돌파·승자**(Acc 0.526), **홀드아웃 +73% 검증** |
+| **GSPO** | 토큰→**시퀀스** IS | IS 분산누적·MoE 붕괴 | **동률 → 미채택**(2026-07-04) |
+| **GDPO** | 보상함수별 **개별 정규화** | 멀티리워드 조합 붕괴 | **A/B 진행중**(59191, dr_grpo+gdpo) |
+
+> 원칙: **"최신 기법이라서" 채택하지 않고, dr_grpo가 자리를 얻은 것과 동일한 clean A/B(동일 init·trainonly, 판정창 501~600)로 검증 후 결정.** dr_grpo·GSPO·GDPO 모두 우리 `21_rlvr_grpo_adv.slurm` 한 스크립트에서 RECIPE/env 토글로 실행. 논문 출처는 위 각 소절 링크.
 
 ### 4) base vs 학습모델 벤치마크 (층화 홀드아웃, 정식)
 
@@ -347,7 +368,7 @@ sbatch          --dependency=afterok:$JID3 scripts/40_eval.slurm
 - **07-01** — **Stage-3 배선 end-to-end 스모크**: images dict 실버그 발견·수정, 유닛 29/29, 재검증 PASS. GRPO/DAPO/dr_grpo/GSPO 논문 정리. **GSPO A/B 착수**(59004, dr_grpo 병렬).
 - **07-02** — 병렬 진행: dr_grpo step~656/3204, GSPO step~198/600. dr_grpo 판정창 501~600 완성(Acc 0.487, on-policy). **예비 비교(동일 step 100~200)**: GSPO ≈ dr_grpo **동률**(Acc 0.516 vs 0.510), GSPO 클리핑↑ → 아직 우위 신호 없음. README 전면 재구조화(427→331줄).
 - **07-03** — **중간 홀드아웃 벤치마크**(`eval_midtrain.slurm`, RL 25%=step 800, 층화 N=100): **init 0.22 → trained 0.38(+73%)**, base 0.15 대비 +153% → **RL 홀드아웃 개선 확인, 전량 학습 계속 확정**(첫 유효 홀드아웃 수치, 무효 +67% 대체). dr_grpo step~883, GSPO step~466.
-- **07-04** — **GSPO A/B 완료·미채택**. 판정창 501~600 전 구간 비교 = **사실상 동률**(Acc 0.500 vs dr_grpo 0.487, reward 0.519 vs 0.506, 차이 노이즈). 동률+dr_grpo 홀드아웃 검증+33% 진행 → **dr_grpo 유지 확정**. dr_grpo step~1061(33%) 계속.
+- **07-04** — **GSPO A/B 완료·미채택**(판정창 동률 → dr_grpo 유지). **GDPO A/B 착수**(`job 59191`, `RECIPE=dr_grpo SCALE_REWARDS=gdpo` = dr_grpo 처리 유지 + advantage만 보상별 개별정규화). RLVR 방법론 종합비교(GRPO/DAPO/dr_grpo/GSPO/GDPO) README 추가. dr_grpo 본선 step~1061(33%) 계속.
 
 ### TODO
 - [x] 환경·모델·데이터 확정 + 전체 변환 (DeepVision 103K / medix 51K)

@@ -13,8 +13,9 @@
 | 항목 | 상태 |
 |---|---|
 | **Stage-2 기법** | GRPO 파생 A/B 로 **dr_grpo 승자 확정**(baseline·DAPO plateau 미돌파). → [상세](#stage-2--범용-rlvr-grpo) |
-| **Stage-2 재학습** | `job 58892 RUNNING` (**step ~660/3204, ~21%**) + afterany 체인. 건전성 양호(`zero_std=0`). 실측 ~356s/step → **완주까지 ~10일**(1 epoch 전량) |
-| **최신기법 A/B** | **GSPO**(시퀀스레벨 IS)를 dr_grpo와 **병렬 A/B 중**(`job 59004`, step ~198/600). **예비 비교(동일 step ~100–200): Acc 동률(0.516 vs 0.510), GSPO 클리핑↑** → 아직 dr_grpo 우위 신호 없음. 판정은 step501~600(GSPO ~1.7일 후) |
+| **Stage-2 재학습** | dr_grpo 체인 RUNNING (**step ~883/3204, ~28%**). 건전성 양호(`zero_std=0`). 완주까지 ~9일(1 epoch 전량) |
+| **🎯 중간 벤치마크** | **RL 25%(step 800)에서 층화 홀드아웃 Acc: init 0.22 → trained 0.38 (+73%)** — RL이 정확도 확실히 개선 → **전량 학습 계속 확정**. base 0.15 대비 +153%. → [상세](#stage-2--범용-rlvr-grpo) |
+| **최신기법 A/B** | **GSPO**를 dr_grpo와 **병렬 A/B 중**(`job 59004`, step ~466/600, **판정창 임박**). 예비 비교(동일 step): **dr_grpo 소폭 우세**(Acc·reward), GSPO 클리핑↑ → 우위 신호 없음. 판정은 step501~600 |
 | **Stage-3 (RaR)** | 루브릭·judge·배선 **end-to-end 검증 완료**(유닛 29/29·스모크·내부망·분포). 본실행만 남음 → [상세](#stage-3--의료-rl-rar-루브릭-보상) |
 
 ⚠️ **주의(정비 이력)**: 파일럿 dr_grpo 는 ① 데이터 **21%만** 학습(중간 중단) ② 평가가 학습 파일 stride 슬라이스라 **누수**였음.
@@ -146,18 +147,30 @@ advantage = 그룹상대(group-relative) 골격 공유, 아래 축에서만 갈�
 - **우리 검증(진행 중)**: "최신이라서"가 아니라 dr_grpo가 자리를 얻은 것과 **동일 clean A/B로 판정**(`job 59004`, dr_grpo와 병렬, 동일 init·trainonly, step501~600 동일창). 이기면 채택, 지면 dr_grpo 유지. 런처 `scripts/launch_gspo_ab.sh`.
 - **예비 비교(2026-07-02, 동일 step 100~200 구간평균, 초기·노이즈)**: AccuracyMix **동률**(dr_grpo 0.516 vs GSPO 0.510), reward dr_grpo 소폭 우세(0.53 vs 0.50), clip_ratio는 GSPO가 큼(0.001 vs 0.19, 작은 ε 설계상). → **아직 GSPO 우위 신호 없음.** 정식 판정은 GSPO의 step501~600 도달(~1.7일) 시.
 
-### 4) base vs 학습모델 벤치마크 — ⚠️ 재측정 예정
+### 4) base vs 학습모델 벤치마크 (층화 홀드아웃, 정식)
 
-> **아래 파일럿 수치는 무효화됨.** 평가셋이 학습 파일 stride 슬라이스라 **진짜 홀드아웃 아님**(누수) + 학습 **21%만** 진행. → 정답유형 **층화 홀드아웃 분리**(`make_holdout.py`: math 453 + visual-logic 519 = 972, trainonly 102,531) + **1 epoch fresh 재학습** 후 **math/visual-logic 분리 정식 수치로 교체**한다.
+**중간 벤치마크(2026-07-03, RL 25%=step 800)** — 층화 홀드아웃 N=100, math/vl 층별(`eval_midtrain.slurm`). 조기 판단용으로 base / init(RL 0%) / trained(중간) 3개 동일조건 채점:
 
-<details><summary>파일럿 수치(무효, 참고용) — DeepVision stride 100건</summary>
+| 모델 | **전체 Acc** | math | visual-logic | 형식(`<answer>`) | 평균길이 |
+|------|------|------|------|------|------|
+| **base** (Qwen3.5-9B) | 0.15 | 0.192 | 0.113 | 0.12 | 5907자 |
+| **init** (SFT 콜드스타트, RL 0%) | 0.22 | 0.234 | 0.208 | 0.32 | 5188자 |
+| **trained** (dr_grpo step 800, **RL 25%**) | **0.38** | 0.340 | **0.415** | 0.45 | 4752자 |
 
-| 지표 | base (Qwen3.5-9B) | 학습모델 (구 dr_grpo_merged) | 변화 |
-|------|-------------------|------------------------------|------|
-| 정확도 | 0.21 | 0.35 | +0.14 (오염·21%학습) |
-| 형식 준수(`<answer>`) | 0.23 | 0.46 | — |
-| 평균 길이(자) | 5618 | 4414 | — |
+- 🎯 **init → trained: 0.22 → 0.38 (+0.16, 상대 +73%)** — **Stage-2 RL 이 홀드아웃 정확도를 확실히 개선**(25%만 학습했는데도). → **전량 학습 계속**(조기종료 불필요) 근거.
+- base → trained **+153%**(전체 파이프라인 SFT+RL). visual-logic 개선 최대(0.21→0.42, +100%), 형식 0.12→0.45, 길이 5907→4752자(간결화).
+- ⚠️ **"학습 롤아웃 Acc ~0.50 정체"는 오해였음**: on-policy(탐색 포함) 지표라 평탄했을 뿐, 정작 중요한 **홀드아웃에선 뚜렷이 상승**. → 조기 확인 결과 "계속".
+- 1 epoch 완주 후 최종 checkpoint 로 **재측정하여 이 표 갱신** 예정.
 
+<details><summary>이전 파일럿 수치(무효, 참고용) — DeepVision stride 100건, 오염·21%학습</summary>
+
+| 지표 | base | 구 dr_grpo_merged | 변화 |
+|------|------|------|------|
+| 정확도 | 0.21 | 0.35 | +0.14 (누수·21%) |
+| 형식 | 0.23 | 0.46 | — |
+| 평균 길이 | 5618 | 4414 | — |
+
+*평가셋이 학습 파일 stride 슬라이스라 진짜 홀드아웃 아니었음(누수) → 위 층화 홀드아웃 수치로 대체.*
 </details>
 
 ---
@@ -332,6 +345,7 @@ sbatch          --dependency=afterok:$JID3 scripts/40_eval.slurm
 - **06-30** — **홀드아웃 정비 + 1 epoch 재학습 착수**(층화 972, trainonly 102,531, fresh, MAX_STEPS 3204). +67% 무효화. 속도 병목 진단(~365s/step 구조적).
 - **07-01** — **Stage-3 배선 end-to-end 스모크**: images dict 실버그 발견·수정, 유닛 29/29, 재검증 PASS. GRPO/DAPO/dr_grpo/GSPO 논문 정리. **GSPO A/B 착수**(59004, dr_grpo 병렬).
 - **07-02** — 병렬 진행: dr_grpo step~656/3204, GSPO step~198/600. dr_grpo 판정창 501~600 완성(Acc 0.487, on-policy). **예비 비교(동일 step 100~200)**: GSPO ≈ dr_grpo **동률**(Acc 0.516 vs 0.510), GSPO 클리핑↑ → 아직 우위 신호 없음. README 전면 재구조화(427→331줄).
+- **07-03** — **중간 홀드아웃 벤치마크**(`eval_midtrain.slurm`, RL 25%=step 800, 층화 N=100): **init 0.22 → trained 0.38(+73%)**, base 0.15 대비 +153% → **RL 홀드아웃 개선 확인, 전량 학습 계속 확정**(첫 유효 홀드아웃 수치, 무효 +67% 대체). dr_grpo step~883, GSPO step~466(판정창 임박, 예비 dr_grpo 소폭 우세).
 
 ### TODO
 - [x] 환경·모델·데이터 확정 + 전체 변환 (DeepVision 103K / medix 51K)
@@ -339,7 +353,8 @@ sbatch          --dependency=afterok:$JID3 scripts/40_eval.slurm
 - [x] Stage-2 baseline 완주 + **A/B 종결(dr_grpo 승자)**
 - [x] Stage-3 RaR 보상·judge·**배선 end-to-end 스모크**(유닛 29/29)
 - [x] **홀드아웃 정비 + 1 epoch 재학습 착수** (진행 중)
-- [ ] **Stage-2 완주** → 최종 ckpt 재병합 → **층화 홀드아웃 벤치마크**(math/vl 분리)
+- [x] **중간 홀드아웃 벤치마크**(RL 25%): init 0.22→trained 0.38(+73%) → **전량 학습 계속 확정**
+- [ ] **Stage-2 완주** → 최종 ckpt 재병합 → **층화 홀드아웃 벤치마크 재측정**(정식 최종 수치)
 - [ ] (선택) **GSPO A/B 판정** → dr_grpo와 비교해 채택 결정
 - [ ] **Stage-3 본실행**(`launch_stage3.sh`) → Stage-3 init 교체
 - [ ] 평가 벤치마크를 실제 의료 멀티모달 벤치로 교체 · 하이퍼파라미터 튜닝

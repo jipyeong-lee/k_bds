@@ -112,9 +112,29 @@ baseline plateau를 뚫기 위해 GRPO 파생기법 5종을 **기법 외 전 조
 
 **판정 핵심**: plateau의 원인은 `frac_reward_zero_std` 급등(그룹이 전부정답/전부오답→gradient 소실). dr_grpo가 **길이·난이도 두 정규화 편향을 동시에 제거**해 step 501~600서 Acc 0.50을 유일하게 돌파. GSPO·GDPO는 그 위/옆의 직교 개선을 clean A/B로 검증 중.
 
-![Stage-2 3기법 비교](docs/assets/grpo_stage2_all.png)
+기법마다 학습 데이터가 달라(구 데이터 vs trainonly) **비교 가능한 2개 코호트**로 나눠 그림(각 6패널: Acc·reward·FormatThink·mean_len·zero_std·clip, 50-step 구간평균, 노란 띠=판정창 501~600):
 
-*(50-step 구간평균. baseline(실선)·DAPO(파선)·dr_grpo(점선). **dr_grpo만 step 501~600(노란 띠)서 Acc 0.50 돌파**하며 mean_length 억제. zero_std는 DAPO·dr_grpo 둘 다 0 평탄, baseline만 상승(=plateau 원인). 재생성: `singularity exec work/images/ms-swift-413-sandbox python scripts/plot_grpo_all.py logs/grpo_stage2_57249.log logs/grpo_adv_57527.log logs/grpo_adv_57624.log docs/assets/grpo_stage2_all.png`)*
+**코호트 A — plateau 돌파 A/B (구 데이터): baseline vs DAPO vs dr_grpo**
+![Stage-2 A: baseline/DAPO/dr_grpo](docs/assets/grpo_stage2_A_plateau.png)
+*(**dr_grpo(초록)만 노란 띠서 Acc 0.50 돌파**하며 mean_length 억제. baseline(파랑)은 zero_std 상승=plateau, DAPO(주황)는 길이·clip 재증가. FormatThink는 baseline이 최고지만 그건 Acc 정체를 형식이 대신 끌어올린 것.)*
+
+**코호트 B — 최신기법 A/B (trainonly, 동일 init·데이터): dr_grpo(none) vs GSPO vs GDPO**
+![Stage-2 B: dr_grpo/GSPO/GDPO](docs/assets/grpo_stage2_B_latest.png)
+*(Acc·reward는 3자 거의 겹침(동급). **FormatThink에서 GDPO(보라)가 뚜렷이 상승**(멀티리워드 균형 효과), **clip에서 GSPO(빨강)만 크게 높음**(~0.18, 작은 ε 설계상). GDPO는 step ~300까지라 이후는 미도달. GSPO는 완주·동률 → 미채택.)*
+
+<details><summary>플롯 재생성 명령</summary>
+
+```bash
+SB=work/images/ms-swift-413-sandbox
+# 코호트 A
+singularity exec $SB python scripts/plot_grpo_multi.py docs/assets/grpo_stage2_A_plateau.png \
+  "baseline:#1f77b4:-:logs/grpo_stage2_57249.log" "DAPO:#ff7f0e:--:logs/grpo_adv_57527.log" "dr_grpo:#2ca02c:-.:logs/grpo_adv_57624.log"
+# 코호트 B
+singularity exec $SB python scripts/plot_grpo_multi.py docs/assets/grpo_stage2_B_latest.png \
+  "dr_grpo(none):#2ca02c:-.:logs/grpo_adv_58892.log" "GSPO:#d62728:--:logs/grpo_adv_59004.log" "GDPO:#9467bd:-:logs/grpo_adv_59191.log"
+```
+`plot_grpo_multi.py` 는 `label:color:style:logpath` 스펙을 N개 받아 일반화(기법 수 무관).
+</details>
 
 > 원칙: **"최신이라서" 채택하지 않는다.** 5종 전부 dr_grpo가 자리를 얻은 것과 **동일 clean A/B**(동일 init·trainonly, 판정창 501~600 구간평균 + 필요시 층화 홀드아웃 벤치마크)로 판정. 동률이면 이미 검증된 승자를 유지.
 

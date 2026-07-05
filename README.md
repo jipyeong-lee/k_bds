@@ -10,6 +10,8 @@
 
 **지금 위치**: Stage-2(범용 RLVR/GRPO) **GDPO A/B 단독 진행 중**(dr_grpo 본선은 중단) · Stage-3(의료 RL) **배선까지 검증 완료·대기**.
 
+> 📋 **문제정의 · 실험결과 · 해결방안 · 목표·기한** 4축 정리 → [`docs/project_status_2026-07-05.md`](docs/project_status_2026-07-05.md)
+
 | 항목 | 상태 |
 |---|---|
 | **Stage-2 기법** | GRPO 파생 A/B 로 **dr_grpo 승자 확정**(baseline·DAPO plateau 미돌파). → [상세](#stage-2--범용-rlvr-grpo) |

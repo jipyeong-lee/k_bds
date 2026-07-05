@@ -27,6 +27,7 @@
 ### (a) Stage-1 SFT 콜드스타트 (job 57242, 727건 RFT 정제본, 4 epoch)
 - FormatThink 보상 **0.05 → 0.27**(약 5배), clip↓ → 잘림 0점 문제 제거.
 - 홀드아웃 기여: base 0.15 → **init(SFT) 0.22**(형식 0.12→0.32, 길이 5907→5188자).
+- 구축 방식(2단계 진화) 상세: [부록 A](#부록-a-stage-1-sft-콜드스타트-구축-상세).
 
 ### (b) Stage-2 기법 A/B — 돌파판정 (step 501~600 구간평균)
 
@@ -78,3 +79,37 @@
 **임계경로**: `GDPO 판정(07-07) → 기법 확정 → Stage-2 완주/조기확정 → Stage-3 본실행 → 최종 벤치마크`.
 
 > 목표값 주의: S2(0.42~0.45)·S3(≥2배)는 중간 벤치마크 추세 기반 **제안치**로, 확정 목표선은 조정 가능.
+
+---
+
+## 부록 A. Stage-1 SFT 콜드스타트 구축 상세
+
+**왜 필요했나**: base(Qwen3.5-9B VL)가 어려운 시각/기하 문제에 본래 **매우 길게 추론** → 4096/6144 토큰 budget으로도 **~50% 잘림 → 무답 0점**. RL·budget 조정으로 못 잡음 → **간결 추론 습관을 SFT로 재주입**.
+
+콜드스타트는 **2단계로 진화**했다.
+
+### 1차 (plain) 콜드스타트 — 폐기
+- 스크립트 `build_coldstart_sft.py`. 데이터 = `UCSC-VLAA/VLAA-Thinking`의 **clevr_math** 서브셋(~5.9K). answer가 이미 `<think>…</think><answer>X</answer>` 형식이라 거의 그대로 사용 → `sft_coldstart_train.jsonl` **2913건**.
+- **문제**: clevr_math가 너무 쉬움(평균 760자) → 어려운 시각/기하 문제로 **일반화 실패**(여전히 잘림).
+
+### 2차 (RFT) 콜드스타트 — 최종 채택 ✅
+- 스크립트 `build_rft_coldstart.py` (STaR / ReST / RFT = **거절샘플링 자기증류**). 남의 데이터가 아니라 **모델 자신의 정답 롤아웃**을 모아 SFT → in-domain 간결 추론 재주입.
+- **소스**: 자기 GRPO 롤아웃 로그 `grpo_general/v*/completions.jsonl`.
+- **필터 3중**: ① `AccuracyMix==1.0`(정답) ② `<think></think><answer></answer>` **정상 마감**(비잘림) ③ `len ≤ 6000자`(≈2000토큰, 간결).
+- **선별**: 질문당 가장 짧은 것부터 **최대 3개**(`PER_Q=3`). 이미지 경로는 DeepVision 원본과 질문텍스트로 join.
+- **결과**: `sft_rft_coldstart_train.jsonl` **727건** + val 40건 (ms-swift `{messages, images}` 포맷).
+
+### SFT 학습 (job 57242, 2026-06-16)
+```
+base Qwen3.5-9B + LoRA r16/a32 (all-linear)
+727건 · 4 epochs · LR 1e-4 · max_len 4096 · bs1×grad_accum8 · 8GPU DDP
+→ sft_rft_coldstart_lora/checkpoint-48
+→ (merge, job 57245) sft_rft_coldstart_merged (18G)  ← Stage-2 init
+```
+
+### 검증
+- probe 추론(`probe_coldstart_think_true/false.jsonl`, `probe_rft_think_true.jsonl`)으로 형식 준수 확인.
+- 후속 GRPO **FormatThink 0.05→0.27**(≈5배)·clip↓ = 잘림 0점 해소.
+- 중간 홀드아웃 **base 0.15 → init 0.22**(형식 0.12→0.32, 길이 5907→5188자)로 SFT 기여 격리 확인.
+
+**한 줄**: 쉬운 외부데이터(clevr_math) 형식 콜드스타트가 일반화에 실패 → **어려운 in-domain(DeepVision)에서 모델 자신의 "정답+마감+간결" 완성문 727개를 거절샘플링으로 뽑아 4-epoch LoRA SFT**로 간결 추론 습관 주입.

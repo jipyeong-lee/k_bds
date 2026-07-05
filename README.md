@@ -6,7 +6,7 @@
 
 ---
 
-## 현황 (2026-07-05)
+## 현황 (2026-07-06)
 
 **지금 위치**: Stage-2(범용 RLVR/GRPO) **GDPO A/B 단독 진행 중**(dr_grpo 본선은 중단) · Stage-3(의료 RL) **배선까지 검증 완료·대기**.
 
@@ -16,7 +16,7 @@
 |---|---|
 | **Stage-2 기법** | GRPO 파생 A/B 로 **dr_grpo 승자 확정**(baseline·DAPO plateau 미돌파). → [상세](#stage-2--범용-rlvr-grpo) |
 | **🎯 중간 벤치마크** | **RL 25%(step 800)에서 층화 홀드아웃 Acc: init 0.22 → trained 0.38 (+73%)** — RL이 정확도 확실히 개선. base 0.15 대비 +153%. → [상세](#stage-2--범용-rlvr-grpo) |
-| **최신기법 A/B** | **GSPO** ✅완료·**미채택**(판정창 동률). **GDPO**(멀티리워드 보상별 정규화) **A/B 진행중**(`job 59191`, **step 306/600 ~51%**). 중간추세: **AccMix·총 reward dr_grpo와 동급 + FormatThink 우위(+0.04~0.06, 150스텝 지속)**, `zero_std=0`. 판정창(501~600)까지 ~1일. → [상세](#stage-2--범용-rlvr-grpo) |
+| **최신기법 A/B** | **GSPO** ✅완료·**미채택**(판정창 동률). **GDPO**(멀티리워드 보상별 정규화) **A/B 진행중**(`job 59191`, **step 450/600 ~75%**). 중간추세: **AccMix·총 reward dr_grpo와 동급**, FormatThink는 300스텝대 우위 후 **400대에서 근접 수렴**, `zero_std=0`. **판정창(501~600) 진입 임박(~5h), 완주 ~15h**. → [상세](#stage-2--범용-rlvr-grpo) |
 | **Stage-2 본선** | dr_grpo 1-epoch 재학습은 checkpoint-1050(step~1066, **33%**)에서 **중단**(GDPO A/B에 자원 집중). 이 ckpt는 Stage-3 init 후보로 병합 대기. |
 | **Stage-3 (RaR)** | 루브릭·judge·배선 **end-to-end 검증 완료**(유닛 29/29·스모크·내부망·분포). 본실행만 남음 → [상세](#stage-3--의료-rl-rar-루브릭-보상) |
 
@@ -27,7 +27,7 @@
 ---
 
 ## 목차
-1. [현황](#현황-2026-07-05)
+1. [현황](#현황-2026-07-06)
 2. [파이프라인 4단계](#파이프라인-4단계)
 3. [Stage-1 · 콜드스타트 SFT](#stage-1--콜드스타트-sft)
 4. [Stage-2 · 범용 RLVR (GRPO)](#stage-2--범용-rlvr-grpo) — baseline·기법 통합비교(GRPO/DAPO/dr_grpo/GSPO/GDPO)·벤치마크
@@ -44,7 +44,7 @@
 | 단계 | 목적 | 데이터 | 방법 | 상태 |
 |---|---|---|---|---|
 | **①** 콜드스타트 SFT | `<think>/<answer>` 추론 형식 주입 | VLAA clevr_math → RFT 간결본 | LoRA SFT | ✅ 완료(`sft_rft_coldstart_merged`) |
-| **②** 범용 RLVR | 검증가능 정답으로 추론 강화 | DeepVision-103K | GRPO 계열(dr_grpo) | 🔄 GDPO A/B 진행중(51%)·본선 중단 |
+| **②** 범용 RLVR | 검증가능 정답으로 추론 강화 | DeepVision-103K | GRPO 계열(dr_grpo) | 🔄 GDPO A/B 진행중(75%)·본선 중단 |
 | **③** 의료 특화 RL | 개방형 의료 VQA 추론 | medix-rl-data 51K | GRPO + RaR 루브릭 보상 | ⏳ 배선 검증완료·대기 |
 | **④** 평가 | base 대비 성능 정량화 | 층화 홀드아웃 / 의료 벤치 | vLLM 추론·채점 | ⏳ Stage-2 완주 후 |
 
@@ -110,7 +110,7 @@ baseline plateau를 뚫기 위해 GRPO 파생기법 5종을 **기법 외 전 조
 | **DAPO** | [2503.14476](https://arxiv.org/abs/2503.14476) | dapo | token | group | **0.2/0.28** | ✓ | 안정(zero_std 0)하나 **미돌파**(Acc 0.465<0.500), 길이 재폭주(~3600) |
 | **dr_grpo** ✅ | [2503.20783](https://arxiv.org/abs/2503.20783) | **dr_grpo** | token | **none** | 0.2 | ✓ | ✅ **돌파·승자**(Acc **0.526**·길이 억제 3259), **홀드아웃 +73% 검증** |
 | **GSPO** | [2507.18071](https://arxiv.org/abs/2507.18071) | grpo | **sequence** | group | **3e-4/4e-4** | ✓ | **동률 → 미채택**(Acc 0.500 vs 0.487, 노이즈 내), 클립 큼(0.185) |
-| **GDPO** | [2601.05242](https://arxiv.org/abs/2601.05242) | dr_grpo | token | **gdpo** | 0.2 | ✓ | **A/B 진행중**(51%): AccMix·reward 동급 + **Format 우위**, 판정창 대기 |
+| **GDPO** | [2601.05242](https://arxiv.org/abs/2601.05242) | dr_grpo | token | **gdpo** | 0.2 | ✓ | **A/B 진행중**(75%): AccMix·reward 동급, Format 우위 후 400대 근접, 판정창 진입 임박 |
 
 **판정 핵심**: plateau의 원인은 `frac_reward_zero_std` 급등(그룹이 전부정답/전부오답→gradient 소실). dr_grpo가 **길이·난이도 두 정규화 편향을 동시에 제거**해 step 501~600서 Acc 0.50을 유일하게 돌파. GSPO·GDPO는 그 위/옆의 직교 개선을 clean A/B로 검증 중.
 
@@ -170,17 +170,20 @@ singularity exec $SB python scripts/plot_grpo_multi.py docs/assets/grpo_stage2_B
 **GDPO**(Group reward-Decoupled Normalization, NVIDIA, 2026-01): 여러 보상을 가중합→통짜 정규화하면 서로 다른 조합이 같은 advantage로 **뭉개지는(collapse)** 문제를, **보상 함수별 개별 정규화(z-score) 후 결합**으로 해결(AIME서 GRPO 대비 +2.3~6.3%).
 - **왜 우리에게**: 우리는 **다중 보상**(Stage-2 3종, Stage-3 clinical_judge/format)이라 스케일이 제각각 → GDPO 타깃과 정확히 일치. 가장 유망한 적용처는 스케일차 큰 **Stage-3(judge 1.0 + format 0.2)**.
 - **dr_grpo와 관계**: `scale_rewards`만 `none→gdpo`로 바꾼 **1변수 A/B**(나머지 dr_grpo 처리 전부 유지). ⚠️ dr_grpo가 없앤 ÷std가 **보상함수별로** 되살아남(목적은 난이도편향 회피가 아니라 멀티리워드 균형). swift 제약: `kl_in_reward=True` 비호환(우린 KL을 loss에 넣어 무관).
-- **중간 추세(`job 59191`, step 306/600 ~51%, dr_grpo와 동일구간, dr/gd 순)**:
+- **중간 추세(`job 59191`, step 450/600 ~75%, dr_grpo와 동일구간, dr/gd 순)**:
 
-  | 구간 | reward | AccMix | FormatThink | 완성길이 |
-  |------|--------|--------|-------------|----------|
-  | 101–150 | 0.531/0.540 | 0.511/0.520 | 0.425/0.422 | 3288/3269 |
-  | 151–200 | 0.530/0.528 | 0.514/0.506 | 0.428/**0.452** | 3459/3384 |
-  | 201–250 | 0.503/0.513 | 0.484/0.482 | 0.434/**0.493** | 3347/3330 |
-  | 251–300 | 0.502/0.501 | 0.483/0.470 | 0.455/**0.498** | 3454/3393 |
+  | 구간 | reward | AccMix | FormatThink |
+  |------|--------|--------|-------------|
+  | 151–200 | 0.530/0.528 | 0.514/0.506 | 0.428/**0.452** |
+  | 201–250 | 0.503/0.513 | 0.484/0.482 | 0.434/**0.493** |
+  | 251–300 | 0.502/0.501 | 0.483/0.470 | 0.455/**0.498** |
+  | 301–350 | 0.506/0.521 | 0.481/0.486 | 0.465/**0.519** |
+  | 351–400 | 0.507/0.491 | 0.482/0.465 | 0.495/0.498 |
+  | 401–450 | 0.530/0.535 | 0.501/0.497 | **0.520**/0.484 |
 
-  - **AccMix·총 reward: dr_grpo와 동급**(Δ ±0.01~0.02) — 정답률 손해 없음. **FormatThink: GDPO 우위**(+0.04~0.06, 150스텝 지속) — 보상별 개별정규화로 AccMix 포화 후 Format 여력 이동(멀티리워드 균형 효과의 실측 신호). `zero_std=0` 유지.
-  - 단 on-policy 지표 → **최종 판정은 step 501~600 + 층화 홀드아웃 벤치마크**로 확정.
+  - **AccMix·총 reward: 전 구간 dr_grpo와 동급**(Δ ±0.01~0.02) — 정답률 손해 없음. `zero_std=0` 유지.
+  - **FormatThink: 150~350스텝 GDPO 우위**(+0.04~0.06)였으나 **400대에서 dr_grpo와 근접 수렴**(엎치락뒤치락) — 초반만큼 격차가 확실하진 않음. → 최종 판정이 더 중요해짐.
+  - on-policy 지표라 **최종 판정은 step 501~600 + 층화 홀드아웃 벤치마크**로 확정(진입 임박).
 </details>
 
 ### 3) base vs 학습모델 벤치마크 (층화 홀드아웃, 정식)
@@ -409,7 +412,8 @@ sbatch          --dependency=afterok:$JID3 scripts/40_eval.slurm
 - **07-02** — 병렬 진행: dr_grpo step~656/3204, GSPO step~198/600. dr_grpo 판정창 501~600 완성(Acc 0.487, on-policy). **예비 비교(동일 step 100~200)**: GSPO ≈ dr_grpo **동률**(Acc 0.516 vs 0.510), GSPO 클리핑↑ → 아직 우위 신호 없음. README 전면 재구조화(427→331줄).
 - **07-03** — **중간 홀드아웃 벤치마크**(`eval_midtrain.slurm`, RL 25%=step 800, 층화 N=100): **init 0.22 → trained 0.38(+73%)**, base 0.15 대비 +153% → **RL 홀드아웃 개선 확인, 전량 학습 계속 확정**(첫 유효 홀드아웃 수치, 무효 +67% 대체). dr_grpo step~883, GSPO step~466.
 - **07-04** — **GSPO A/B 완료·미채택**(판정창 동률 → dr_grpo 유지). **GDPO A/B 착수**(`job 59191`, `RECIPE=dr_grpo SCALE_REWARDS=gdpo` = dr_grpo 처리 유지 + advantage만 보상별 개별정규화). RLVR 방법론 종합비교(GRPO/DAPO/dr_grpo/GSPO/GDPO) README 추가. **dr_grpo 본선 중단**(checkpoint-1050, step~1066·33% → GDPO A/B에 자원 집중; ckpt는 Stage-3 init 후보로 병합 대기). GDPO는 초기 requeue로 07-04 09:01 fresh 재시작(step 1까지만 갔던 07-02 런 유실, 체크포인트 전이라 무손실).
-- **07-05** — GDPO A/B **step 306/600(51%) 순항**. dr_grpo와 동일구간 비교: **AccMix·총 reward 동급 + FormatThink 우위(+0.04~0.06, 150스텝 지속)**, `zero_std=0`. 판정창(501~600)까지 ~1일 → 도달 시 dr_grpo 기준선 비교 + 층화 홀드아웃 벤치마크로 채택 판정.
+- **07-05** — GDPO A/B **step 306/600(51%) 순항**. dr_grpo와 동일구간 비교: **AccMix·총 reward 동급 + FormatThink 우위(+0.04~0.06, 150스텝 지속)**, `zero_std=0`. 문제정의·해결방안 4축 정리 문서(`docs/project_status_2026-07-05.md`) + SFT 콜드스타트/RFT 상세(부록 A) 작성.
+- **07-06** — GDPO A/B **step 450/600(75%)**. AccMix·reward 전 구간 dr_grpo 동급 유지, FormatThink는 300스텝대 우위 후 **400대에서 근접 수렴**. **판정창(501~600) 진입 임박·완주 ~15h** → 완주 시 dr_grpo 기준선(0.487) 비교 + 층화 홀드아웃 벤치마크로 채택 판정.
 
 ### TODO
 - [x] 환경·모델·데이터 확정 + 전체 변환 (DeepVision 103K / medix 51K)
@@ -420,7 +424,7 @@ sbatch          --dependency=afterok:$JID3 scripts/40_eval.slurm
 - [x] **중간 홀드아웃 벤치마크**(RL 25%): init 0.22→trained 0.38(+73%) → **전량 학습 계속 확정**
 - [ ] **Stage-2 완주** → 최종 ckpt 재병합 → **층화 홀드아웃 벤치마크 재측정**(정식 최종 수치)
 - [x] **GSPO A/B 판정** → 판정창 동률 → **dr_grpo 유지**(미채택)
-- [ ] **GDPO A/B 판정**(진행중 step 306/600) → 판정창 501~600 + 홀드아웃으로 gdpo vs none 채택 결정
+- [ ] **GDPO A/B 판정**(진행중 step 450/600·75%, 판정창 진입 임박) → 판정창 501~600 + 홀드아웃으로 gdpo vs none 채택 결정
 - [ ] **Stage-3 본실행**(`launch_stage3.sh`) → Stage-3 init 교체
 - [ ] 평가 벤치마크를 실제 의료 멀티모달 벤치로 교체 · 하이퍼파라미터 튜닝
 

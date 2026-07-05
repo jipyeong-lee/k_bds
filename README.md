@@ -28,7 +28,7 @@
 1. [현황](#현황-2026-07-05)
 2. [파이프라인 4단계](#파이프라인-4단계)
 3. [Stage-1 · 콜드스타트 SFT](#stage-1--콜드스타트-sft)
-4. [Stage-2 · 범용 RLVR (GRPO)](#stage-2--범용-rlvr-grpo) — baseline·A/B·기법비교(GRPO/DAPO/dr_grpo/GSPO)·벤치마크
+4. [Stage-2 · 범용 RLVR (GRPO)](#stage-2--범용-rlvr-grpo) — baseline·기법 통합비교(GRPO/DAPO/dr_grpo/GSPO/GDPO)·벤치마크
 5. [Stage-3 · 의료 RL (RaR)](#stage-3--의료-rl-rar-루브릭-보상)
 6. [기술 레퍼런스](#기술-레퍼런스) — 환경·모델·LoRA·보상
 7. [운영 · 데이터](#운영--데이터) — 자원·정책·데이터·디렉토리·사용순서
@@ -75,113 +75,93 @@ RFT 콜드스타트 init + LoRA-DDP + max_completion 6144. 100-step 구간평균
 - ✅ 발산/붕괴 없음. FormatThink +155%·clip↓·길이↓.
 - ⚠️ **[진단] Acc plateau**: Acc가 step~500서 0.50 정점 후 정체. 원인 = **`frac_reward_zero_std` 0.24→0.33 상승**(그룹 rollout이 전부정답/전부오답 → 정확도 gradient 소실). 후반 reward 상승은 형식·길이 주도.
 
-### 2) A/B: GRPO 파생기법 → dr_grpo 승자
+### 2) 기법 통합 비교 — GRPO 계열 5종 clean A/B
 
-`scripts/21_rlvr_grpo_adv.slurm` — baseline과 **기법 외 전 조건 동일**(clean A/B). 공통 코어 = `dynamic_sample`(zero_std 그룹 폐기·재샘플, 진단 직격) + `overlong_filter`.
-
-| 지표 | baseline(57249) | DAPO(57527) | **dr_grpo(57624)** |
-|------|-----------------|-------------|--------------------|
-| **step 501~600 Acc** (돌파판정) | 0.500 | 0.465 ❌ | **0.526 ✅** |
-| `frac_reward_zero_std` | 0.24→0.33 (↑=plateau) | **0.00** | **0.00** |
-| mean_len (후반) | 3267 | ~3600 (↑재폭주) | **3259 (억제)** |
-| 누적 Acc (동일구간) | ~0.45 | 0.444 | **0.498** |
-| 판정 | plateau 정체 | 안정하나 **미돌파** | **✅ 돌파 (승자)** |
-
-![Stage-2 3기법 비교](docs/assets/grpo_stage2_all.png)
-
-*(50-step 구간평균. baseline(실선)·DAPO(파선)·dr_grpo(점선). **dr_grpo만 step 501~600(노란 띠)서 Acc 0.50 돌파**하며 mean_length 억제. zero_std 는 DAPO·dr_grpo 둘 다 0 평탄, baseline만 상승(=plateau 원인). 재생성: `singularity exec work/images/ms-swift-413-sandbox python scripts/plot_grpo_all.py logs/grpo_stage2_57249.log logs/grpo_adv_57527.log logs/grpo_adv_57624.log docs/assets/grpo_stage2_all.png`)*
-
-### 3) 기법 이해: GRPO / DAPO / dr.GRPO / GSPO
+baseline plateau를 뚫기 위해 GRPO 파생기법 5종을 **기법 외 전 조건 동일**(init `sft_rft_coldstart_merged` · trainonly 데이터 · 보상 `accuracy_mix/format_think/soft_overlong` · LoRA r16/a32)로 실증. 전부 **한 스크립트**(`scripts/21_rlvr_grpo_adv.slurm`)에서 `RECIPE`/env 토글로 실행 → 진짜 clean A/B.
 
 #### 쉬운 설명 (비유)
 
 > **비유**: 한 문제에 모델이 **답안 4장(그룹)**을 낸다 → 정답 여부만 채점 → **그룹 평균보다 잘 쓴 답은 "더 그렇게", 못 쓴 답은 "덜 그렇게"** 확률을 민다.
-> PPO와 달리 **별도 채점관(가치망)이 불필요** — *그룹 평균*이 기준선 역할(=GRPO의 핵심 절약).
+> PPO와 달리 **별도 채점관(가치망) 불필요** — *그룹 평균*이 기준선 역할(=GRPO의 핵심 절약).
 
-세 기법은 이 골격을 공유하고 "채점을 점수로 환산하는 규칙"에서만 갈린다:
+5종 모두 이 **그룹상대 advantage** 골격을 공유하고, "채점을 점수로 환산하는 규칙"에서만 갈린다.
 
-- **GRPO** (DeepSeekMath, 2024) = **기본형**. 그룹 평균 빼고 **그룹 std로 나눠** 점수화. 약점: ① 그룹이 전부정답/전부오답이면 std=0 → 못 배움(**Acc 정체**) ② **긴 답·쉬운 문제** 과대평가 편향.
-- **DAPO** (ByteDance, 2025) = GRPO에 **탐색·효율 4종 보강**(dynamic sampling·clip-higher·token-level loss·overlong). → 우리 결과: 안정성↑이나 **답이 길어지며** 정확도는 baseline 미달.
-- **dr.GRPO** (2025, "R1-Zero 비판적 분석") = GRPO의 **편향을 수술**: ① 손실을 시퀀스 길이 아닌 **상수로 정규화** ② **std 나눗셈 삭제**. → DAPO의 "답 길어짐"을 정면 겨냥. **우리 승자**.
-- **GSPO** (Alibaba/Qwen, 2025) = importance sampling을 **토큰→시퀀스 단위**로 교체. → [아래 상세](#최신-확장-gspo).
+#### 핵심 관점: 5종 = ms-swift **3개 독립 손잡이(knob)**의 조합
 
-한 줄: **GRPO=기본 · DAPO=탐색 더함(＋4기법) · dr.GRPO=편향 뺌(－2정규화) · GSPO=IS 단위를 시퀀스로 교체**.
+방법을 통째로 외우지 말고, ms-swift가 노출하는 **직교하는 3개 손잡이**의 좌표로 본다 (소스: `grpo_trainer.py` 손실 분기 직접 확인). 손잡이마다 겨냥하는 편향이 다르다:
 
-#### 메커니즘 비교표
+| 손잡이 (ms-swift 인자) | 무엇을 바꾸나 | 선택지와 효과 |
+|------|------|------|
+| **`loss_type`** | 손실 정규화 + 클리핑 | `grpo`=÷시퀀스길이(**길이 편향**) · `dapo`=÷배치토큰+clip-higher(탐색↑) · `dr_grpo`=÷상수(**길이 편향 제거**) |
+| **`importance_sampling_level`** | 중요도샘플링(IS) 단위 | `token`=기본 · `sequence`=**GSPO**(장문 IS 분산·클립증폭 억제) |
+| **`scale_rewards`** | advantage 정규화 | `group`=÷그룹std(**난이도 편향**) · `none`=안 함(**dr_grpo**) · `gdpo`=**보상함수별 개별** z-score(멀티리워드 균형) |
 
-advantage = 그룹상대(group-relative) 골격 공유, 아래 축에서만 갈림 (소스: ms-swift `grpo_trainer.py` 손실 분기 직접 확인):
+→ 세 손잡이는 **서로 배타 아님**. 승자 **dr_grpo = `(dr_grpo, token, none)`**. GSPO는 IS만 sequence로, GDPO는 scale_rewards만 gdpo로 돌린 변형이다.
 
-| 차원 | **GRPO** (baseline) | **DAPO** | **dr_grpo** (승자) |
-|------|---------------------|----------|-------------|
-| 논문 | DeepSeekMath [2402.03300](https://arxiv.org/abs/2402.03300) | DAPO [2503.14476](https://arxiv.org/abs/2503.14476) | Dr.GRPO [2503.20783](https://arxiv.org/abs/2503.20783) |
-| 한 줄 | 그룹상대 PG 기본형 | 비대칭클립 + 동적샘플 | 두 정규화 **편향 제거** |
-| **손실 정규화** | ÷ **시퀀스 길이** → 길이 편향 | ÷ **배치 총토큰**(token-level) | ÷ **(B×max_len) 상수** → 편향 제거 |
-| **advantage 정규화** | ÷ 그룹 std → 난이도 편향 | ÷ 그룹 std (유지) | **안 함**(`scale_rewards=none`) |
-| **클리핑** | 대칭 ε=0.2 | **clip-higher** 비대칭 0.2/0.28 | 대칭 ε=0.2 |
-| **zero-std 그룹** | 방치 → plateau 원인 | `dynamic_sample` 재샘플 | `dynamic_sample` 재샘플 |
-| **잘린 롤아웃** | loss 포함(오염) | `overlong_filter` 제외 | `overlong_filter` 제외 |
-| IS 레벨 | token | token | token |
-| **원논문 성과** | 수학추론 SOTA(7B) | AIME24 **50**(32B), 47을 50% 적은 step | AIME24 **43.3%**(7B), 토큰효율↑ |
-| ms-swift 인자 | `--loss_type grpo --scale_rewards group` | `--loss_type dapo --epsilon_high 0.28 --dynamic_sample --overlong_filter` | `--loss_type dr_grpo --scale_rewards none --dynamic_sample --overlong_filter` |
-| 우리 결과 | plateau(zero_std 0.24→0.33) | 안정하나 **미돌파**(Acc 0.465<0.500) | ✅ **돌파**(Acc **0.526**·길이 억제) — **승자** |
+#### 5종 실제 설정·결과 통합표
 
-<details><summary>DAPO 4대 기법 상세 (ms-swift 인자·plateau 관련성)</summary>
+공통 **CORE**(baseline 제외 전 recipe 공유) = `dynamic_sample`(zero_std 그룹 폐기·재샘플, plateau 직격) + `overlong_filter`(잘린 롤아웃 loss 제외).
 
-| 기법 | ms-swift 인자 | 효과 | plateau 관련성 |
+| 방법 | 논문 | `loss_type` | IS | `scale_rewards` | 클립 ε/ε_high | CORE | **우리 결과·판정** |
+|------|------|------|------|------|------|:---:|------|
+| **GRPO** (baseline) | [2402.03300](https://arxiv.org/abs/2402.03300) | grpo | token | group | 0.2 | ✗ | plateau (zero_std 0.24→0.33), Acc 0.500 정점 후 정체 |
+| **DAPO** | [2503.14476](https://arxiv.org/abs/2503.14476) | dapo | token | group | **0.2/0.28** | ✓ | 안정(zero_std 0)하나 **미돌파**(Acc 0.465<0.500), 길이 재폭주(~3600) |
+| **dr_grpo** ✅ | [2503.20783](https://arxiv.org/abs/2503.20783) | **dr_grpo** | token | **none** | 0.2 | ✓ | ✅ **돌파·승자**(Acc **0.526**·길이 억제 3259), **홀드아웃 +73% 검증** |
+| **GSPO** | [2507.18071](https://arxiv.org/abs/2507.18071) | grpo | **sequence** | group | **3e-4/4e-4** | ✓ | **동률 → 미채택**(Acc 0.500 vs 0.487, 노이즈 내), 클립 큼(0.185) |
+| **GDPO** | [2601.05242](https://arxiv.org/abs/2601.05242) | dr_grpo | token | **gdpo** | 0.2 | ✓ | **A/B 진행중**(51%): AccMix·reward 동급 + **Format 우위**, 판정창 대기 |
+
+**판정 핵심**: plateau의 원인은 `frac_reward_zero_std` 급등(그룹이 전부정답/전부오답→gradient 소실). dr_grpo가 **길이·난이도 두 정규화 편향을 동시에 제거**해 step 501~600서 Acc 0.50을 유일하게 돌파. GSPO·GDPO는 그 위/옆의 직교 개선을 clean A/B로 검증 중.
+
+![Stage-2 3기법 비교](docs/assets/grpo_stage2_all.png)
+
+*(50-step 구간평균. baseline(실선)·DAPO(파선)·dr_grpo(점선). **dr_grpo만 step 501~600(노란 띠)서 Acc 0.50 돌파**하며 mean_length 억제. zero_std는 DAPO·dr_grpo 둘 다 0 평탄, baseline만 상승(=plateau 원인). 재생성: `singularity exec work/images/ms-swift-413-sandbox python scripts/plot_grpo_all.py logs/grpo_stage2_57249.log logs/grpo_adv_57527.log logs/grpo_adv_57624.log docs/assets/grpo_stage2_all.png`)*
+
+> 원칙: **"최신이라서" 채택하지 않는다.** 5종 전부 dr_grpo가 자리를 얻은 것과 **동일 clean A/B**(동일 init·trainonly, 판정창 501~600 구간평균 + 필요시 층화 홀드아웃 벤치마크)로 판정. 동률이면 이미 검증된 승자를 유지.
+
+<details><summary>① GRPO / DAPO / dr.GRPO — 한 줄 요약 + DAPO 4대 기법</summary>
+
+- **GRPO** (DeepSeekMath, 2024) = 기본형. 그룹 평균 빼고 **그룹 std로 나눠** 점수화. 약점: ① std=0 그룹은 못 배움(**Acc 정체**) ② 긴 답·쉬운 문제 과대평가.
+- **DAPO** (ByteDance, 2025) = GRPO에 **탐색·효율 4종 보강**. 안정성↑이나 답이 길어져 정확도 baseline 미달.
+- **dr.GRPO** (2025, "R1-Zero 비판적 분석") = GRPO의 **편향을 수술**(손실 상수정규화 + std나눗셈 삭제). DAPO의 "답 길어짐"을 정면 겨냥. **우리 승자**.
+
+| DAPO 기법 | ms-swift 인자 | 효과 | plateau 관련성 |
 |------|--------------|------|---------------|
-| **Dynamic Sampling** | `--dynamic_sample true --max_resample_times 3` | reward_std=0 그룹 폐기·재샘플 → 유효 gradient 비율↑ | ⭐ **직격**(zero_std 급등이 진단 원인) |
-| **Clip-Higher** | `--epsilon 0.2 --epsilon_high 0.28` | 상단 클립 완화 → 저확률 토큰 탐색 보존, 엔트로피 붕괴 억제 | 조기 수렴/다양성 소실 방지 |
+| **Dynamic Sampling** | `--dynamic_sample true --max_resample_times 3` | reward_std=0 그룹 폐기·재샘플 → 유효 gradient↑ | ⭐ **직격** |
+| **Clip-Higher** | `--epsilon 0.2 --epsilon_high 0.28` | 상단 클립 완화 → 저확률 토큰 탐색 보존 | 조기수렴/다양성소실 방지 |
 | **Token-level Loss** | `--loss_type dapo` | 토큰 단위 정규화 → 길이 정규화 편향 제거 | 형식·길이 주도 reward 보정 |
-| **Overlong handling** | `--overlong_filter true` (+`soft_overlong` 보상) | 잘린 롤아웃 loss 제외 → 길이초과 노이즈 차단 | 잘림=0점 신호 오염 제거 |
+| **Overlong handling** | `--overlong_filter true` (+`soft_overlong`) | 잘린 롤아웃 loss 제외 | 잘림=0점 신호 오염 제거 |
 
-- 비용: DAPO 본실행(57527) 실측 **~369s/it (baseline 202의 ~1.8배)** — `dynamic_sample` 재샘플이 step당 생성량↑. 신호효율의 대가.
+- 비용: DAPO 본실행(57527) 실측 **~369s/it (baseline 202의 ~1.8배)** — dynamic_sample 재샘플 대가.
+- 원논문 성과: GRPO 수학추론 SOTA(7B) · DAPO AIME24 50(32B) · dr.GRPO AIME24 43.3%(7B, 토큰효율↑).
 </details>
 
-#### 최신 확장: GSPO
+<details><summary>② GSPO (시퀀스 IS) — 배경·A/B 결론</summary>
 
-**GSPO**(Group Sequence Policy Optimization, Alibaba/Qwen, [arXiv:2507.18071](https://arxiv.org/abs/2507.18071), 2025-07): 위 3기법이 모두 **토큰 단위** importance sampling(IS)하는 것을 **시퀀스(답안) 단위**로 바꿈.
+**GSPO**(Group Sequence Policy Optimization, Alibaba/Qwen, 2025-07): 토큰 단위 IS를 **시퀀스(답안) 단위**로 교체.
+- **왜**: 토큰 IS는 응답이 길수록 **분산 노이즈 누적** + 클립 증폭 → 붕괴(특히 MoE·장문·LoRA). 시퀀스 우도 비율(길이 정규화)로 억제 → MoE RL 안정화가 대표 성과.
+- **A/B 결론(2026-07-04, 판정창 501~600, dr_grpo n=100 vs GSPO n=99)**: **사실상 동률**(Acc 0.500 vs 0.487, reward 0.519 vs 0.506, 차이 ±0.013 노이즈). GSPO 클립 훨씬 큼(0.185 vs ~0.001, 작은 ε 설계상).
+- **→ dr_grpo 유지 (미채택)**: 동률 + dr_grpo는 이미 **홀드아웃 +73% 검증**됐고 GSPO는 on-policy 동률일 뿐. 시퀀스 IS가 필요한 MoE·초장문 상황도 아님. 런처 `scripts/launch_gspo_ab.sh`(`job 59004`).
+</details>
 
-- **왜**: 토큰 IS는 응답이 길수록 **분산 노이즈 누적** + 클리핑이 증폭 → 붕괴(특히 MoE·장문·LoRA). GSPO는 **시퀀스 우도 비율(길이 정규화)**로 억제 → MoE RL 안정화가 대표 성과.
-- **축 대응**: IS 레벨 = **sequence**(GSPO만) · advantage = 그룹상대 유지 · 클리핑 = **훨씬 작은 ε**(우리 `3e-4/4e-4`).
-- dr_grpo와 **직교**(편향제거 vs IS granularity) → 결합 가능.
-- **검증 방식**: "최신이라서"가 아니라 dr_grpo가 자리를 얻은 것과 **동일 clean A/B**(`job 59004`, dr_grpo와 병렬, 동일 init·trainonly, step501~600 동일창). 런처 `scripts/launch_gspo_ab.sh`.
-- **✅ A/B 결론(2026-07-04, 판정창 501~600 전 구간, dr_grpo n=100 vs GSPO n=99)**: **사실상 동률** — Acc는 GSPO 근소 우위(0.500 vs 0.487), reward는 dr_grpo 근소 우위(0.519 vs 0.506). 차이 ±0.013는 노이즈 범위, 명확한 승자 없음. GSPO는 클리핑 훨씬 큼(0.185 vs ~0.001, 작은 ε 설계상).
-- **→ dr_grpo 유지 (GSPO 미채택)**: 동률이면 전환 이유 없음 + dr_grpo는 이미 33% 진행·**홀드아웃 +73% 검증**됐고 GSPO는 on-policy 동률일 뿐 홀드아웃 미검증. 명확한 이득 없이 갈아타면 손해. (전량 학습·과제 성격상 시퀀스 IS가 필요한 MoE·초장문 상황이 아님도 배경.)
+<details><summary>③ GDPO (멀티리워드 정규화) — 배경·중간추세</summary>
 
-#### 최신 실험: GDPO (멀티리워드 정규화)
+**GDPO**(Group reward-Decoupled Normalization, NVIDIA, 2026-01): 여러 보상을 가중합→통짜 정규화하면 서로 다른 조합이 같은 advantage로 **뭉개지는(collapse)** 문제를, **보상 함수별 개별 정규화(z-score) 후 결합**으로 해결(AIME서 GRPO 대비 +2.3~6.3%).
+- **왜 우리에게**: 우리는 **다중 보상**(Stage-2 3종, Stage-3 clinical_judge/format)이라 스케일이 제각각 → GDPO 타깃과 정확히 일치. 가장 유망한 적용처는 스케일차 큰 **Stage-3(judge 1.0 + format 0.2)**.
+- **dr_grpo와 관계**: `scale_rewards`만 `none→gdpo`로 바꾼 **1변수 A/B**(나머지 dr_grpo 처리 전부 유지). ⚠️ dr_grpo가 없앤 ÷std가 **보상함수별로** 되살아남(목적은 난이도편향 회피가 아니라 멀티리워드 균형). swift 제약: `kl_in_reward=True` 비호환(우린 KL을 loss에 넣어 무관).
+- **중간 추세(`job 59191`, step 306/600 ~51%, dr_grpo와 동일구간, dr/gd 순)**:
 
-**GDPO**(Group reward-Decoupled Normalization, NVIDIA, [arXiv:2601.05242](https://arxiv.org/abs/2601.05242), 2026-01): GRPO가 여러 보상을 **가중합→통짜 정규화**해 서로 다른 조합이 같은 advantage로 **뭉개지는(collapse)** 문제를, **보상 함수별로 그룹 내 개별 정규화(z-score) 후 결합**해 해결. (AIME서 GRPO 대비 +2.3~6.3%)
+  | 구간 | reward | AccMix | FormatThink | 완성길이 |
+  |------|--------|--------|-------------|----------|
+  | 101–150 | 0.531/0.540 | 0.511/0.520 | 0.425/0.422 | 3288/3269 |
+  | 151–200 | 0.530/0.528 | 0.514/0.506 | 0.428/**0.452** | 3459/3384 |
+  | 201–250 | 0.503/0.513 | 0.484/0.482 | 0.434/**0.493** | 3347/3330 |
+  | 251–300 | 0.502/0.501 | 0.483/0.470 | 0.455/**0.498** | 3454/3393 |
 
-- **왜 우리에게**: 우리는 **다중 보상**(Stage-2 accuracy_mix/format_think/soft_overlong, Stage-3 clinical_judge/format_think)이라 스케일이 제각각 → GDPO의 타깃과 정확히 일치. GSPO(시퀀스 IS)보다 우리 특성에 직접적.
-- **dr_grpo와의 관계**: `scale_rewards`는 하나만 고르는 knob → **`none`(dr_grpo) ↔ `gdpo` 배타적**. 나머지 dr_grpo 처리(`loss_type=dr_grpo`·dynamic_sample·overlong·token IS)는 **전부 유지 가능**. 즉 **현 dr_grpo 레시피에서 `scale_rewards`만 `none→gdpo`로 바꾼 1변수 A/B**.
-  - ⚠️ 트레이드: dr_grpo가 없앤 ÷std가 **보상함수별로** 되살아남(목적은 난이도편향 회피가 아니라 멀티리워드 균형). swift 제약: `kl_in_reward=True` 비호환(우리는 KL을 loss에 넣어 무관).
-- **우리 검증(진행 중, `job 59191`)**: `RECIPE=dr_grpo SCALE_REWARDS=gdpo`, 600 step → dr_grpo(none)와 판정창 501~600 비교. 가장 유망한 적용처는 스케일차 큰 **Stage-3(judge 1.0 + format 0.2)**.
-  - **중간 추세(step 306/600 ~51%, dr_grpo와 동일구간 비교, dr/gd 순)**:
+  - **AccMix·총 reward: dr_grpo와 동급**(Δ ±0.01~0.02) — 정답률 손해 없음. **FormatThink: GDPO 우위**(+0.04~0.06, 150스텝 지속) — 보상별 개별정규화로 AccMix 포화 후 Format 여력 이동(멀티리워드 균형 효과의 실측 신호). `zero_std=0` 유지.
+  - 단 on-policy 지표 → **최종 판정은 step 501~600 + 층화 홀드아웃 벤치마크**로 확정.
+</details>
 
-    | 구간 | reward | AccMix | FormatThink | 완성길이 |
-    |------|--------|--------|-------------|----------|
-    | 101–150 | 0.531/0.540 | 0.511/0.520 | 0.425/0.422 | 3288/3269 |
-    | 151–200 | 0.530/0.528 | 0.514/0.506 | 0.428/**0.452** | 3459/3384 |
-    | 201–250 | 0.503/0.513 | 0.484/0.482 | 0.434/**0.493** | 3347/3330 |
-    | 251–300 | 0.502/0.501 | 0.483/0.470 | 0.455/**0.498** | 3454/3393 |
-
-    - **AccMix·총 reward: dr_grpo와 동급**(Δ ±0.01~0.02, 노이즈 내) — 정답률 손해 없음.
-    - **FormatThink: GDPO 우위**(+0.04~0.06이 150스텝 지속) — 리워드별 개별 정규화로 AccMix 포화 후 Format 쪽 학습 여력이 이동한 것으로 해석. GDPO의 멀티리워드 균형 효과가 실측으로 나타나는 신호.
-    - `frac_reward_zero_std=0` 유지(건전). 단 on-policy 지표이므로 **최종 판정은 step 501~600 구간평균 + 층화 홀드아웃 벤치마크**로 확정.
-
-#### 우리가 시도한 RLVR 방법론 종합
-
-| 방법 | 핵심 변경(vs GRPO) | 겨냥 문제 | 우리 결과·상태 |
-|------|------|------|------|
-| **GRPO** (baseline) | — (그룹상대 PG 기본형) | (기준선) | Acc plateau (zero_std 0.24→0.33) |
-| **DAPO** | clip-higher+동적샘플+토큰손실+overlong | plateau·탐색·엔트로피붕괴 | 안정하나 **미돌파**(Acc 0.465<0.500) |
-| **dr_grpo** ✅ | 길이·난이도 정규화 **편향 제거** | 길이폭주→clip→0점 | **돌파·승자**(Acc 0.526), **홀드아웃 +73% 검증** |
-| **GSPO** | 토큰→**시퀀스** IS | IS 분산누적·MoE 붕괴 | **동률 → 미채택**(2026-07-04) |
-| **GDPO** | 보상함수별 **개별 정규화** | 멀티리워드 조합 붕괴 | **A/B 진행중**(59191, step 306/600·51%): AccMix 동급 + **Format 우위**, 판정창 대기 |
-
-> 원칙: **"최신 기법이라서" 채택하지 않고, dr_grpo가 자리를 얻은 것과 동일한 clean A/B(동일 init·trainonly, 판정창 501~600)로 검증 후 결정.** dr_grpo·GSPO·GDPO 모두 우리 `21_rlvr_grpo_adv.slurm` 한 스크립트에서 RECIPE/env 토글로 실행. 논문 출처는 위 각 소절 링크.
-
-### 4) base vs 학습모델 벤치마크 (층화 홀드아웃, 정식)
+### 3) base vs 학습모델 벤치마크 (층화 홀드아웃, 정식)
 
 **중간 벤치마크(2026-07-03, RL 25%=step 800)** — 층화 홀드아웃 N=100, math/vl 층별(`eval_midtrain.slurm`). 조기 판단용으로 base / init(RL 0%) / trained(중간) 3개 동일조건 채점:
 

@@ -289,6 +289,19 @@ singularity exec $SB python scripts/plot_grpo_multi.py docs/assets/grpo_stage2_B
 | **GDPO** | GDPO: Group reward-Decoupled Normalization Policy Optimization for Multi-reward RL | NVIDIA, 2026-01 | [2601.05242](https://arxiv.org/abs/2601.05242) |
 | **RaR** (Stage-3) | Rubrics as Rewards: Reinforcement Learning Beyond Verifiable Domains | 2025-07 | [2507.17746](https://arxiv.org/abs/2507.17746) |
 
+#### 각 논문: 무슨 문제를 → 어떤 방법으로 (원문 요약)
+
+시간순으로 보면 **GRPO(기반) → DAPO/Dr.GRPO(GRPO 결함 보수) → GSPO/GDPO(직교 확장) → RaR(검증불가 도메인 확장)** 의 계보다. 각 논문이 **직전 방법의 어떤 한계**를 겨냥했는지가 핵심.
+
+- **GRPO** — *문제*: PPO는 정책망과 맞먹는 크기의 **가치망(critic)**을 따로 학습해야 해 메모리·연산 부담이 크고 토큰별 가치추정이 불안정. *방법*: critic을 **제거**하고, 한 프롬프트에 여러 응답(그룹)을 뽑아 **그룹 내 보상의 상대값**(평균 빼고 std로 나눔)을 advantage로 사용 → 그룹평균이 baseline 역할, 메모리↓·안정.
+- **DAPO** — *문제*: 대규모 LLM RL의 **엔트로피 붕괴**(조기수렴·다양성소실)·**후반 gradient 소실**·**응답 길이 폭주/잘림 노이즈**, 게다가 SOTA 레시피가 비공개라 재현 곤란. *방법*: 4기법 — **Clip-Higher**(상단 클립 완화→저확률 토큰 탐색 보존, 엔트로피 붕괴 억제) · **Dynamic Sampling**(std=0인 전정답/전오답 그룹 폐기·재샘플→유효 gradient 유지) · **Token-level PG Loss**(길이 정규화 편향 제거) · **Overlong Reward Shaping**(초과길이 패널티/필터로 잘림 노이즈 제거).
+- **Dr.GRPO** — *문제*: GRPO에 **두 최적화 편향** — ① 손실을 시퀀스 길이로 나눠 생기는 **응답 길이 편향**(특히 오답이 불필요하게 길어짐) ② advantage를 그룹 std로 나눠 생기는 **난이도 편향**(쉬운/어려운 문제 가중 왜곡). *방법*: 두 정규화를 **삭제** — 손실은 길이가 아닌 **상수로 정규화**, advantage의 **std 나눗셈 제거** → 편향 없는(unbiased) 추정, 토큰효율↑·성능 유지.
+- **GSPO** — *문제*: GRPO/PPO의 **토큰 단위 중요도샘플링(IS)**은 긴 시퀀스에서 토큰별 비율의 **분산이 누적**되고 클리핑이 증폭돼 학습 불안정(특히 MoE·장문에서 붕괴). *방법*: IS를 **시퀀스(응답) 단위**로 정의(시퀀스 우도 비율·길이 정규화)하고 클리핑·보상·최적화도 시퀀스 단위 → 분산 억제, MoE RL 안정화(Qwen3 사용).
+- **GDPO** — *문제*: **다중 보상**을 가중합한 뒤 통짜로 정규화하면 서로 다른 보상 조합이 **같은 advantage로 붕괴(collapse)**돼 보상 간 상대차 정보가 소실 → 학습신호 저하·조기 실패. *방법*: 결합 **전에 각 보상 함수를 그룹 내에서 개별 정규화(z-score)** 한 뒤 결합 → 각 보상의 상대 크기·특성 보존(멀티리워드 균형).
+- **RaR** (Stage-3) — *문제*: RLVR은 수학·코딩처럼 **정답 검증이 명확한 도메인**엔 강하나, 의료·과학처럼 이진 정답이 아니라 **다기준의 미묘한 판단**이 필요한 개방형 도메인엔 부적합. *방법*: **루브릭 체크리스트**를 구조화된 보상으로 사용 — judge가 여러 기준을 항목별 채점 후 **가중 집계해 복합(부분점수) 보상** 생성 → 단일 정답이 아닌 **총체적 품질**을 최적화. (원논문은 인스턴스별 루브릭 제안, 우리는 실증 비교 후 **정적 통일 루브릭** 채택 → [Stage-3](#stage-3--의료-rl-rar-루브릭-보상))
+
+> 우리 파이프라인 대응: **Stage-2 = GRPO 계보에서 Dr.GRPO 채택**(길이·난이도 편향이 우리 plateau의 직접 원인) + GSPO/GDPO를 clean A/B로 추가 검증. **Stage-3 = RaR**(의료 VQA는 검증불가 도메인). 채택 근거·A/B 결과는 [Stage-2 통합 비교](#2-기법-통합-비교--grpo-계열-5종-clean-ab) 참조.
+
 ---
 
 ## 운영 · 데이터

@@ -60,7 +60,7 @@
 
 ## Stage-2 · 범용 RLVR (GRPO)
 
-> **요약**: baseline GRPO 에서 **Acc plateau** 진단 → GRPO 파생기법 **clean A/B** → **dr_grpo 승자**(plateau 돌파). 이후 홀드아웃 누수·과소학습을 바로잡아 **층화 홀드아웃 + fresh 1 epoch 재학습** 진행 중. 정식 벤치마크는 완주 후 교체.
+> **요약**: baseline GRPO 에서 **Acc plateau** 진단 → GRPO 파생기법 **clean A/B** → **dr_grpo 승자**(plateau 돌파). 홀드아웃 누수·과소학습을 바로잡아 **층화 홀드아웃 + fresh 재학습**으로 교정, 중간 벤치마크서 **+73% 확인**. 현재 **GDPO A/B**로 멀티리워드 정규화를 추가 검증 중(dr_grpo 본선은 33%서 중단). 정식 벤치마크는 A/B 확정 후 교체.
 
 ### 1) baseline → Acc plateau 진단 (job 57249, step 1000 완주)
 
@@ -96,7 +96,7 @@ baseline plateau를 뚫기 위해 GRPO 파생기법 5종을 **기법 외 전 조
 | **`importance_sampling_level`** | 중요도샘플링(IS) 단위 | `token`=기본 · `sequence`=**GSPO**(장문 IS 분산·클립증폭 억제) |
 | **`scale_rewards`** | advantage 정규화 | `group`=÷그룹std(**난이도 편향**) · `none`=안 함(**dr_grpo**) · `gdpo`=**보상함수별 개별** z-score(멀티리워드 균형) |
 
-→ 세 손잡이는 **서로 배타 아님**. 승자 **dr_grpo = `(dr_grpo, token, none)`**. GSPO는 IS만 sequence로, GDPO는 scale_rewards만 gdpo로 돌린 변형이다.
+→ 세 손잡이는 **독립(자유 조합 가능)**. 승자 **dr_grpo = `(dr_grpo, token, none)`**. **GDPO**는 거기서 `scale_rewards`만 `gdpo`로 돌린 **1-knob 변형**(`dr_grpo, token, gdpo`). **GSPO**는 IS를 sequence로 바꾼 **별도 좌표**(우리 설정 `grpo, sequence, group` + 작은 clip)로, dr_grpo의 1-knob 변형이 아니라 독립 실험이다.
 
 #### 5종 실제 설정·결과 통합표
 
@@ -336,7 +336,7 @@ kbds_project/
 │   ├── 21_rlvr_grpo_adv.slurm           # Stage-2 A/B(dapo/gspo/dr_grpo, RESUME/MAX_STEPS)
 │   ├── build_rft_coldstart.py           # 간결 콜드스타트
 │   ├── make_holdout.py                  # 층화 홀드아웃 분리
-│   ├── plot_grpo_all.py                 # 3기법 통합 plot
+│   ├── plot_grpo_multi.py               # N개 기법 성능 plot(일반화, 6패널)
 │   ├── judge_server.sh / 31_judge_smoke.slurm / 33_judge_probe.slurm  # judge 서빙·검증
 │   ├── 35_stage3_smoke.slurm            # Stage-3 배선 end-to-end 스모크
 │   ├── merge_drgrpo.slurm / launch_stage3.sh / launch_gspo_ab.sh      # 오케스트레이터

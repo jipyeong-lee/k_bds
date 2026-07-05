@@ -33,7 +33,7 @@
 6. [기술 레퍼런스](#기술-레퍼런스) — 환경·모델·LoRA·보상
 7. [운영 · 데이터](#운영--데이터) — 자원·정책·데이터·디렉토리·사용순서
 8. [진행 이력 & 체크리스트](#진행-이력--체크리스트)
-9. [과제 종료 의무](#과제-종료-의무)
+9. [과제 종료 의무](#과제-종료-의무-가이드-7)
 
 ---
 
@@ -42,7 +42,7 @@
 | 단계 | 목적 | 데이터 | 방법 | 상태 |
 |---|---|---|---|---|
 | **①** 콜드스타트 SFT | `<think>/<answer>` 추론 형식 주입 | VLAA clevr_math → RFT 간결본 | LoRA SFT | ✅ 완료(`sft_rft_coldstart_merged`) |
-| **②** 범용 RLVR | 검증가능 정답으로 추론 강화 | DeepVision-103K | GRPO 계열(dr_grpo) | 🔄 1 epoch 재학습 중 |
+| **②** 범용 RLVR | 검증가능 정답으로 추론 강화 | DeepVision-103K | GRPO 계열(dr_grpo) | 🔄 GDPO A/B 진행중(51%)·본선 중단 |
 | **③** 의료 특화 RL | 개방형 의료 VQA 추론 | medix-rl-data 51K | GRPO + RaR 루브릭 보상 | ⏳ 배선 검증완료·대기 |
 | **④** 평가 | base 대비 성능 정량화 | 층화 홀드아웃 / 의료 벤치 | vLLM 추론·채점 | ⏳ Stage-2 완주 후 |
 
@@ -388,7 +388,7 @@ sbatch          --dependency=afterok:$JID3 scripts/40_eval.slurm
 - [x] LoRA 전환(NVLink 없음) · 간결 콜드스타트 · `accuracy_mix`
 - [x] Stage-2 baseline 완주 + **A/B 종결(dr_grpo 승자)**
 - [x] Stage-3 RaR 보상·judge·**배선 end-to-end 스모크**(유닛 29/29)
-- [x] **홀드아웃 정비 + 1 epoch 재학습 착수** (진행 중)
+- [x] **홀드아웃 정비 + fresh 1 epoch 재학습** (dr_grpo 본선은 33%서 중단, GDPO A/B로 전환)
 - [x] **중간 홀드아웃 벤치마크**(RL 25%): init 0.22→trained 0.38(+73%) → **전량 학습 계속 확정**
 - [ ] **Stage-2 완주** → 최종 ckpt 재병합 → **층화 홀드아웃 벤치마크 재측정**(정식 최종 수치)
 - [x] **GSPO A/B 판정** → 판정창 동률 → **dr_grpo 유지**(미채택)

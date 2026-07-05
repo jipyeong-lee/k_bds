@@ -107,6 +107,23 @@ base Qwen3.5-9B + LoRA r16/a32 (all-linear)
 → (merge, job 57245) sft_rft_coldstart_merged (18G)  ← Stage-2 init
 ```
 
+### 학습곡선 (48 step = 12 step/epoch × 4, 총 ~5분)
+
+| epoch/step | train loss | val loss | val token_acc |
+|---|---|---|---|
+| step 1 | 0.263 | — | — |
+| epoch 1 (step 12) | ~0.23 | 0.2149 | 0.9237 |
+| epoch 2 (step 24) | ~0.19 | 0.2136 | 0.9236 |
+| epoch 3 (step 36) | ~0.20 | 0.2137 | 0.9238 |
+| epoch 4 (step 48) | 0.197 | 0.2138 | 0.9242 |
+
+- **형식은 ~1 epoch에 수렴**: val loss가 epoch 1부터 0.214로 평탄(이후 변화 ±0.001), token_acc 0.924 유지. 추가 epoch는 한계효용 작음(train 0.26→0.20으로 소폭 하락, val 정체 = 과적합 없음).
+- 형식 주입(간결 `<think>/<answer>`)이 목적이라 val 조기수렴은 정상 — 새 지식 학습이 아니라 **출력 스타일 정렬**.
+
+### 727건 샘플·길이 분포
+- 예시(질문): *"Jewel2 … 특수 원소가 몇 개인가"* (시각논리 퍼즐) → assistant `<think>보드 스캔·계산…</think><answer>N</answer>`.
+- **assistant 완성문 길이(문자)**: 중앙값 **2837** · 평균 2861 · 최소 36 · 최대 5979 → `≤6000자` 필터 정상 작동, base 폭주(3.5~4.6K토큰) 대비 **절반 수준의 간결 추론**.
+
 ### 검증
 - probe 추론(`probe_coldstart_think_true/false.jsonl`, `probe_rft_think_true.jsonl`)으로 형식 준수 확인.
 - 후속 GRPO **FormatThink 0.05→0.27**(≈5배)·clip↓ = 잘림 0점 해소.

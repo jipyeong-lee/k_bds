@@ -92,8 +92,24 @@
 - 스크립트 `build_coldstart_sft.py`. 데이터 = `UCSC-VLAA/VLAA-Thinking`의 **clevr_math** 서브셋(~5.9K). answer가 이미 `<think>…</think><answer>X</answer>` 형식이라 거의 그대로 사용 → `sft_coldstart_train.jsonl` **2913건**.
 - **문제**: clevr_math가 너무 쉬움(평균 760자) → 어려운 시각/기하 문제로 **일반화 실패**(여전히 잘림).
 
+#### RFT란? (Rejection-sampling Fine-Tuning)
+
+**정의**: 모델이 스스로 만든 답 중 **정답인 것만 골라(rejection sampling) 그걸로 다시 SFT**하는 자기증류(self-distillation) 기법. 외부 정답 데이터 없이 **모델 자신의 성공 사례로 부트스트랩**한다.
+
+**동작 4단계**:
+1. **생성(sample)**: 한 문제에 여러 후보 답(롤아웃)을 뽑는다.
+2. **거절(reject)**: 검증가능 정답과 대조해 **틀린 것·형식 불량·잘린 것을 버린다**.
+3. **정제(curate)**: 남은 정답 중 중복 제거·간결한 것 위주로 선별.
+4. **재학습(fine-tune)**: 이 선별셋으로 SFT → 좋은 습관을 모델에 고정. (반복 시 STaR/ReST)
+
+**계보**: STaR(Zelikman 2022, Self-Taught Reasoner) · ReST(Gulcehre 2023) · RFT(Yuan 2023, 수학추론 스케일링) — 모두 "정답 롤아웃으로 SFT" 골격 공유.
+
+**RL(GRPO)과 차이**: RL은 보상 gradient로 정책을 밀지만, RFT는 **정답 샘플만 남긴 offline SFT**라 훨씬 **싸고 안정적**(가치망·보상신호 불필요). 단 "정답을 더 잘 내게" 하기보다 **이미 낼 수 있는 정답을 원하는 스타일로 고정**하는 데 강함 → 콜드스타트(형식·간결성 주입)에 최적.
+
+**우리가 이걸 택한 이유**: base는 어려운 문제도 **가끔 맞히긴 하나 장황해서 잘림**. 그 "가끔 맞힌 간결한 성공"만 골라 되먹이면, 외부 데이터 없이 **in-domain에서 일반화되는 간결 추론 습관**을 주입할 수 있다(1차 clevr_math가 실패한 지점).
+
 ### 2차 (RFT) 콜드스타트 — 최종 채택 ✅
-- 스크립트 `build_rft_coldstart.py` (STaR / ReST / RFT = **거절샘플링 자기증류**). 남의 데이터가 아니라 **모델 자신의 정답 롤아웃**을 모아 SFT → in-domain 간결 추론 재주입.
+- 스크립트 `build_rft_coldstart.py` (위 RFT를 DeepVision 롤아웃에 적용). 남의 데이터가 아니라 **모델 자신의 정답 롤아웃**을 모아 SFT → in-domain 간결 추론 재주입.
 - **소스**: 자기 GRPO 롤아웃 로그 `grpo_general/v*/completions.jsonl`.
 - **필터 3중**: ① `AccuracyMix==1.0`(정답) ② `<think></think><answer></answer>` **정상 마감**(비잘림) ③ `len ≤ 6000자`(≈2000토큰, 간결).
 - **선별**: 질문당 가장 짧은 것부터 **최대 3개**(`PER_Q=3`). 이미지 경로는 DeepVision 원본과 질문텍스트로 join.

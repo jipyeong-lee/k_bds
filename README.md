@@ -17,12 +17,10 @@
 | **Stage-2 기법** | GRPO 파생 A/B 로 **dr_grpo 승자 확정**(baseline·DAPO plateau 미돌파). → [상세](#stage-2--범용-rlvr-grpo) |
 | **🎯 중간 벤치마크** | **RL 25%(step 800)에서 층화 홀드아웃 Acc: init 0.22 → trained 0.38 (+73%)** — RL이 정확도 확실히 개선. base 0.15 대비 +153%. → [상세](#stage-2--범용-rlvr-grpo) |
 | **최신기법 A/B** | **GSPO** ✅완료·**미채택**(판정창 동률). **GDPO** ✅**완주·판정 완료**(step600): on-policy 판정창 동률(Acc 0.487 vs 0.490) + **층화 홀드아웃(N=200) dr_grpo 0.380 vs GDPO 0.390**(Δ+0.01, 노이즈 내 **동률**·GDPO 미세우위). → **Stage-2는 무차별, Stage-3(스케일차 큰 멀티리워드)엔 GDPO 채택 권고**. → [상세](#stage-2--범용-rlvr-grpo) |
-| **Stage-2 본선** | dr_grpo 1-epoch 재학습은 checkpoint-1050(step~1066, **33%**)에서 **중단**(GDPO A/B에 자원 집중). 이 ckpt는 Stage-3 init 후보로 병합 대기. |
-| **Stage-3 (RaR)** | 루브릭·judge·배선 **end-to-end 검증 완료**(유닛 29/29·스모크·내부망·분포). 본실행만 남음 → [상세](#stage-3--의료-rl-rar-루브릭-보상) |
+| **Stage-2 결론** | **방법론 실험 종결** — dr_grpo 채택(승자), GSPO 미채택, GDPO Stage-3용. 홀드아웃 step600 **~0.38–0.39 포화** 확인. step600 체크포인트(dr_grpo/GDPO)가 **Stage-3 init 후보**. |
+| **Stage-3 (RaR)** | 루브릭·judge·배선 **end-to-end 검증 완료**(유닛 29/29·스모크·내부망·분포). **본실행이 다음 단계** → [상세](#stage-3--의료-rl-rar-루브릭-보상) |
 
-⚠️ **주의(정비 이력)**: 파일럿 dr_grpo 는 ① 데이터 **21%만** 학습(중간 중단) ② 평가가 학습 파일 stride 슬라이스라 **누수**였음.
-→ **정답유형 층화 홀드아웃 분리**(math 453 + visual-logic 519) + **init 부터 fresh 1 epoch 재학습**으로 교정 중.
-이전 **"+67%" 벤치마크는 무효**(오염) — 완주 후 층화 홀드아웃에서 재측정.
+✅ **정비 이력(해결됨)**: 파일럿 dr_grpo 의 ① 데이터 **21%만** 학습 ② 평가가 학습 파일 stride 슬라이스라 **누수**였던 문제를 → **정답유형 층화 홀드아웃 분리**(math 453 + visual-logic 519) + **init 부터 fresh 재학습**으로 교정 완료. 무효였던 "+67%"는 폐기하고 **층화 홀드아웃 정식 수치(+73%·step600 0.38–0.39)로 대체**.
 
 ---
 
@@ -62,7 +60,7 @@
 
 ## Stage-2 · 범용 RLVR (GRPO)
 
-> **요약**: baseline GRPO 에서 **Acc plateau** 진단 → GRPO 파생기법 **clean A/B** → **dr_grpo 승자**(plateau 돌파). 홀드아웃 누수·과소학습을 바로잡아 **층화 홀드아웃 + fresh 재학습**으로 교정, 중간 벤치마크서 **+73% 확인**. 현재 **GDPO A/B**로 멀티리워드 정규화를 추가 검증 중(dr_grpo 본선은 33%서 중단). 정식 벤치마크는 A/B 확정 후 교체.
+> **요약 (Stage-2 방법론 실험 완료)**: baseline GRPO 에서 **Acc plateau** 진단 → GRPO 파생기법 5종 **clean A/B** → **dr_grpo 승자**(plateau 돌파, 홀드아웃 +73%). 최신기법 **GSPO·GDPO**도 동일 A/B로 검증 → **둘 다 dr_grpo와 동률**(GSPO 미채택, GDPO는 Stage-3용 채택 권고). 홀드아웃 누수는 **층화 분리**로 교정, step600서 홀드아웃 **~0.38–0.39 포화** 확인. **Stage-2 방법론 확정** — 남은 건 Stage-3.
 
 ### 1) baseline → Acc plateau 진단 (job 57249, step 1000 완주)
 
@@ -122,7 +120,7 @@ baseline plateau를 뚫기 위해 GRPO 파생기법 5종을 **기법 외 전 조
 
 **코호트 B — 최신기법 A/B (trainonly, 동일 init·데이터): dr_grpo(none) vs GSPO vs GDPO**
 ![Stage-2 B: dr_grpo/GSPO/GDPO](docs/assets/grpo_stage2_B_latest.png)
-*(Acc·reward는 3자 거의 겹침(동급). **FormatThink에서 GDPO(보라)가 뚜렷이 상승**(멀티리워드 균형 효과), **clip에서 GSPO(빨강)만 크게 높음**(~0.18, 작은 ε 설계상). GDPO는 step ~300까지라 이후는 미도달. GSPO는 완주·동률 → 미채택.)*
+*(3기법 모두 step600 완주. Acc·reward는 3자 거의 겹침(**동률**). FormatThink는 GDPO(보라)가 중반 우위였으나 **판정창(노란 띠)서 dr_grpo와 수렴**. **clip에서 GSPO(빨강)만 크게 높음**(~0.18, 작은 ε 설계상). → GSPO·GDPO 둘 다 dr_grpo와 동률: GSPO 미채택, GDPO는 Stage-3용 채택 권고.)*
 
 <details><summary>플롯 재생성 명령</summary>
 
@@ -199,8 +197,8 @@ singularity exec $SB python scripts/plot_grpo_multi.py docs/assets/grpo_stage2_B
 
 - 🎯 **init → trained: 0.22 → 0.38 (+0.16, 상대 +73%)** — **Stage-2 RL 이 홀드아웃 정확도를 확실히 개선**(25%만 학습했는데도). → **전량 학습 계속**(조기종료 불필요) 근거.
 - base → trained **+153%**(전체 파이프라인 SFT+RL). visual-logic 개선 최대(0.21→0.42, +100%), 형식 0.12→0.45, 길이 5907→4752자(간결화).
-- ⚠️ **"학습 롤아웃 Acc ~0.50 정체"는 오해였음**: on-policy(탐색 포함) 지표라 평탄했을 뿐, 정작 중요한 **홀드아웃에선 뚜렷이 상승**. → 조기 확인 결과 "계속".
-- 1 epoch 완주 후 최종 checkpoint 로 **재측정하여 이 표 갱신** 예정.
+- ⚠️ **"학습 롤아웃 Acc ~0.50 정체"는 오해였음**: on-policy(탐색 포함) 지표라 평탄했을 뿐, 정작 중요한 **홀드아웃에선 뚜렷이 상승**.
+- ✅ **step600 재측정으로 확정**(아래 GDPO 판정표): dr_grpo/GDPO 둘 다 **0.38–0.39** → step800(0.38)과 동일 = **홀드아웃이 step600쯤 포화**(전량 학습해도 큰 추가이득 없음, Stage-2 조기확정 근거).
 
 #### GDPO 최종 판정 (step600 홀드아웃 A/B)
 

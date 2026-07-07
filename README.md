@@ -30,10 +30,11 @@
 3. [Stage-1 · 콜드스타트 SFT](#stage-1--콜드스타트-sft)
 4. [Stage-2 · 범용 RLVR (GRPO)](#stage-2--범용-rlvr-grpo) — baseline·기법 통합비교(GRPO/DAPO/dr_grpo/GSPO/GDPO)·벤치마크
 5. [Stage-3 · 의료 RL (RaR)](#stage-3--의료-rl-rar-루브릭-보상)
-6. [기술 레퍼런스](#기술-레퍼런스) — 환경·모델·LoRA·보상·**논문 레퍼런스**
-7. [운영 · 데이터](#운영--데이터) — 자원·정책·데이터·디렉토리·사용순서
-8. [진행 이력 & 체크리스트](#진행-이력--체크리스트)
-9. [과제 종료 의무](#과제-종료-의무-가이드-7)
+6. [타겟 벤치마크 (HealthBench)](#타겟-벤치마크-healthbench--의료-성능-측정) — base 기준선 0.229
+7. [기술 레퍼런스](#기술-레퍼런스) — 환경·모델·LoRA·보상·**논문 레퍼런스**
+8. [운영 · 데이터](#운영--데이터) — 자원·정책·데이터·디렉토리·사용순서
+9. [진행 이력 & 체크리스트](#진행-이력--체크리스트)
+10. [과제 종료 의무](#과제-종료-의무-가이드-7)
 
 ---
 
@@ -44,7 +45,7 @@
 | **①** 콜드스타트 SFT | `<think>/<answer>` 추론 형식 주입 | VLAA clevr_math → RFT 간결본 | LoRA SFT | ✅ 완료(`sft_rft_coldstart_merged`) |
 | **②** 범용 RLVR | 검증가능 정답으로 추론 강화 | DeepVision-103K | GRPO 계열(dr_grpo/GDPO) | ✅ A/B 판정완료(dr_grpo·GDPO 동급) |
 | **③** 의료 특화 RL | 개방형 의료 VQA 추론 | medix-rl-data 51K | GRPO + RaR 루브릭 보상 | ⏳ 배선 검증완료·대기 |
-| **④** 평가 | base 대비 성능 정량화 | 층화 홀드아웃 / 의료 벤치 | vLLM 추론·채점 | ⏳ Stage-2 완주 후 |
+| **④** 평가 | base 대비 성능 정량화 | 층화 홀드아웃 / **HealthBench** | vLLM 추론·채점 | 🔄 base 기준선 측정완료(HealthBench 0.229) |
 
 **공통 제약**(→ [기술 레퍼런스](#기술-레퍼런스)): NVLink 없음 → **전 단계 LoRA-DDP** · glibc 2.17 → **Singularity 컨테이너** · 로그인노드 vLLM 불가 → **모든 GPU 작업은 컴퓨트노드**.
 
@@ -267,6 +268,36 @@ GDPO 완주(step600) 후, **dr_grpo와 완전 동일 조건**(init·trainonly·l
 
 ### 남은 것
 ⏳ Stage-2 완주·재병합 후 **`bash scripts/launch_stage3.sh`**(judge ready → 학습 자동 제출). 망각 방지용 DeepVision 혼합은 옵션.
+
+---
+
+## 타겟 벤치마크 (HealthBench) — 의료 성능 측정
+
+Stage-2 홀드아웃(DeepVision)은 **검증가능 정답** 기준의 내부 지표이고, **최종 의료 능력**은 외부 의료 벤치 **HealthBench**([OpenAI, 2025-05](https://openai.com/index/healthbench/), 262명 의사·5,000 대화·루브릭 채점)로 측정한다. 파이프라인(SFT→RLVR→RaR) 각 단계 모델을 **동일 하니스**로 재면서 base 대비 개선을 추적한다.
+
+**측정 세팅**(`scripts/45_healthbench_smoke.slurm` + `run_healthbench.py`, evalscope `health_bench`):
+- **Hard 서브셋 전량 1,000건**(가장 변별력 높은 부분집합), max_tokens 8192.
+- **채점자 = 자체 Qwen3.6-27B-FP8**(오프라인 클러스터라 GPT-4.1 불가, thinking off). 데이터는 로컬 캐시(오프라인).
+- `HB_TARGET_MODEL` env 로 평가대상 교체 → base/콜드스타트/Stage-2·3 모델 동일 조건 비교.
+
+### base (Qwen3.5-9B) 기준선 — HealthBench Hard (n=1000)
+
+| 종합 | **0.229** |
+|------|------|
+
+| 평가축 | 점수 | | 주제 | 점수 (n) |
+|------|------|---|------|------|
+| communication_quality | 0.580 | | emergency_referrals | 0.249 (66) |
+| instruction_following | 0.489 | | context_seeking | 0.248 (179) |
+| accuracy | 0.351 | | hedging | 0.246 (167) |
+| completeness | 0.235 | | health_data_tasks | 0.237 (115) |
+| context_awareness | **0.098** | | global_health | 0.229 (280) |
+| | | | complex_responses | **0.139** (82) |
+
+- **프로파일**: 말은 잘함(communication 0.58)·지시 따름(0.49)이나 **맥락인지(0.10)·완결성(0.24)·복잡시나리오(0.14)가 약함** — "그럴듯하나 상황을 온전히 파악·완결 못 함" = 의료 특화 학습 전 base의 전형. (Stage-3 RaR 루브릭이 겨냥하는 바로 그 결함)
+- ⚠️ **해석 주의**: ① 채점자 ≠ GPT-4.1 → **공식 리더보드와 직접 비교 불가**(내부 상대비교 전용) ② judge 파싱실패 ~10% 보수적 처리 → **0.229는 완만한 하한** ③ base 장황(최대 44K자)으로 일부 잘림.
+
+> **추적 계획**: 콜드스타트 → Stage-2(dr_grpo/GDPO) → Stage-3(RaR) 각 모델을 동일 하니스로 측정해 이 표에 행 추가 → base 0.229 대비 단계별 개선을 정량화.
 
 ---
 

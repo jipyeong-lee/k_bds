@@ -57,6 +57,7 @@
 - **핵심 결정**: ZeRO-3 길이확대는 no-NVLink에서 5배 느려 불채택 → **rejection-sampling 간결 콜드스타트**(`build_rft_coldstart.py`): 롤아웃 정답+간결 완성문만 SFT.
 - **효과 검증**: 후속 GRPO에서 FormatThink 0.05→0.27(5배)·clip↓ (`merge_probe_rft.slurm`). 산출 `sft_rft_coldstart_merged` = Stage-2 init.
 - **명분·적합성 판단 + 순가치 ablation**(base→RL 콜드스타트 無 검증) → [`docs/stage1_coldstart_assessment.md`](docs/stage1_coldstart_assessment.md).
+  - **✅ ablation 확정(2026-07-09)**: 콜드스타트 없이 `base→dr_grpo` 200스텝 → 홀드아웃 **0.18**(콜드스타트 SFT 단독 0.22에도 못 미침)·**FormatThink 0 정체**·잘림 40%·저속. GDPO도 동일(0 신호 못 살림). → **Stage-1 콜드스타트 필수** 확정. (HealthBench 동률은 오프타깃일 뿐)
 
 ---
 
@@ -466,6 +467,7 @@ sbatch          --dependency=afterok:$JID3 scripts/40_eval.slurm
 - **07-05** — GDPO A/B **step 306/600(51%) 순항**. dr_grpo와 동일구간 비교: **AccMix·총 reward 동급 + FormatThink 우위(+0.04~0.06, 150스텝 지속)**, `zero_std=0`. 문제정의·해결방안 4축 정리 문서(`docs/project_status_2026-07-05.md`) + SFT 콜드스타트/RFT 상세(부록 A) 작성.
 - **07-06** — GDPO A/B **step 450/600(75%)**. AccMix·reward 전 구간 dr_grpo 동급 유지, FormatThink는 300스텝대 우위 후 **400대에서 근접 수렴**.
 - **07-07** — **GDPO 완주(step600)·최종 판정**: on-policy 판정창 Acc 0.487 vs 0.490, **층화 홀드아웃(N=200) 0.380 vs 0.390** → 둘 다 **동률**(GDPO 미세우위, 노이즈 내). Stage-2 무차별·downside 없음 → **Stage-3용 GDPO 채택 권고**(`46_eval_gdpo_ab.slurm`). 병행: **HealthBench Hard(1000) 측정** — base **0.229** vs 콜드스타트 **0.224**(동률, 콜드스타트 instr +0.044·출력간결화). 타겟 벤치마크 섹션 신설 + 단계별 추적표(②③ 예정). → [상세](#타겟-벤치마크-healthbench--의료-성능-측정)
+- **07-08~09** — **Stage-1 명분 검증 ablation**(콜드스타트 순가치): `base→dr_grpo`·`base→GDPO`(콜드스타트 無) 병렬 step200 완주(`59946`/`59970`). 결과: **FormatThink 100스텝 내내 ~0 정체**(콜드스타트 0.26 시작 대비)·clip 40%·저속, 홀드아웃 checkpoint-200 **0.18**(콜드스타트 SFT 단독 0.22에도 못 미침, 콜드스타트+RL 0.38의 절반). → **Stage-1 콜드스타트 필수 확정**([`docs/stage1_coldstart_assessment.md`](docs/stage1_coldstart_assessment.md), `47_eval_ablation.slurm`).
 
 ### TODO
 - [x] 환경·모델·데이터 확정 + 전체 변환 (DeepVision 103K / medix 51K)

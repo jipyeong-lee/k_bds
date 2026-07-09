@@ -27,7 +27,7 @@
 ## 목차
 1. [현황](#현황-2026-07-07)
 2. [파이프라인 4단계](#파이프라인-4단계)
-3. [Stage-1 · 콜드스타트 SFT](#stage-1--콜드스타트-sft)
+3. [Stage-1 · 콜드스타트 SFT](#stage-1--콜드스타트-sft) — RFT 콜드스타트 + **ablation study**(순가치)
 4. [Stage-2 · 범용 RLVR (GRPO)](#stage-2--범용-rlvr-grpo) — baseline·기법 통합비교(GRPO/DAPO/dr_grpo/GSPO/GDPO)·벤치마크
 5. [Stage-3 · 의료 RL (RaR)](#stage-3--의료-rl-rar-루브릭-보상)
 6. [타겟 벤치마크 (HealthBench)](#타겟-벤치마크-healthbench--의료-성능-측정) — base 기준선 0.229
@@ -56,14 +56,24 @@
 - **목적**: base(Qwen3.5-9B)가 본래 장문 추론(3.5~4.6K토큰)이라 잘림=0점이 RL 정체 원인 → **간결한 `<think>/<answer>` 형식**을 먼저 주입.
 - **핵심 결정**: ZeRO-3 길이확대는 no-NVLink에서 5배 느려 불채택 → **rejection-sampling 간결 콜드스타트**(`build_rft_coldstart.py`): 롤아웃 정답+간결 완성문만 SFT.
 - **효과 검증**: 후속 GRPO에서 FormatThink 0.05→0.27(5배)·clip↓ (`merge_probe_rft.slurm`). 산출 `sft_rft_coldstart_merged` = Stage-2 init.
-- **콜드스타트 Ablation Study** (순가치 확정, 2026-07-09) → [`docs/stage1_coldstart_assessment.md`](docs/stage1_coldstart_assessment.md). 절제변수=콜드스타트 init 유무, 나머지 통제. DeepVision 홀드아웃 2×2:
 
-  | | RL 無 | RL 有 |
-  |---|---|---|
-  | **콜드스타트 無** | base 0.15 | base→RL 200step **0.18** |
-  | **콜드스타트 有** | 0.22 | +RL 600step **0.38** |
+### 콜드스타트 Ablation Study (순가치 확정, 2026-07-09)
 
-  → **강한 상호작용**: RL 이득은 콜드스타트에 조건부(+0.16 vs +0.03). 콜드스타트 없이는 **FormatThink 0 정체**·잘림 40%·저속, **200step RL이 콜드스타트 SFT 한 번에도 못 미침**. GDPO도 동일(0 신호 못 살림). → **Stage-1 필수 확정**(HealthBench 동률은 오프타깃).
+계기: 콜드스타트의 HealthBench(0.224)가 base(0.229)와 동률이라 "Stage-1 제껴도 되나?" → clean ablation 으로 확정. 상세 [`docs/stage1_coldstart_assessment.md`](docs/stage1_coldstart_assessment.md).
+
+- **가설**: H1 콜드스타트=RL 전제조건 vs H0 콜드스타트=가속일 뿐.
+- **설계**: **절제변수 = 콜드스타트 init 유무**, 나머지(trainonly·dr_grpo·LoRA·보상·하이퍼) 전부 통제. `base→RL`(dr_grpo·GDPO 2-arm, step200, `59946`/`59970`) vs 기존 콜드스타트 경로.
+- **결과 — DeepVision 홀드아웃 2×2 (콜드스타트 × RL)**:
+
+  | | RL 無 | RL 有 | RL 효과 |
+  |---|---|---|---|
+  | **콜드스타트 無** | base 0.15 | base→RL(200step) **0.18** | +0.03 |
+  | **콜드스타트 有** | 0.22 | +RL(600step) **0.38** | **+0.16** |
+  | **콜드스타트 효과** | +0.07 | +0.20 | |
+
+  *(콜드스타트 無 RL: dr_grpo 0.18 / GDPO 0.165 — GDPO도 붕괴 못 살림)*
+
+- **결론 — H0 기각, H1 채택**: **강한 상호작용**(RL 이득은 콜드스타트에 조건부: +0.16 vs +0.03). 콜드스타트 없이는 **FormatThink 100스텝 내내 ~0 정체**(콜드스타트 0.26 시작)·잘림 40%·학습 2~3배 저속, **200step RL이 콜드스타트 SFT 한 번(0.22)에도 못 미침**. → **Stage-1 필수 확정**. HealthBench 동률은 오프타깃(텍스트 의료)일 뿐.
 
 ---
 
@@ -473,7 +483,7 @@ sbatch          --dependency=afterok:$JID3 scripts/40_eval.slurm
 - **07-05** — GDPO A/B **step 306/600(51%) 순항**. dr_grpo와 동일구간 비교: **AccMix·총 reward 동급 + FormatThink 우위(+0.04~0.06, 150스텝 지속)**, `zero_std=0`. 문제정의·해결방안 4축 정리 문서(`docs/project_status_2026-07-05.md`) + SFT 콜드스타트/RFT 상세(부록 A) 작성.
 - **07-06** — GDPO A/B **step 450/600(75%)**. AccMix·reward 전 구간 dr_grpo 동급 유지, FormatThink는 300스텝대 우위 후 **400대에서 근접 수렴**.
 - **07-07** — **GDPO 완주(step600)·최종 판정**: on-policy 판정창 Acc 0.487 vs 0.490, **층화 홀드아웃(N=200) 0.380 vs 0.390** → 둘 다 **동률**(GDPO 미세우위, 노이즈 내). Stage-2 무차별·downside 없음 → **Stage-3용 GDPO 채택 권고**(`46_eval_gdpo_ab.slurm`). 병행: **HealthBench Hard(1000) 측정** — base **0.229** vs 콜드스타트 **0.224**(동률, 콜드스타트 instr +0.044·출력간결화). 타겟 벤치마크 섹션 신설 + 단계별 추적표(②③ 예정). → [상세](#타겟-벤치마크-healthbench--의료-성능-측정)
-- **07-08~09** — **Stage-1 명분 검증 ablation**(콜드스타트 순가치): `base→dr_grpo`·`base→GDPO`(콜드스타트 無) 병렬 step200 완주(`59946`/`59970`). 결과: **FormatThink 100스텝 내내 ~0 정체**(콜드스타트 0.26 시작 대비)·clip 40%·저속, 홀드아웃 checkpoint-200 **0.18**(콜드스타트 SFT 단독 0.22에도 못 미침, 콜드스타트+RL 0.38의 절반). → **Stage-1 콜드스타트 필수 확정**([`docs/stage1_coldstart_assessment.md`](docs/stage1_coldstart_assessment.md), `47_eval_ablation.slurm`).
+- **07-08~09** — **콜드스타트 Ablation Study**(순가치 확정): `base→dr_grpo`·`base→GDPO`(콜드스타트 無) 병렬 step200 완주(`59946`/`59970`). **FormatThink 100스텝 ~0 정체**(콜드스타트 0.26 시작)·clip 40%·저속, 홀드아웃 checkpoint-200 **dr_grpo 0.18/GDPO 0.165**(콜드스타트 SFT 단독 0.22에도 미달, 콜드스타트+RL 0.38의 절반). 2×2 강한 상호작용(RL 이득 콜드스타트 조건부) → **Stage-1 필수 확정**([상세](#콜드스타트-ablation-study-순가치-확정-2026-07-09), `47_eval_ablation.slurm`).
 
 ### TODO
 - [x] 환경·모델·데이터 확정 + 전체 변환 (DeepVision 103K / medix 51K)

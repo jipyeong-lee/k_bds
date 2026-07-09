@@ -56,8 +56,14 @@
 - **목적**: base(Qwen3.5-9B)가 본래 장문 추론(3.5~4.6K토큰)이라 잘림=0점이 RL 정체 원인 → **간결한 `<think>/<answer>` 형식**을 먼저 주입.
 - **핵심 결정**: ZeRO-3 길이확대는 no-NVLink에서 5배 느려 불채택 → **rejection-sampling 간결 콜드스타트**(`build_rft_coldstart.py`): 롤아웃 정답+간결 완성문만 SFT.
 - **효과 검증**: 후속 GRPO에서 FormatThink 0.05→0.27(5배)·clip↓ (`merge_probe_rft.slurm`). 산출 `sft_rft_coldstart_merged` = Stage-2 init.
-- **명분·적합성 판단 + 순가치 ablation**(base→RL 콜드스타트 無 검증) → [`docs/stage1_coldstart_assessment.md`](docs/stage1_coldstart_assessment.md).
-  - **✅ ablation 확정(2026-07-09)**: 콜드스타트 없이 `base→dr_grpo` 200스텝 → 홀드아웃 **0.18**(콜드스타트 SFT 단독 0.22에도 못 미침)·**FormatThink 0 정체**·잘림 40%·저속. GDPO도 동일(0 신호 못 살림). → **Stage-1 콜드스타트 필수** 확정. (HealthBench 동률은 오프타깃일 뿐)
+- **콜드스타트 Ablation Study** (순가치 확정, 2026-07-09) → [`docs/stage1_coldstart_assessment.md`](docs/stage1_coldstart_assessment.md). 절제변수=콜드스타트 init 유무, 나머지 통제. DeepVision 홀드아웃 2×2:
+
+  | | RL 無 | RL 有 |
+  |---|---|---|
+  | **콜드스타트 無** | base 0.15 | base→RL 200step **0.18** |
+  | **콜드스타트 有** | 0.22 | +RL 600step **0.38** |
+
+  → **강한 상호작용**: RL 이득은 콜드스타트에 조건부(+0.16 vs +0.03). 콜드스타트 없이는 **FormatThink 0 정체**·잘림 40%·저속, **200step RL이 콜드스타트 SFT 한 번에도 못 미침**. GDPO도 동일(0 신호 못 살림). → **Stage-1 필수 확정**(HealthBench 동률은 오프타깃).
 
 ---
 

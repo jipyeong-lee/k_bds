@@ -215,7 +215,7 @@ singularity exec $SB python scripts/plot_grpo_multi.py docs/assets/grpo_stage2_B
 | **init** (SFT 콜드스타트, RL 0%) | 0.22 | 0.234 | 0.208 | 0.32 | 5188자 |
 | **trained** (dr_grpo step 800, **RL 25%**) | **0.38** | 0.340 | **0.415** | 0.45 | 4752자 |
 
-- 🎯 **init → trained: 0.22 → 0.38 (+0.16, 상대 +73%)** — **Stage-2 RL 이 홀드아웃 정확도를 확실히 개선**(25%만 학습했는데도). → **전량 학습 계속**(조기종료 불필요) 근거.
+- 🎯 **init → trained: 0.22 → 0.38 (+0.16, 상대 +73%)** — **Stage-2 RL 이 홀드아웃 정확도를 확실히 개선**(25%만 학습했는데도). *(당시엔 전량 학습 근거였으나, 이후 step600 재측정서 포화 확인 → 아래 참조)*
 - base → trained **+153%**(전체 파이프라인 SFT+RL). visual-logic 개선 최대(0.21→0.42, +100%), 형식 0.12→0.45, 길이 5907→4752자(간결화).
 - ⚠️ **"학습 롤아웃 Acc ~0.50 정체"는 오해였음**: on-policy(탐색 포함) 지표라 평탄했을 뿐, 정작 중요한 **홀드아웃에선 뚜렷이 상승**.
 - ✅ **step600 재측정으로 확정**(아래 GDPO 판정표): dr_grpo/GDPO 둘 다 **0.38–0.39** → step800(0.38)과 동일 = **홀드아웃이 step600쯤 포화**(전량 학습해도 큰 추가이득 없음, Stage-2 조기확정 근거).
@@ -283,10 +283,10 @@ GDPO 완주(step600) 후, **dr_grpo와 완전 동일 조건**(init·trainonly·l
 - ✅ 유닛테스트 **29/29** · judge 스모크(FP8 단일40GB 적합·정답1.0>오답0.0) · 내부망 도달성 · 분포 프로브(good0.96/wrong0.00, c2변별Δ0.94)
 - ✅ **GRPO 배선 end-to-end 스모크**(`35_stage3_smoke.slurm`): 플러그인 로드·`clinical_judge` 해석·kwargs 도달·보상 통합 실증.
   - 🐛 **실버그 발견·수정**: swift가 `images`를 str 경로 아닌 **dict `{bytes,path}`**로 넘김 → `_image_to_data_url` str/dict/PIL 지원으로 수정(안 하면 시각근거 c2 blind). 재검증 PASS(data_url_ok=True, ClinicalJudge 0.58→1.0, reward=0.2·Format+1.0·Clinical 정확 통합).
-- **RL 알고리즘**: RaR는 보상 설계일 뿐 → 최적화는 GRPO 계열. 조밀 보상이라 zero-std 붕괴가 약해 **`scale_rewards=none`(dr_grpo 코어) 권장**, dynamic_sample은 경량 보험.
+- **RL 알고리즘**: RaR는 보상 설계일 뿐 → 최적화는 GRPO 계열. **Stage-3는 `scale_rewards=gdpo`(GDPO) 권고** — judge 1.0 + format 0.2의 **스케일차 큰 멀티리워드**가 GDPO 타깃(Stage-2 A/B서 downside 없음 확인, [판정](#gdpo-최종-판정-step600-홀드아웃-ab)). dr_grpo 코어(`loss_type=dr_grpo`·dynamic_sample) 유지.
 
-### 남은 것
-⏳ Stage-2 완주·재병합 후 **`bash scripts/launch_stage3.sh`**(judge ready → 학습 자동 제출). 망각 방지용 DeepVision 혼합은 옵션.
+### 남은 것 (다음 임계경로)
+⏳ **Stage-2 step600 체크포인트(dr_grpo 또는 GDPO) 병합 → init 교체 → `bash scripts/launch_stage3.sh`**(judge ready → 학습 자동 제출). GDPO 레시피 적용 권고. 망각 방지용 DeepVision 혼합은 옵션.
 
 ---
 
@@ -466,8 +466,8 @@ sbatch          --dependency=afterok:$JID3 scripts/40_eval.slurm
 
 ### 핵심 의사결정 (요약)
 - **NVLink 없음 → 전 단계 LoRA** (full-FT 375~660s/step → LoRA ~5배↑).
-- **추론 길이 폭주 → rejection-sampling 간결 콜드스타트** (ZeRO-3 길이확대는 5배 느려 불채택).
-- **plateau 돌파 → dr_grpo** (두 정규화 편향 제거로 zero-std plateau 통과).
+- **추론 길이 폭주 → rejection-sampling 간결 콜드스타트** (ZeRO-3 길이확대는 5배 느려 불채택). **Ablation으로 필수성 입증**(없으면 base→RL 형식0 붕괴·홀드아웃 0.18).
+- **plateau 돌파 → dr_grpo** (두 정규화 편향 제거로 zero-std plateau 통과). GSPO·GDPO도 A/B로 검증 → 동률(GDPO만 Stage-3용 채택).
 - **평가 누수 차단 → 층화 홀드아웃 + fresh 1 epoch 재학습** (기존 stride 슬라이스는 학습 파일과 겹침).
 - **Stage-3 → 정적 RaR 루브릭** (인스턴스식 대비 시각근거 변별 우세).
 
@@ -494,12 +494,14 @@ sbatch          --dependency=afterok:$JID3 scripts/40_eval.slurm
 - [x] Stage-2 baseline 완주 + **A/B 종결(dr_grpo 승자)**
 - [x] Stage-3 RaR 보상·judge·**배선 end-to-end 스모크**(유닛 29/29)
 - [x] **홀드아웃 정비 + fresh 1 epoch 재학습** (dr_grpo 본선은 33%서 중단, GDPO A/B로 전환)
-- [x] **중간 홀드아웃 벤치마크**(RL 25%): init 0.22→trained 0.38(+73%) → **전량 학습 계속 확정**
-- [ ] **Stage-2 완주** → 최종 ckpt 재병합 → **층화 홀드아웃 벤치마크 재측정**(정식 최종 수치)
+- [x] **중간 홀드아웃 벤치마크**(RL 25%): init 0.22→trained 0.38(+73%)
+- [x] **Stage-2 홀드아웃 확정** → step600서 **~0.38–0.39 포화**(전량 완주 불필요, 조기확정). step600 ckpt = Stage-3 init 후보
 - [x] **GSPO A/B 판정** → 판정창 동률 → **dr_grpo 유지**(미채택)
 - [x] **GDPO A/B 판정** → 판정창·홀드아웃 **동률**(0.380 vs 0.390) → Stage-2 무차별, **Stage-3용 채택 권고**
-- [ ] **Stage-3 본실행**(`launch_stage3.sh`) → Stage-3 init 교체
-- [ ] 평가 벤치마크를 실제 의료 멀티모달 벤치로 교체 · 하이퍼파라미터 튜닝
+- [x] **콜드스타트 Ablation Study** → base→RL(콜드스타트 無) 0.18 붕괴 → **Stage-1 필수 확정**
+- [x] **HealthBench 기준선** → base 0.229 / 콜드스타트 0.224 측정(추적표 ①까지)
+- [ ] **Stage-3 본실행**(`launch_stage3.sh`) → step600 ckpt(dr_grpo/GDPO) 병합·init 교체 ← **다음 임계경로**
+- [ ] Stage-2·3 모델 HealthBench 추적표 ②③ 채움 · 하이퍼파라미터 튜닝
 
 ---
 

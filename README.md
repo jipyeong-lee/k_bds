@@ -15,7 +15,7 @@
 | 단계 | 상태 | 핵심 결과 |
 |---|---|---|
 | **① 콜드스타트 SFT** | ✅ 완료·**필수성 입증** | RFT 727건. **Ablation study**로 순가치 확정 — 콜드스타트 없이 base→RL은 형식0 정체·홀드아웃 0.18(SFT 단독 0.22에도 미달). → [상세](#콜드스타트-ablation-study-순가치-확정-2026-07-09) |
-| **② 범용 RLVR** | ✅ **방법론 전부 종결** | plateau 진단 → **dr_grpo 승자**(Acc 0.526 돌파). GSPO 동률·미채택, **GDPO 동률**(홀드아웃 0.380 vs 0.390)→Stage-3용 채택 권고. step600 홀드아웃 **~0.38–0.39 포화**. → [상세](#stage-2--범용-rlvr-grpo) |
+| **② 범용 RLVR** | ✅ **방법론 전부 종결** | plateau 진단 → **dr_grpo 승자**(Acc 0.526 돌파). **홀드아웃 3종(step600)**: GDPO 0.390 ≈ dr_grpo 0.380 (동률) ≫ **GSPO 0.290**(on-policy 동률이나 홀드아웃 열위=일반화 실패, 미채택). GDPO는 Stage-3용 채택 권고. → [상세](#stage-2--범용-rlvr-grpo) |
 | **③ 의료 RL (RaR)** | ⏳ 배선 검증완료·**본실행 대기** | 루브릭·judge·배선 end-to-end PASS(유닛 29/29·스모크). step600 ckpt(dr_grpo/GDPO)가 init 후보. → [상세](#stage-3--의료-rl-rar-루브릭-보상) |
 | **④ 평가** | 🔄 base·콜드스타트 기준선 확보 | **HealthBench Hard(1000)**: base 0.229 / 콜드스타트 0.224(동률, 오프타깃). DeepVision 홀드아웃: base 0.15→콜드스타트 0.22→+RL 0.38. → [상세](#타겟-벤치마크-healthbench--의료-성능-측정) |
 
@@ -80,7 +80,7 @@
 
 ## Stage-2 · 범용 RLVR (GRPO)
 
-> **요약 (Stage-2 방법론 실험 완료)**: baseline GRPO 에서 **Acc plateau** 진단 → GRPO 파생기법 5종 **clean A/B** → **dr_grpo 승자**(plateau 돌파, 홀드아웃 +73%). 최신기법 **GSPO·GDPO**도 동일 A/B로 검증 → **둘 다 dr_grpo와 동률**(GSPO 미채택, GDPO는 Stage-3용 채택 권고). 홀드아웃 누수는 **층화 분리**로 교정, step600서 홀드아웃 **~0.38–0.39 포화** 확인. **Stage-2 방법론 확정** — 남은 건 Stage-3.
+> **요약 (Stage-2 방법론 실험 완료)**: baseline GRPO 에서 **Acc plateau** 진단 → GRPO 파생기법 5종 **clean A/B** → **dr_grpo 승자**(plateau 돌파, 홀드아웃 +73%). 최신기법 **GSPO·GDPO**도 검증: **GDPO 홀드아웃 동률**(0.390 vs 0.380, Stage-3용 채택 권고), **GSPO는 on-policy 동률이나 홀드아웃 열위**(0.290=일반화 실패, 미채택). step600 홀드아웃 **~0.38–0.39 포화**. **Stage-2 방법론 확정** — 남은 건 Stage-3.
 
 ### 1) baseline → Acc plateau 진단 (job 57249, step 1000 완주)
 
@@ -127,10 +127,10 @@ baseline plateau를 뚫기 위해 GRPO 파생기법 5종을 **기법 외 전 조
 | **GRPO** (baseline) | [2402.03300](https://arxiv.org/abs/2402.03300) | grpo | token | group | 0.2 | ✗ | plateau (zero_std 0.24→0.33), Acc 0.500 정점 후 정체 |
 | **DAPO** | [2503.14476](https://arxiv.org/abs/2503.14476) | dapo | token | group | **0.2/0.28** | ✓ | 안정(zero_std 0)하나 **미돌파**(Acc 0.465<0.500), 길이 재폭주(~3600) |
 | **dr_grpo** ✅ | [2503.20783](https://arxiv.org/abs/2503.20783) | **dr_grpo** | token | **none** | 0.2 | ✓ | ✅ **돌파·승자**(Acc **0.526**·길이 억제 3259), **홀드아웃 +73% 검증** |
-| **GSPO** | [2507.18071](https://arxiv.org/abs/2507.18071) | grpo | **sequence** | group | **3e-4/4e-4** | ✓ | **동률 → 미채택**(Acc 0.500 vs 0.487, 노이즈 내), 클립 큼(0.185) |
+| **GSPO** | [2507.18071](https://arxiv.org/abs/2507.18071) | grpo | **sequence** | group | **3e-4/4e-4** | ✓ | **미채택**: on-policy 동률(0.500)이나 **홀드아웃 열위 0.290**(dr 0.38·GDPO 0.39 대비)=일반화 실패 |
 | **GDPO** | [2601.05242](https://arxiv.org/abs/2601.05242) | dr_grpo | token | **gdpo** | 0.2 | ✓ | **동률**(step600 홀드아웃 0.390 vs dr 0.380, Δ+0.01 노이즈 내) → Stage-2 무차별, **Stage-3용 채택 권고** |
 
-**판정 핵심**: plateau의 원인은 `frac_reward_zero_std` 급등(그룹이 전부정답/전부오답→gradient 소실). dr_grpo가 **길이·난이도 두 정규화 편향을 동시에 제거**해 step 501~600서 Acc 0.50을 유일하게 돌파. GSPO·GDPO는 그 위/옆의 직교 개선을 clean A/B로 검증했고, **둘 다 dr_grpo와 동률**(GSPO 미채택, GDPO는 멀티리워드 균형이 필요한 Stage-3용으로 채택 권고 — [아래 판정](#gdpo-최종-판정-step600-홀드아웃-ab)).
+**판정 핵심**: plateau의 원인은 `frac_reward_zero_std` 급등(그룹이 전부정답/전부오답→gradient 소실). dr_grpo가 **길이·난이도 두 정규화 편향을 동시에 제거**해 step 501~600서 Acc 0.50을 유일하게 돌파. GSPO·GDPO는 그 위/옆의 직교 개선을 clean A/B로 검증했고, **둘 다 dr_grpo와 동률**(GSPO 미채택, GDPO는 멀티리워드 균형이 필요한 Stage-3용으로 채택 권고 — [아래 판정](#stage-2-3종-홀드아웃-판정-step600-n200)).
 
 기법마다 학습 데이터가 달라(구 데이터 vs trainonly) **비교 가능한 2개 코호트**로 나눠 그림(각 6패널: Acc·reward·FormatThink·mean_len·zero_std·clip, 50-step 구간평균, 노란 띠=판정창 501~600):
 
@@ -188,7 +188,7 @@ singularity exec $SB python scripts/plot_grpo_multi.py docs/assets/grpo_stage2_B
 **GDPO**(Group reward-Decoupled Normalization, NVIDIA, 2026-01): 여러 보상을 가중합→통짜 정규화하면 서로 다른 조합이 같은 advantage로 **뭉개지는(collapse)** 문제를, **보상 함수별 개별 정규화(z-score) 후 결합**으로 해결(AIME서 GRPO 대비 +2.3~6.3%).
 - **왜 우리에게**: 우리는 **다중 보상**(Stage-2 3종, Stage-3 clinical_judge/format)이라 스케일이 제각각 → GDPO 타깃과 정확히 일치. 가장 유망한 적용처는 스케일차 큰 **Stage-3(judge 1.0 + format 0.2)**.
 - **dr_grpo와 관계**: `scale_rewards`만 `none→gdpo`로 바꾼 **1변수 A/B**(나머지 dr_grpo 처리 전부 유지). ⚠️ dr_grpo가 없앤 ÷std가 **보상함수별로** 되살아남(목적은 난이도편향 회피가 아니라 멀티리워드 균형). swift 제약: `kl_in_reward=True` 비호환(우린 KL을 loss에 넣어 무관).
-- **최종 판정**: step600 완주 → on-policy 판정창(501~600) Acc **0.487 vs 0.490 동률**, 층화 홀드아웃(N=200) **0.380 vs 0.390 동률**(GDPO 미세우위, 노이즈 내) → [상세 판정표](#gdpo-최종-판정-step600-홀드아웃-ab). Stage-3용 채택 권고.
+- **최종 판정**: step600 완주 → on-policy 판정창(501~600) Acc **0.487 vs 0.490 동률**, 층화 홀드아웃(N=200) **0.380 vs 0.390 동률**(GDPO 미세우위, 노이즈 내) → [상세 판정표](#stage-2-3종-홀드아웃-판정-step600-n200). Stage-3용 채택 권고.
 - **학습 중 추세(`job 59191`, dr_grpo와 동일구간, dr/gd 순)**:
 
   | 구간 | reward | AccMix | FormatThink |
@@ -220,19 +220,19 @@ singularity exec $SB python scripts/plot_grpo_multi.py docs/assets/grpo_stage2_B
 - ⚠️ **"학습 롤아웃 Acc ~0.50 정체"는 오해였음**: on-policy(탐색 포함) 지표라 평탄했을 뿐, 정작 중요한 **홀드아웃에선 뚜렷이 상승**.
 - ✅ **step600 재측정으로 확정**(아래 GDPO 판정표): dr_grpo/GDPO 둘 다 **0.38–0.39** → step800(0.38)과 동일 = **홀드아웃이 step600쯤 포화**(전량 학습해도 큰 추가이득 없음, Stage-2 조기확정 근거).
 
-#### GDPO 최종 판정 (step600 홀드아웃 A/B)
+#### Stage-2 3종 홀드아웃 판정 (step600, N=200)
 
-GDPO 완주(step600) 후, **dr_grpo와 완전 동일 조건**(init·trainonly·loss_type·step600, `scale_rewards`만 none vs gdpo)의 두 체크포인트를 병합해 **같은 층화 홀드아웃(N=200)**에서 대조 (`scripts/46_eval_gdpo_ab.slurm`):
+trainonly·콜드스타트 init·step600으로 **완전 동일 조건** 학습된 3종(dr_grpo/GDPO/GSPO)의 체크포인트를 병합해 **같은 층화 홀드아웃(N=200)**에서 대조 (`46_eval_gdpo_ab.slurm`·`48_eval_gspo_holdout.slurm`):
 
-| 모델 (step600) | 전체 Acc | math | visual-logic | 형식 | 길이 |
+| 모델 (step600) | 홀드아웃 Acc | math | visual-logic | 형식 | (참고) on-policy |
 |------|------|------|------|------|------|
-| **dr_grpo**(none) | 0.380 | 0.358 | 0.400 | 0.425 | 4694 |
-| **GDPO**(gdpo) | **0.390** | **0.379** | 0.400 | **0.445** | 4705 |
-| Δ (GDPO−dr) | +0.010 | +0.021 | 0.000 | +0.020 | — |
+| **GDPO**(gdpo) | **0.390** | 0.379 | 0.400 | 0.445 | 0.490 |
+| **dr_grpo**(none) | 0.380 | 0.358 | 0.400 | 0.425 | 0.487 |
+| **GSPO**(seq IS) | **0.290** ⚠️ | 0.305 | 0.276 | 0.355 | 0.500 |
 
-- **판정 = 동률**: 전체 +0.01·math +0.02·format +0.02 모두 **N=200 노이즈(±0.034) 내**. on-policy 판정창(0.487 vs 0.490)과 일치.
-- 부수 발견: 두 방법 다 step600서 **~0.38–0.39**로 step800(0.38)과 동일 → **Stage-2 홀드아웃이 step600쯤 포화**.
-- **결론**: Stage-2에선 GDPO가 dr_grpo를 **명확히 이기지 못함**(지지도 않음). GDPO의 설계 타깃은 스케일차 큰 멀티리워드인데 Stage-2(1.0/0.2/0.2)는 격차가 작아 효과 미미. → **Stage-2 무차별, downside 없음 확인 → Stage-3(judge 1.0 + format 0.2)엔 GDPO 채택 권고**.
+- **dr_grpo ≈ GDPO 동률**: Δ+0.01·math+0.02·format+0.02 모두 **N=200 노이즈(±0.034) 내**. on-policy(0.487 vs 0.490)와 일치. → Stage-2 무차별, GDPO는 스케일차 큰 멀티리워드 타깃이라 **Stage-3(judge 1.0+format 0.2)엔 GDPO 채택 권고**.
+- **⚠️ GSPO는 홀드아웃 열위(0.290)** — on-policy에선 최고(0.500)였으나 홀드아웃은 3종 최하위. **train-test 격차 −0.21**(dr_grpo −0.11의 2배) = **일반화 실패**. 시퀀스 IS(작은 ε)가 on-policy 분포엔 맞았으나 홀드아웃 일반화는 나쁨. → **"GSPO 미채택" 근거 강화**(단순 동률이 아니라 홀드아웃 명확 열위). **on-policy만 보면 오판했을 사례 — 홀드아웃 측정의 가치**.
+- 부수 발견: dr_grpo/GDPO 둘 다 step600서 **~0.38–0.39**로 step800(0.38)과 동일 → **Stage-2 홀드아웃이 step600쯤 포화**.
 
 <details><summary>이전 파일럿 수치(무효, 참고용) — DeepVision stride 100건, 오염·21%학습</summary>
 
@@ -283,7 +283,7 @@ GDPO 완주(step600) 후, **dr_grpo와 완전 동일 조건**(init·trainonly·l
 - ✅ 유닛테스트 **29/29** · judge 스모크(FP8 단일40GB 적합·정답1.0>오답0.0) · 내부망 도달성 · 분포 프로브(good0.96/wrong0.00, c2변별Δ0.94)
 - ✅ **GRPO 배선 end-to-end 스모크**(`35_stage3_smoke.slurm`): 플러그인 로드·`clinical_judge` 해석·kwargs 도달·보상 통합 실증.
   - 🐛 **실버그 발견·수정**: swift가 `images`를 str 경로 아닌 **dict `{bytes,path}`**로 넘김 → `_image_to_data_url` str/dict/PIL 지원으로 수정(안 하면 시각근거 c2 blind). 재검증 PASS(data_url_ok=True, ClinicalJudge 0.58→1.0, reward=0.2·Format+1.0·Clinical 정확 통합).
-- **RL 알고리즘**: RaR는 보상 설계일 뿐 → 최적화는 GRPO 계열. **Stage-3는 `scale_rewards=gdpo`(GDPO) 권고** — judge 1.0 + format 0.2의 **스케일차 큰 멀티리워드**가 GDPO 타깃(Stage-2 A/B서 downside 없음 확인, [판정](#gdpo-최종-판정-step600-홀드아웃-ab)). dr_grpo 코어(`loss_type=dr_grpo`·dynamic_sample) 유지.
+- **RL 알고리즘**: RaR는 보상 설계일 뿐 → 최적화는 GRPO 계열. **Stage-3는 `scale_rewards=gdpo`(GDPO) 권고** — judge 1.0 + format 0.2의 **스케일차 큰 멀티리워드**가 GDPO 타깃(Stage-2 A/B서 downside 없음 확인, [판정](#stage-2-3종-홀드아웃-판정-step600-n200)). dr_grpo 코어(`loss_type=dr_grpo`·dynamic_sample) 유지.
 
 ### 남은 것 (다음 임계경로)
 ⏳ **Stage-2 step600 체크포인트(dr_grpo 또는 GDPO) 병합 → init 교체 → `bash scripts/launch_stage3.sh`**(judge ready → 학습 자동 제출). GDPO 레시피 적용 권고. 망각 방지용 DeepVision 혼합은 옵션.
@@ -486,6 +486,7 @@ sbatch          --dependency=afterok:$JID3 scripts/40_eval.slurm
 - **07-05** — GDPO A/B **step 306/600(51%) 순항**. dr_grpo와 동일구간 비교: **AccMix·총 reward 동급 + FormatThink 우위(+0.04~0.06, 150스텝 지속)**, `zero_std=0`. 문제정의·해결방안 4축 정리 문서(`docs/project_status_2026-07-05.md`) + SFT 콜드스타트/RFT 상세(부록 A) 작성.
 - **07-06** — GDPO A/B **step 450/600(75%)**. AccMix·reward 전 구간 dr_grpo 동급 유지, FormatThink는 300스텝대 우위 후 **400대에서 근접 수렴**.
 - **07-07** — **GDPO 완주(step600)·최종 판정**: on-policy 판정창 Acc 0.487 vs 0.490, **층화 홀드아웃(N=200) 0.380 vs 0.390** → 둘 다 **동률**(GDPO 미세우위, 노이즈 내). Stage-2 무차별·downside 없음 → **Stage-3용 GDPO 채택 권고**(`46_eval_gdpo_ab.slurm`). 병행: **HealthBench Hard(1000) 측정** — base **0.229** vs 콜드스타트 **0.224**(동률, 콜드스타트 instr +0.044·출력간결화). 타겟 벤치마크 섹션 신설 + 단계별 추적표(②③ 예정). → [상세](#타겟-벤치마크-healthbench--의료-성능-측정)
+- **07-13** — **GSPO 홀드아웃 갭 보완**(`48_eval_gspo_holdout.slurm`): trainonly 3종 중 GSPO만 홀드아웃 미측정이었음 → step600 측정 **0.290**. on-policy 동률(0.500)이었으나 홀드아웃 3종 최하위(train-test 격차 −0.21, dr_grpo −0.11의 2배) = **일반화 실패**. → GSPO 미채택 근거 강화(홀드아웃이 on-policy 오판을 교정). DAPO·baseline은 구 데이터(홀드아웃 포함) 학습이라 clean 측정 불가·오염 참고치만(`49_eval_contaminated.slurm`).
 - **07-08~09** — **콜드스타트 Ablation Study**(순가치 확정): `base→dr_grpo`·`base→GDPO`(콜드스타트 無) 병렬 step200 완주(`59946`/`59970`). **FormatThink 100스텝 ~0 정체**(콜드스타트 0.26 시작)·clip 40%·저속, 홀드아웃 checkpoint-200 **dr_grpo 0.18/GDPO 0.165**(콜드스타트 SFT 단독 0.22에도 미달, 콜드스타트+RL 0.38의 절반). 2×2 강한 상호작용(RL 이득 콜드스타트 조건부) → **Stage-1 필수 확정**([상세](#콜드스타트-ablation-study-순가치-확정-2026-07-09), `47_eval_ablation.slurm`).
 
 ### TODO

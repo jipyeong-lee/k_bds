@@ -6,15 +6,17 @@
 
 ---
 
-## 현황 (2026-07-10)
+## 현황 (2026-07-16)
 
-**지금 위치**: **Stage-1·2 실험 완결**(콜드스타트 필수 입증 + Stage-2 방법론 전부 판정) · **Stage-3(의료 RL) 본실행이 다음 임계경로**(배선 검증완료).
+**지금 위치**: **Stage-1 콜드스타트 v3 재설계 중**(형식보상 천장 발견 → 일반+의료 혼합 데이터로 재구축) · Stage-2 방법론 전부 판정 완료 · **Stage-3(의료 RL) 본실행 대기**(배선 검증완료).
 
 > 📋 **문제정의·실험결과·해결방안·목표·기한** 4축 → [`docs/project_status_2026-07-05.md`](docs/project_status_2026-07-05.md)
 
+> ⚠️ **예산 주의**: 계획서 5,000 노드시간 중 **약 4,155 소진(83%)** — 잔여 ~845. Stage-2 GRPO 1회 = **~500**(70h×8)이라 **재실행 여력 없음**. SFT 는 ~5로 저렴. → [자원](#자원--운영-정책-가이드)
+
 | 단계 | 상태 | 핵심 결과 |
 |---|---|---|
-| **① 콜드스타트 SFT** | ✅ 완료·**필수성 입증** | RFT 727건. **Ablation study**로 순가치 확정 — 콜드스타트 없이 base→RL은 형식0 정체·홀드아웃 0.18(SFT 단독 0.22에도 미달). → [상세](#콜드스타트-ablation-study-순가치-확정-2026-07-09) |
+| **① 콜드스타트 SFT** | 🔄 **v3 재구축 중** | v2(RFT 727건)로 **필수성은 입증**(ablation). 그러나 **v2 데이터 자체가 `format_think` 0.473** — RL 형식보상의 천장이었음. → **v3: 일반+의료 혼합·게이트 1.0** ([상세](#stage-1--콜드스타트-sft)) |
 | **② 범용 RLVR** | ✅ **방법론 전부 종결** | plateau 진단 → **dr_grpo 승자**(Acc 0.526 돌파). **홀드아웃 3종(step600)**: GDPO 0.390 ≈ dr_grpo 0.380 (동률) ≫ **GSPO 0.290**(on-policy 동률이나 홀드아웃 열위=일반화 실패, 미채택). GDPO는 Stage-3용 채택 권고. → [상세](#stage-2--범용-rlvr-grpo) |
 | **③ 의료 RL (RaR)** | ⏳ 배선 검증완료·**본실행 대기** | 루브릭·judge·배선 end-to-end PASS(유닛 29/29·스모크). step600 ckpt(dr_grpo/GDPO)가 init 후보. → [상세](#stage-3--의료-rl-rar-루브릭-보상) |
 | **④ 평가** | 🔄 base·콜드스타트 기준선 확보 | **HealthBench Hard(1000)**: base 0.229 / 콜드스타트 0.224(동률, 오프타깃). DeepVision 홀드아웃: base 0.15→콜드스타트 0.22→+RL 0.38. → [상세](#타겟-벤치마크-healthbench--의료-성능-측정) |
@@ -23,12 +25,14 @@
 
 ✅ **정비 이력(해결됨)**: 파일럿 dr_grpo 의 ① 데이터 21%만 학습 ② 평가 누수(stride 슬라이스)를 → **층화 홀드아웃 분리**(math 453 + vl 519) + **fresh 재학습**으로 교정. 무효 "+67%"는 폐기·정식 수치로 대체.
 
+⚠️ **알려진 한계(미해결, 2026-07-16 발견)**: **홀드아웃 972건 중 214건(22.0%)이 trainonly 와 완전중복**(질문+이미지 바이트해시+정답 동일, 정답 불일치 0). DeepVision 자체에 질문 중복이 많은데(102,531행 → 고유 82,198) `make_holdout.py` 가 **이미지 경로 기준**으로 분리해 경로만 다른 동일 그림을 못 걸렀다. 위 홀드아웃 수치(0.15/0.22/0.38·0.39·0.29)는 **22% 만큼 상향편향**. 단 clean 3종이 같은 22%를 공유하므로 **상대비교·순위는 유효**. → [홀드아웃 분리](#홀드아웃-분리-stage-2-평가-누수-차단)
+
 ---
 
 ## 목차
-1. [현황](#현황-2026-07-10)
+1. [현황](#현황-2026-07-16)
 2. [파이프라인 4단계](#파이프라인-4단계)
-3. [Stage-1 · 콜드스타트 SFT](#stage-1--콜드스타트-sft) — RFT 콜드스타트 + **ablation study**(순가치)
+3. [Stage-1 · 콜드스타트 SFT](#stage-1--콜드스타트-sft) — **v3 일반+의료 혼합 재설계**(형식 천장 규명) + ablation study(순가치)
 4. [Stage-2 · 범용 RLVR (GRPO)](#stage-2--범용-rlvr-grpo) — baseline·기법 통합비교(GRPO/DAPO/dr_grpo/GSPO/GDPO)·벤치마크
 5. [Stage-3 · 의료 RL (RaR)](#stage-3--의료-rl-rar-루브릭-보상)
 6. [타겟 벤치마크 (HealthBench)](#타겟-벤치마크-healthbench--의료-성능-측정) — base 기준선 0.229
@@ -43,7 +47,7 @@
 
 | 단계 | 목적 | 데이터 | 방법 | 상태 |
 |---|---|---|---|---|
-| **①** 콜드스타트 SFT | `<think>/<answer>` 추론 형식 주입 | VLAA clevr_math → RFT 간결본 | LoRA SFT | ✅ 완료(`sft_rft_coldstart_merged`) |
+| **①** 콜드스타트 SFT | `<think>/<answer>` 추론 형식 주입 + **의료 추론 시드** | **v3: OpenMedReason + VisualWebInstruct + VLAA 혼합**<br>(v2: 자기증류 RFT 727 → 형식 0.473) | LoRA SFT | 🔄 v3 재구축(v2 `sft_rft_coldstart_merged` 가 현행 init) |
 | **②** 범용 RLVR | 검증가능 정답으로 추론 강화 | DeepVision-103K | GRPO 계열(dr_grpo/GDPO) | ✅ A/B 판정완료(dr_grpo·GDPO 동급) |
 | **③** 의료 특화 RL | 개방형 의료 VQA 추론 | medix-rl-data 51K | GRPO + RaR 루브릭 보상 | ⏳ 배선 검증완료·대기 |
 | **④** 평가 | base 대비 성능 정량화 | 층화 홀드아웃 / **HealthBench** | vLLM 추론·채점 | 🔄 base·콜드스타트 측정완료(HealthBench 0.229/0.224) |
@@ -55,10 +59,67 @@
 ## Stage-1 · 콜드스타트 SFT
 
 - **목적**: base(Qwen3.5-9B)가 본래 장문 추론(3.5~4.6K토큰)이라 잘림=0점이 RL 정체 원인 → **간결한 `<think>/<answer>` 형식**을 먼저 주입.
-- **핵심 결정**: ZeRO-3 길이확대는 no-NVLink에서 5배 느려 불채택 → **rejection-sampling 간결 콜드스타트**(`build_rft_coldstart.py`): 롤아웃 정답+간결 완성문만 SFT.
-- **효과 검증**: 후속 GRPO에서 FormatThink 0.05→0.27(5배)·clip↓ (`merge_probe_rft.slurm`). 산출 `sft_rft_coldstart_merged` = Stage-2 init.
+- **핵심 결정**: ZeRO-3 길이확대는 no-NVLink에서 5배 느려 불채택 → **간결 콜드스타트**로 해결.
+
+**버전 이력** — 세 번의 재설계, 각각 실측으로 폐기/승계:
+
+| | 데이터 | `format_think` | 결과 |
+|---|---|---|---|
+| **v1** `sft_coldstart_*` | VLAA **clevr_math 단일** 2,913 | — | ❌ 도메인 단일 → 일반화 실패, 폐기 |
+| **v2** `sft_rft_coldstart_*` | 자기증류(RFT) **727** | **0.473** | ✅ 필수성 입증(ablation)·Stage-2 성공. 그러나 **형식 천장** |
+| **v3** `sft_mixed_*` (현행) | 일반+의료 **혼합 ~10.5K** | **1.000**(게이트 강제) | 🔄 구축중 |
+
+### v2 의 진짜 결함 — 데이터가 형식보상의 천장이었다 (2026-07-16 발견)
+
+RL 이 최적화하는 `format_think`(`configs/accuracy.py`)는 **앵커 매칭**(`^<think>…</think>\s*<answer>…</answer>$`) + think 실질 16자↑ 를 요구한다. 이 함수를 **v2 학습 데이터에 그대로 돌린 결과**:
+
+| 지표 | 값 |
+|---|---|
+| v2 데이터의 `format_think` | **0.473** |
+| 구조 위반(`</think>` 뒤에 장문 후 `<answer>`) | 364/727 (**50.1%**) |
+| `<think>` 가 사실상 빈 샘플 | 35 (4.8%, 그중 20이 객관식) |
+
+**원인은 소스에 있다.** `build_rft_coldstart.py:78` 의 합격조건이 `AccuracyMix>=1.0 and closed(c) and len(c)<=6000` 인데, `closed()` = `'</think>' in c and <answer> 존재` 로 **앵커링도 최소 추론길이도 없다**(당시 롤아웃 로그엔 느슨한 `Format` 컬럼만 있었음). 게다가 선별이 **"가장 짧은 3개"**(`sorted(set(comps), key=len)[:3]`)라, 객관식에서 가장 짧은 정답 = `<think></think><answer>C</answer>` = **추론 없는 찍기**를 우선 선택한다(4지선다는 찍어도 25%가 AccuracyMix 통과).
+
+→ 모델은 **절반이 틀린 형식**을 그대로 배웠고, 그래서 RL 시작 FormatThink 0.26 · 600스텝 후에도 **0.425 정체**. RL 이 못 배운 게 아니라 **초기화가 잘못 가르쳤다**.
+
+### v3 설계 — `scripts/build_mixed_coldstart.py`
+
+**데이터 (전부 실측 검증 후 채택 — 이름·초록만 보고 고르지 않음)**
+
+| 소스 | 채택 | 추론 중앙값 | ≤6000자 | 라이선스 | 역할 |
+|---|---|---|---|---|---|
+| `neginb/OpenMedReason` | 5,000 | 1,927자 | 100% | CC-BY-4.0 | **의료 신규 지식**(19 taxonomy) |
+| `TIGER-Lab/VisualWebInstruct-verified` | 3,000 | 933자 | 100% | MIT | 일반, **자유형 정답 52.9%** |
+| `UCSC-VLAA/VLAA-Thinking` (synthesis·clevr) | 2,500 | 649~934자 | 100% | Apache-2.0 | 일반, **이미 목표 형식** |
+
+**왜 의료를 넣나**: `medix_rl_train`(Stage-3 데이터) 51,335건은 **assistant 가 통째로 비어 있다**(prompt+solution 만) → 프로젝트에 **의료 추론 트레이스가 0건**이었다. v1·v2 는 둘 다 일반(clevr/DeepVision) 전용이라 Stage-3 전이가 미검증 한계로 남아 있었음.
+
+**설계에 반영한 6가지 (모두 위 결함의 직접 대응)**
+1. **게이트 = `format_think == 1.0`** (느슨한 `closed()` 폐기) — v2 0.473 의 원인 차단
+2. **OpenMedReason 정답위치 편향 제거** — 정답이 거의 항상 A 에 배치(**4지선다 A=77%, 5지선다 A=86%**) → 이미지 안 보고 A 만 찍어도 77~86%. 보기 셔플은 추론문 **29.6%**가 `option B` 식으로 문자를 참조해 불가 → **정답 문자별 균형 샘플링**(A/B/C/D 각 1,250)
+3. **정답 정규화** — VLAA 는 `\boxed` 66%·`\[..\]` 76%·앞뒤공백 100%·일부는 `<answer>` 에 산문 통째 → 정규화 + 200자 초과 배제. `\boxed` 컨벤션은 이 프로젝트에서 폐기됨
+4. **간결성 상한 6,000자** — 콜드스타트 존재이유가 잘림 차단
+5. **질문 단위 train/val 분할** — v2 는 질문 정렬 후 stride 라 같은 질문의 형제가 양쪽에(val loss 가 4에폭 내내 0.2136~0.2149 평탄했던 원인)
+6. **난이도 층화** — VWI `difficulty` 1~5 균등. v2 의 "가장 짧은 것" 선별은 찍기를 우선 선택했음
+
+<details><summary>후보 스크리닝에서 탈락한 것들 (간결성이 기준)</summary>
+
+`max_completion_length` 가 2048~6144 라 긴 trace 를 가르치면 **장황→잘림→형식0** 실패 모드를 재생산한다.
+
+| 후보 | 추론 중앙값 | 판정 |
+|---|---|---|
+| `OpenDataArena/MMFineReason` 1.8M | **9,059~11,178자** | ❌ Qwen3-VL-235B-**Thinking** 증류라 장황함이 생성자 속성 — 쉬운 문제(pass_rate=1.0)만 골라도 9K. **RL 단계 후보로 보류**(`pass_rate` 난이도 라벨 유용) |
+| DeepVision 자기수확(Stage-2 롤아웃 21,786건, 무료·in-domain) | 4,393자 (37.5%가 6K 초과) | ❌ RL 모델이 길게 추론하도록 학습된 출력 → 장황함을 재학습 |
+| `leduckhai/S-Chain` | — | ❌ 10,783건인데 **고유정답 3개**(Non/Mild/Moderate-Dementia)·**고유질문 170개**·고정 3단계 템플릿 = 3지선다 반복. 또한 우리 파이프라인에 **grounding 보상이 없어** 아무도 채점 안 하는 행동 |
+| `FanqingM/MMK12` · `MM-Eureka` · `ThinkLite-VL` | — | ❌ 이름과 달리 **추론 trace 자체가 없음**(RLVR용 prompt+answer) |
+| `BoKelvin/GEMeX-ThinkVG`(=논문의 GEMeX-RMCoT, 개명) | — | ⏸ 텍스트만 공개 — 이미지는 **MIMIC-CXR(PhysioNet)** 자격심사+CITI+DUA 필요(수주). CC-BY-NC |
+| `Xkev/LLaVA-CoT-100k`(170GB) · `Mulberry` · `Zebra-CoT` | — | ❌ 용량·형식(interleaved 시각 CoT)·NC 라이선스 |
+</details>
 
 ### 콜드스타트 Ablation Study (순가치 확정, 2026-07-09)
+
+*(v2 데이터 기준. **결론은 v3 에도 유효** — 절제변수가 "콜드스타트 init 유무"라 데이터 버전과 무관하게 "콜드스타트 없이는 RL 이 형식을 못 배운다"를 보인다. v3 는 이 결론을 더 강화하는 방향: v2 조차 형식 0.473 이었는데도 필수였으므로.)*
 
 계기: 콜드스타트의 HealthBench(0.224)가 base(0.229)와 동률이라 "Stage-1 제껴도 되나?" → clean ablation 으로 확정. 상세 [`docs/stage1_coldstart_assessment.md`](docs/stage1_coldstart_assessment.md).
 
@@ -401,7 +462,22 @@ Stage-2 홀드아웃(DeepVision)은 **검증가능 정답** 기준의 내부 지
 - 계획서 **8×A100-80GB 노드** = `8gpu` 파티션(4gpu·8gpu=80GB, 1gpu·2gpu=40GB). `bdata_user` 바로 사용, diba 불필요. **80GB 실측 확인**(파일럿 59.6GiB).
 - **wall-clock 5일(120h)**: 70h 단일 OK(`--resume_from_checkpoint` 권장). **배타적 노드**(1노드=1작업). **동시 제출 8gpu 최대 6개**(노드 3×2). **노드시간** 8gpu=8/h(`cat /scratch/account/kbds0754`). `#SBATCH --comment=pytorch` 필수.
 
-<details><summary>노드시간 예산 (계획서 4,960 / Track III 한도 5,000)</summary>
+#### 🔴 예산 실적 (2026-07-16 기준, `sacct` 실측)
+
+**4,154.6 / 5,000 노드시간 소진 (83.1%) → 잔여 ~845.** 계획서 방식(8gpu = ×8)으로 계산.
+
+| 실측 항목 | 노드시간 |
+|---|---|
+| 8gpu 잡 40개 (Stage-2 GRPO 계열 대부분) | 4,112.3 |
+| 그 외(4gpu·1gpu·debug·cpu) | 42.3 |
+| **Stage-2 GRPO 1회** (70h×8) | **490~560** ← 재실행 여력 없음 |
+| **SFT 1회** (12~39분) | **2~5** ← 사실상 공짜 |
+| Stage-3 (미시작, 계획서 핵심 산출물) | ~500 예상 |
+
+→ **콜드스타트 v3 재구축은 저렴(SFT+평가 ~15)하나, 그 위에 Stage-2 를 다시 돌릴 여력은 없다.** 잔여 배분은 v3 SFT+평가 수치를 보고 결정.
+*(Slurm 에 하드 리밋은 없음 — `GrpTRESMins` 미설정이라 잡이 거부되진 않는다. 계획서/보고 기준.)*
+
+<details><summary>계획서 원안 (4,960 / Track III 한도 5,000)</summary>
 
 | 단계 | 스크립트 | 1회 | 반복 | 노드시간 |
 |------|----------|-----|------|----------|
@@ -412,8 +488,11 @@ Stage-2 홀드아웃(DeepVision)은 **검증가능 정답** 기준의 내부 지
 </details>
 
 ### 데이터 (소스 확정 + 변환 검증)
+- **Stage-1 (v3 혼합 콜드스타트)**: `neginb/OpenMedReason`(150,246·CC-BY-4.0·**게이트 auto**, 웹 동의 1회 필요) + `TIGER-Lab/VisualWebInstruct-verified`(97,295·MIT) + `UCSC-VLAA/VLAA-Thinking`(126,413·Apache-2.0). 전부 이미지 내장·다운로드 완료. 빌드 `build_mixed_coldstart.py` → [Stage-1](#stage-1--콜드스타트-sft).
+  - ⚠️ VLAA 는 `vg`(38,242)·`coco`(8,727) = **46,969건의 이미지 tar 이 레포에 없음** → 해당 서브셋 제외(Visual Genome·COCO 별도 수급 시 복귀 가능). tar 보유: allava_laion·arxivqa·chartqa·clevr_math·docvqa·geoqa170k·synthesis·vizwiz(총 26.2GB).
 - **Stage-2**: `skylenage-ai/DeepVision-103K`(수학 77K + 시각논리 26K = 103K, 검증가능 정답). `DeepMath-103K`(텍스트) 혼동 주의.
 - **Stage-3**: `MBZUAI/medix-rl-data`(51K, 개방형 의료 멀티모달). 둘 다 `work/hf_cache` 다운로드 완료·게이트 없음.
+  - ⚠️ medix 는 **assistant 가 비어 있다**(prompt+solution 만) → 의료 추론 트레이스 없음. 정답도 `<MODALITY>\n자유서술`(중앙값 47자)이라 정확매칭 불가 = Stage-3 가 RaR judge 를 쓰는 이유.
 - K-BDS 공개데이터 경로: `/kobic/ICECAP/DataStation/` · 매핑표 `/scratch/database/KBDSMAP/` · 업로드 `kbds-dm.kisti.re.kr`.
 - 출력 포맷: `{"messages":[{"role":"user","content":"<image>...질문"}], "images":["/abs.png"], "solution":"정답"}`.
 
@@ -434,7 +513,21 @@ singularity exec --bind $PWD/work --env HF_HUB_OFFLINE=1 $SB python scripts/conv
 </details>
 
 ### 홀드아웃 분리 (Stage-2 평가 누수 차단)
-`scripts/make_holdout.py`: DeepVision엔 카테고리 라벨 없음 → **정답유형 프록시**(math=수치/수식, visual-logic=객관식 MC) 각 **1%** 층화 → `deepvision_holdout.jsonl`(972) / `deepvision103k_trainonly.jsonl`(102,531). 학습은 trainonly, 평가는 holdout(누수 0). 평가 `eval_compare.py`(math/vl 층별 분리 보고).
+`scripts/make_holdout.py`: DeepVision엔 카테고리 라벨 없음 → **정답유형 프록시**(math=수치/수식, visual-logic=객관식 MC) 각 **1%** 층화 → `deepvision_holdout.jsonl`(972) / `deepvision103k_trainonly.jsonl`(102,531). 학습은 trainonly, 평가는 holdout. 평가 `eval_compare.py`(math/vl 층별 분리 보고).
+
+#### ⚠️ 미해결: 홀드아웃 22% 중복 (2026-07-16 발견, 기록만 — 재측정 보류)
+
+| 검사 | 결과 |
+|---|---|
+| 홀드아웃 972건 중 (질문+**이미지 경로**) 가 trainonly 와 동일 | **0건** ← 분리 로직 자체는 정상 |
+| 홀드아웃 972건 중 (질문+**이미지 바이트해시**) 가 trainonly 와 동일 | **214건 (22.0%)** |
+| ↳ 그중 **정답까지 동일**(= 완전중복) | **214건** (정답 불일치 0) |
+
+**원인**: DeepVision 은 질문 중복이 많고(102,531행 → 고유 82,198, 중복 20,333) **같은 그림이 다른 경로에 중복 저장**돼 있다. `make_holdout.py` 는 경로 기준 dedup 이라 이를 못 걸렀다.
+
+**영향**: 보고된 모든 홀드아웃 수치(base 0.15 / 콜드스타트 0.22 / dr_grpo 0.380 / GDPO 0.390 / GSPO 0.290 / ablation 0.18·0.165)는 **22% 만큼 상향편향**. 다만 clean 3종이 **동일한 22%**를 공유하므로 **상대비교·순위·판정 결론은 유효**(GDPO≈dr_grpo 동률, GSPO 열위). "clean vs 오염(DAPO·baseline 0.415)" 대비는 서술보다 약함 — clean 쪽도 22% 는 외운 문제.
+
+**대응(합의)**: 지금은 **기록만** 하고 재측정 보류(GPU 예산 83% 소진). 향후 홀드아웃 재구성 시 **이미지 바이트해시 기준 dedup** 필수.
 
 <details><summary>디렉토리 트리</summary>
 
@@ -449,7 +542,8 @@ kbds_project/
 │   ├── 00_common.sh                     # 공통 경로/환경/실행 래퍼
 │   ├── 10_sft.slurm / 20_rlvr_grpo.slurm / 30_medical_rl.slurm / 40_eval.slurm  # 단계별
 │   ├── 21_rlvr_grpo_adv.slurm           # Stage-2 A/B(dapo/gspo/dr_grpo, RESUME/MAX_STEPS)
-│   ├── build_rft_coldstart.py           # 간결 콜드스타트
+│   ├── build_mixed_coldstart.py         # 콜드스타트 v3 — 일반+의료 혼합, format_think==1.0 게이트
+│   ├── build_rft_coldstart.py           # 콜드스타트 v2 (자기증류, 형식 0.473 — 폐기, 이력용)
 │   ├── make_holdout.py                  # 층화 홀드아웃 분리
 │   ├── plot_grpo_multi.py               # N개 기법 성능 plot(일반화, 6패널)
 │   ├── judge_server.sh / 31_judge_smoke.slurm / 33_judge_probe.slurm  # judge 서빙·검증
@@ -479,7 +573,9 @@ sbatch          --dependency=afterok:$JID3 scripts/40_eval.slurm
 
 ### 핵심 의사결정 (요약)
 - **NVLink 없음 → 전 단계 LoRA** (full-FT 375~660s/step → LoRA ~5배↑).
-- **추론 길이 폭주 → rejection-sampling 간결 콜드스타트** (ZeRO-3 길이확대는 5배 느려 불채택). **Ablation으로 필수성 입증**(없으면 base→RL 형식0 붕괴·홀드아웃 0.18).
+- **추론 길이 폭주 → 간결 콜드스타트** (ZeRO-3 길이확대는 5배 느려 불채택). **Ablation으로 필수성 입증**(없으면 base→RL 형식0 붕괴·홀드아웃 0.18).
+- **형식보상 천장 발견 → 콜드스타트 v3 재설계**(2026-07-16). v2 데이터 자체가 `format_think` **0.473**(느슨한 `closed()` 필터 + "가장 짧은 것" 선별이 찍기를 우선) → RL 형식 0.425 정체의 진짜 원인. **게이트를 1.0 으로 강제** + 프로젝트 최초로 **의료 CoT 투입**(medix 는 추론 트레이스가 0건).
+- **데이터는 반드시 받아서 실측 후 채택**(2026-07-16). 이름·초록으로 고르면 틀린다 — S-Chain("Structured Visual CoT for Medicine")은 실제로 **고유정답 3개**, MMFineReason 은 trace 중앙값 **9~11K자**, MMK12/MM-Eureka 는 **추론 trace 자체가 없음**. 전부 다운로드·파싱 후에야 드러남.
 - **plateau 돌파 → dr_grpo** (두 정규화 편향 제거로 zero-std plateau 통과). GSPO·GDPO도 A/B로 검증 → 동률(GDPO만 Stage-3용 채택).
 - **평가 누수 차단 → 층화 홀드아웃 + fresh 1 epoch 재학습** (기존 stride 슬라이스는 학습 파일과 겹침).
 - **Stage-3 → 정적 RaR 루브릭** (인스턴스식 대비 시각근거 변별 우세).
@@ -500,6 +596,7 @@ sbatch          --dependency=afterok:$JID3 scripts/40_eval.slurm
 - **07-06** — GDPO A/B **step 450/600(75%)**. AccMix·reward 전 구간 dr_grpo 동급 유지, FormatThink는 300스텝대 우위 후 **400대에서 근접 수렴**.
 - **07-07** — **GDPO 완주(step600)·최종 판정**: on-policy 판정창 Acc 0.487 vs 0.490, **층화 홀드아웃(N=200) 0.380 vs 0.390** → 둘 다 **동률**(GDPO 미세우위, 노이즈 내). Stage-2 무차별·downside 없음 → **Stage-3용 GDPO 채택 권고**(`46_eval_gdpo_ab.slurm`). 병행: **HealthBench Hard(1000) 측정** — base **0.229** vs 콜드스타트 **0.224**(동률, 콜드스타트 instr +0.044·출력간결화). 타겟 벤치마크 섹션 신설 + 단계별 추적표(②③ 예정). → [상세](#타겟-벤치마크-healthbench--의료-성능-측정)
 - **07-13** — **GSPO 홀드아웃 갭 보완**(`48_eval_gspo_holdout.slurm`): trainonly 3종 중 GSPO만 홀드아웃 미측정이었음 → step600 측정 **0.290**. on-policy 동률(0.500)이었으나 홀드아웃 3종 최하위(train-test 격차 −0.21, dr_grpo −0.11의 2배) = **일반화 실패**. → GSPO 미채택 근거 강화(홀드아웃이 on-policy 오판을 교정). DAPO·baseline은 구 데이터(홀드아웃 포함) 학습이라 clean 측정 불가·오염 참고치만(`49_eval_contaminated.slurm`).
+- **07-16** — **콜드스타트 v3 착수 (일반+의료 혼합)**. ① **v2 형식 천장 발견**: `format_think` 를 v2 학습데이터에 직접 적용 → **0.473**(구조위반 50.1%·빈 think 4.8%). 원인은 `build_rft_coldstart.py` 의 느슨한 `closed()` 게이트 + "가장 짧은 3개" 선별(객관식 찍기 우선). **RL 형식 0.425 정체는 데이터가 천장이었음**. ② **데이터 전수 스크리닝**(전부 다운로드·실측): 채택 = OpenMedReason 150K(의료·1,927자)·VisualWebInstruct-verified 97K(MIT·933자)·VLAA 79K(이미 형식 1.0). 탈락 = MMFineReason(9~11K자 장황)·S-Chain(정답 3개)·MMK12/MM-Eureka/ThinkLite-VL(trace 없음)·자기수확(4.4K자). ③ **OpenMedReason 정답위치 편향 발견**(4지선다 A=77%·5지선다 A=86% → 찍기로 77~86%) → 문자별 균형 샘플링으로 해소. ④ `build_mixed_coldstart.py` 신규 + `10_sft.slurm` 기본값 교정(폐기된 v1 을 가리키고 있었음). ⑤ **홀드아웃 22% 중복 발견**(이미지 바이트해시 동일 214/972) — 기록만, 재측정 보류. ⑥ **예산 실측: 4,155/5,000(83%)** → Stage-2 재실행 불가 확인.
 - **07-08~09** — **콜드스타트 Ablation Study**(순가치 확정): `base→dr_grpo`·`base→GDPO`(콜드스타트 無) 병렬 step200 완주(`59946`/`59970`). **FormatThink 100스텝 ~0 정체**(콜드스타트 0.26 시작)·clip 40%·저속, 홀드아웃 checkpoint-200 **dr_grpo 0.18/GDPO 0.165**(콜드스타트 SFT 단독 0.22에도 미달, 콜드스타트+RL 0.38의 절반). 2×2 강한 상호작용(RL 이득 콜드스타트 조건부) → **Stage-1 필수 확정**([상세](#콜드스타트-ablation-study-순가치-확정-2026-07-09), `47_eval_ablation.slurm`).
 
 ### TODO
@@ -514,8 +611,17 @@ sbatch          --dependency=afterok:$JID3 scripts/40_eval.slurm
 - [x] **GDPO A/B 판정** → 판정창·홀드아웃 **동률**(0.380 vs 0.390) → Stage-2 무차별, **Stage-3용 채택 권고**
 - [x] **콜드스타트 Ablation Study** → base→RL(콜드스타트 無) 0.18 붕괴 → **Stage-1 필수 확정**
 - [x] **HealthBench 기준선** → base 0.229 / 콜드스타트 0.224 측정(추적표 ①까지)
-- [ ] **Stage-3 본실행**(`launch_stage3.sh`) → step600 ckpt(dr_grpo/GDPO) 병합·init 교체 ← **다음 임계경로**
-- [ ] Stage-2·3 모델 HealthBench 추적표 ②③ 채움 · 하이퍼파라미터 튜닝
+- [x] **콜드스타트 v2 결함 규명** → 데이터 `format_think` 0.473 = RL 형식 천장
+- [x] **데이터 전수 스크리닝·수급** → OpenMedReason·VisualWebInstruct·VLAA 확보·검증(탈락 6종 근거 기록)
+- [x] **`build_mixed_coldstart.py`** 신규(게이트 1.0·A편향 제거·정답정규화·질문단위 분할·난이도 층화) + `10_sft.slurm` 기본값 교정
+- [ ] **콜드스타트 v3 SFT 실행**(~5 노드시간) → `sft_mixed_lora` ← **진행 중**
+- [ ] **v3 평가**(~10): HealthBench Hard + DeepVision 홀드아웃 → v2(0.224/0.22) 대비
+- [ ] **잔여 ~830 노드시간 배분 결정** — v3 수치 보고 ⓐ Stage-3 직행 ⓑ 짧은 Stage-2 후 Stage-3 중 택1
+- [ ] **Stage-3 본실행**(`launch_stage3.sh`) → init 교체 ← **계획서 핵심 산출물, 미시작**
+- [ ] Stage-2·3 모델 HealthBench 추적표 ②③ 채움
+- [ ] (보류) 홀드아웃 이미지해시 기준 재구성 + clean 3종 재측정 — 예산 확보 시
+- [ ] (보류) VLAA vg·coco 이미지 별도 수급(Visual Genome·COCO) → 46,969건 복귀
+- [ ] (보류) MMFineReason 을 **RL 단계** 데이터로 검토(`pass_rate` 난이도 라벨)
 
 ---
 

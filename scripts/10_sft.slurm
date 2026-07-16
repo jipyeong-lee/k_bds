@@ -24,11 +24,19 @@ if [[ "$ENV_MODE" == conda ]]; then module load compilers/cuda/12.4 compilers/gc
 #  데이터 = VLAA-Thinking clevr_math(~2.9K, build_coldstart_sft.py). system 은 데이터에 내장.
 #  소규모이므로 다중 epoch. 이 산출물(sft_coldstart)이 GRPO 의 INIT_MODEL 이 됨:
 #    INIT_MODEL=$CKPT_DIR/sft_coldstart sbatch scripts/20_rlvr_grpo.slurm
-SFT_DATA="${SFT_DATA:-$DATA_DIR/sft_coldstart_train.jsonl}"
-SFT_VAL="${SFT_VAL:-$DATA_DIR/sft_coldstart_val.jsonl}"
-SFT_EPOCHS="${SFT_EPOCHS:-3}"
-TUNER_TYPE="${TUNER_TYPE:-full}"        # full | lora
-SFT_OUT="${SFT_OUT:-$CKPT_DIR/sft_coldstart_$TUNER_TYPE}"
+# ── 기본값 = 현행 채택 경로(일반+의료 혼합 콜드스타트). 과거 기본값은 폐기된 v1(clevr_math 단일)
+#    이었어서 그냥 sbatch 하면 "일반화 실패로 버린 실험"이 재현됐다. 이력:
+#      v1  sft_coldstart_*        : VLAA clevr_math 만 → 도메인 단일, 일반화 실패 → 폐기
+#      v2  sft_rft_coldstart_*    : 자기증류 727건 → format_think 0.473(느슨한 필터) → RL 형식 0.425 정체
+#      v3  sft_mixed_*  (현행)     : OpenMedReason+VisualWebInstruct+VLAA 혼합, format_think 1.0 강제
+#                                   (scripts/build_mixed_coldstart.py)
+SFT_DATA="${SFT_DATA:-$DATA_DIR/sft_mixed_train.jsonl}"
+SFT_VAL="${SFT_VAL:-$DATA_DIR/sft_mixed_val.jsonl}"
+# val 은 epoch1 에 수렴(구 v2 는 4epoch 태웠으나 epoch1 이후 평탄) → 기본 2.
+SFT_EPOCHS="${SFT_EPOCHS:-2}"
+TUNER_TYPE="${TUNER_TYPE:-lora}"        # full | lora — NVLink 無 클러스터라 전 단계 LoRA 채택
+SFT_OUT="${SFT_OUT:-$CKPT_DIR/sft_mixed_$TUNER_TYPE}"
+SFT_MAX_LEN="${SFT_MAX_LEN:-4096}"
 
 # tuner 별 분기: LoRA 는 base 동결 → 단일GPU 적재, DeepSpeed 없이 DDP(통신 최소). full 은 ZeRO-2.
 EXTRA_TUNER=""
@@ -53,7 +61,7 @@ run_py swift sft \
   --per_device_train_batch_size 1 \
   --gradient_accumulation_steps 8 \
   --learning_rate "$LR" \
-  --max_length "${SFT_MAX_LEN:-2048}" \
+  --max_length "$SFT_MAX_LEN" \
   --max_pixels "$MAX_PIXELS" \
   --gradient_checkpointing false \
   $DS_ARG \

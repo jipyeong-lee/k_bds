@@ -38,6 +38,14 @@ TUNER_TYPE="${TUNER_TYPE:-lora}"        # full | lora — NVLink 無 클러스�
 SFT_OUT="${SFT_OUT:-$CKPT_DIR/sft_mixed_$TUNER_TYPE}"
 SFT_MAX_LEN="${SFT_MAX_LEN:-4096}"
 
+# 유효배치 = per_device(1) × GRAD_ACCUM × NPROC_PER_NODE. 8gpu 기본에서 1×8×8 = 64.
+# 파티션을 바꿔 GPU 수가 달라지면 유효배치가 따라 변하므로 GRAD_ACCUM 으로 64를 유지한다.
+#   8gpu: GRAD_ACCUM=8   4gpu: GRAD_ACCUM=16   2gpu: GRAD_ACCUM=32
+# 예) 4gpu 로 제출(8gpu 큐가 길 때):
+#   sbatch --partition=4gpu --gres=gpu:4 --cpus-per-task=32 \
+#          --export=ALL,NPROC_PER_NODE=4,GRAD_ACCUM=16 scripts/10_sft.slurm
+GRAD_ACCUM="${GRAD_ACCUM:-8}"
+
 # tuner 별 분기: LoRA 는 base 동결 → 단일GPU 적재, DeepSpeed 없이 DDP(통신 최소). full 은 ZeRO-2.
 EXTRA_TUNER=""
 DS_ARG="--deepspeed $PROJ_DIR/configs/ds_zero2.json"
@@ -59,7 +67,7 @@ run_py swift sft \
   --torch_dtype bfloat16 \
   --num_train_epochs "$SFT_EPOCHS" \
   --per_device_train_batch_size 1 \
-  --gradient_accumulation_steps 8 \
+  --gradient_accumulation_steps "$GRAD_ACCUM" \
   --learning_rate "$LR" \
   --max_length "$SFT_MAX_LEN" \
   --max_pixels "$MAX_PIXELS" \

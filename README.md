@@ -542,8 +542,9 @@ kbds_project/
 │   ├── 00_common.sh                     # 공통 경로/환경/실행 래퍼
 │   ├── 10_sft.slurm / 20_rlvr_grpo.slurm / 30_medical_rl.slurm / 40_eval.slurm  # 단계별
 │   ├── 21_rlvr_grpo_adv.slurm           # Stage-2 A/B(dapo/gspo/dr_grpo, RESUME/MAX_STEPS)
+│   ├── 11_build_coldstart.slurm         # 콜드스타트 v3 데이터 빌드 (cpu32 잡)
 │   ├── build_mixed_coldstart.py         # 콜드스타트 v3 — 일반+의료 혼합, format_think==1.0 게이트
-│   ├── build_rft_coldstart.py           # 콜드스타트 v2 (자기증류, 형식 0.473 — 폐기, 이력용)
+│   ├── _archive/                        # 폐기 스크립트(v1·v2 빌더 등, 이력 보존)
 │   ├── make_holdout.py                  # 층화 홀드아웃 분리
 │   ├── plot_grpo_multi.py               # N개 기법 성능 plot(일반화, 6패널)
 │   ├── judge_server.sh / 31_judge_smoke.slurm / 33_judge_probe.slurm  # judge 서빙·검증

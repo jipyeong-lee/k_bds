@@ -20,10 +20,11 @@ source /home01/k252a01/kbds_project/scripts/00_common.sh
 # 호스트 모듈은 conda 폴백 시에만 필요(컨테이너는 자체 cuda/gcc 보유)
 if [[ "$ENV_MODE" == conda ]]; then module load compilers/cuda/12.4 compilers/gcc/10.2.0; fi
 
-# format cold-start SFT: <think>간결추론</think><answer>답</answer> 형식+결론 습관 주입.
-#  데이터 = VLAA-Thinking clevr_math(~2.9K, build_coldstart_sft.py). system 은 데이터에 내장.
-#  소규모이므로 다중 epoch. 이 산출물(sft_coldstart)이 GRPO 의 INIT_MODEL 이 됨:
-#    INIT_MODEL=$CKPT_DIR/sft_coldstart sbatch scripts/20_rlvr_grpo.slurm
+# cold-start SFT: <think>간결추론</think><answer>답</answer> 형식+결론 습관 주입.
+#  현행 데이터 = v3 혼합(sft_mixed_*, scripts/build_mixed_coldstart.py). system 은 데이터에 내장.
+#  이 산출물(sft_mixed_lora → 병합)이 Stage-2 GRPO 의 INIT_MODEL 이 됨:
+#    INIT_MODEL=$CKPT_DIR/sft_mixed_merged sbatch scripts/20_rlvr_grpo.slurm
+#  (폐기 빌더 v1/v2 는 scripts/_archive/ 참고)
 # ── 기본값 = 현행 채택 경로(일반+의료 혼합 콜드스타트). 과거 기본값은 폐기된 v1(clevr_math 단일)
 #    이었어서 그냥 sbatch 하면 "일반화 실패로 버린 실험"이 재현됐다. 이력:
 #      v1  sft_coldstart_*        : VLAA clevr_math 만 → 도메인 단일, 일반화 실패 → 폐기

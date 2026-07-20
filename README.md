@@ -119,9 +119,35 @@ RL 이 최적화하는 `format_think`(`configs/accuracy.py`)는 **앵커 매칭*
 
 ### v3 학습 결과 — 학습곡선 (job 66255, 2026-07-18)
 
-`sft_mixed_train.jsonl` **9,507건**(val 382)으로 LoRA SFT **2 epochs**(Qwen3.5-9B, 4gpu·유효배치 64, **41분**). 곡선·검증·안정성 모두 초록불:
+**① 학습에 쓴 데이터** — `scripts/build_mixed_coldstart.py` 빌드, **전량 `format_think==1.0` 게이트 통과분만** 채택 (빌드 로그 `logs/build_coldstart_66245.log`):
+
+| 소스 | 채택 | 비고 |
+|---|---|---|
+| `neginb/OpenMedReason` | **4,999** | 의료. 정답문자 균형추출 A/B/C/D 각 1,250 (원본 A편중 77~86% 제거) |
+| `TIGER-Lab/VisualWebInstruct-verified` | **2,390** | 일반. `difficulty` 1~5 층화 (5는 풀이 57건뿐이라 미달) |
+| `UCSC-VLAA/VLAA-Thinking` · synthesis | **1,250** | 일반. 풀 19,257 → 채택 |
+| `UCSC-VLAA/VLAA-Thinking` · clevr_math | **1,250** | 일반. 풀 5,923 → 채택 |
+| **합계** | **9,889** | 고유질문 7,923 → **질문 단위** 분할: train **9,507** / val **382** |
+
+**② 학습 설정** — Qwen3.5-9B **LoRA**(r16/α32, all-linear) · 2 epochs · 4gpu 유효배치 64 · `max_len` 4096 · LR 1e-4 · **41분/298스텝**(job 66255).
+
+곡선·검증·안정성 모두 초록불:
 
 ![Stage-1 v3 콜드스타트 SFT 학습곡선](docs/assets/sft_mixed_traincurve.png)
+
+**③ 스텝별 추이** (5스텝마다 로깅 60포인트 중 발췌 — 전량은 `work/data/sft_mixed_traincurve.json`)
+
+| step | epoch | train loss | train token_acc | | step | epoch | train loss | train token_acc |
+|---|---|---|---|---|---|---|---|---|
+| 1 | 0.01 | 1.1220 | 0.7247 | | 175 | 1.18 | 0.5989 | 0.8172 |
+| 25 | 0.17 | 0.7434 | 0.7840 | | 200 | 1.34 | 0.6091 | 0.8153 |
+| 50 | 0.34 | 0.6782 | 0.7985 | | 225 | 1.51 | 0.6252 | 0.8080 |
+| 75 | 0.51 | 0.6624 | 0.8014 | | 250 | 1.68 | **0.5683** | **0.8261** |
+| 100 | 0.67 | 0.6571 | 0.8025 | | 275 | 1.85 | 0.6441 | 0.8042 |
+| 125 | 0.84 | 0.6472 | 0.8054 | | 295 | 1.98 | 0.6241 | 0.8104 |
+| **149** | **1.00** | — | — | | **298** | **2.00** | — | — |
+
+> **valid 는 스텝마다가 아니라 epoch 끝 2회만** 측정된다(`--save_strategy epoch`). 그래서 위 표엔 step 149/298 의 train 값이 비어 있고, 아래 eval 표가 그 2 지점이다.
 
 | 지표 | epoch 1 | epoch 2 | 판정 |
 |---|---|---|---|
@@ -136,7 +162,11 @@ RL 이 최적화하는 `format_think`(`configs/accuracy.py`)는 **앵커 매칭*
 
 ### v3 홀드아웃 평가 결과 — 형식 천장 완파 (job 69807, 2026-07-20)
 
-병합(`sft_mixed_merged`) → vLLM serve → **누수 없는 홀드아웃 972건 전량** 채점
+**평가에 쓴 데이터** — `work/data/deepvision_holdout.jsonl` = **DeepVision-103K 층화 홀드아웃 972건**(math **453** / vl **519**). `scripts/make_holdout.py` 로 분리했고 **학습에 절대 미사용**(Stage-2 도 `deepvision103k_trainonly.jsonl` 로 fresh 학습 → **누수 0**).
+
+> ⚠️ 학습 중의 `sft_mixed_val.jsonl`(382)과는 **다른 셋**이다. val 은 학습셋과 **같은 분포**(질문 단위 분할)라 `eval_loss`/`token_acc` 측정용이고, 홀드아웃은 **학습에 안 쓴 분포**에서 **생성 정답률·형식**을 재는 용도다. 그래서 위(학습)와 아래(평가) 숫자는 서로 다른 것을 말한다.
+
+병합(`sft_mixed_merged`) → vLLM serve → 홀드아웃 972건 **전량** 채점
 (`scripts/50_eval_v3.slurm` + `scripts/eval_v3_holdout.py`, temp=0 · `max_tok` 2048 · system 동일).
 
 | 지표 | **v3 `sft_mixed`** | v2 콜드스타트 | v2 **RL 이후**(step600) |

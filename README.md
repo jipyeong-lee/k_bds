@@ -12,16 +12,18 @@
 
 > 📋 **문제정의·실험결과·해결방안·목표·기한** 4축 → [`docs/project_status_2026-07-05.md`](docs/project_status_2026-07-05.md)
 
-> ⚠️ **예산 주의**: 계획서 5,000 노드시간 중 **약 4,155 소진(83%)** — 잔여 ~845. Stage-2 GRPO 1회 = **~500**(70h×8)이라 **재실행 여력 없음**. SFT 는 ~5로 저렴. → [자원](#자원--운영-정책-가이드)
+> ⚠️ **예산 주의**: 계획서 5,000 노드시간 중 **약 4,164 소진(83.3%)** — 잔여 **~836**. Stage-2 GRPO 1회 = **~500**(70h×8)이라 **재실행 여력 없음**. SFT 는 ~5로 저렴. → [자원](#자원--운영-정책-가이드)
 
 | 단계 | 상태 | 핵심 결과 |
 |---|---|---|
 | **① 콜드스타트 SFT** | ✅ **v3 평가완료** | **v2 데이터가 `format_think` 0.473** = RL 형식보상의 천장이었음(RL 0.425 정체). → **v3 일반+의료 혼합·게이트 1.0** 으로 재구축 후 **SFT만으로 0.909 달성**(천장 완파), 홀드아웃 acc **0.348**(v2 ~0.22, v2-RL 0.38~0.39) ([상세](#stage-1--콜드스타트-sft)) |
 | **② 범용 RLVR** | ✅ **방법론 전부 종결** | plateau 진단 → **dr_grpo 승자**(Acc 0.526 돌파). **홀드아웃 3종(step600)**: GDPO 0.390 ≈ dr_grpo 0.380 (동률) ≫ **GSPO 0.290**(on-policy 동률이나 홀드아웃 열위=일반화 실패, 미채택). GDPO는 Stage-3용 채택 권고. → [상세](#stage-2--범용-rlvr-grpo) |
 | **③ 의료 RL (RaR)** | ⏳ 배선 검증완료·**본실행 대기** | 루브릭·judge·배선 end-to-end PASS(유닛 29/29·스모크). step600 ckpt(dr_grpo/GDPO)가 init 후보. → [상세](#stage-3--의료-rl-rar-루브릭-보상) |
-| **④ 평가** | 🔄 base·콜드스타트 기준선 확보 | **HealthBench Hard(1000)**: base 0.229 / 콜드스타트 0.224(동률, 오프타깃). DeepVision 홀드아웃: base 0.15→콜드스타트 0.22→+RL 0.38. → [상세](#타겟-벤치마크-healthbench--의료-성능-측정) |
+| **④ 평가** | 🔄 기준선 확보·**v3 홀드아웃 완료** | **HealthBench Hard(n=1000)**: base 0.229 / v2 콜드스타트 0.224(동률, 오프타깃) — **v3 는 미측정**(동일 하니스로 즉시 비교 가능). **DeepVision 홀드아웃**: base 0.15 → v2 콜드스타트 0.22 → +RL 0.38–0.39, **v3 콜드스타트 0.348**(RL 無). → [상세](#타겟-벤치마크-healthbench--의료-성능-측정) |
 
-**🎯 검증된 핵심 수치 (DeepVision 층화 홀드아웃)**: `base 0.15 → 콜드스타트 0.22 → +dr_grpo/GDPO(step600) 0.38–0.39` (base 대비 **+153%**). 콜드스타트 없이 base→RL은 0.18(붕괴).
+**🎯 검증된 핵심 수치 (DeepVision 층화 홀드아웃)**
+- **v2 경로(전체 파이프라인 검증)**: `base 0.15 → 콜드스타트 0.22 → +dr_grpo/GDPO(step600) 0.38–0.39` (base 대비 **+153%**). 콜드스타트 없이 base→RL 은 **0.18**(붕괴).
+- **v3 콜드스타트(현행)**: **RL 을 한 번도 안 돌리고 단독 0.348** — v2 가 **풀 Stage-2 RL(~500 노드시간)** 을 태워야 도달한 0.38–0.39 에 근접. 게다가 v3 는 DeepVision 미학습이라 홀드아웃 22% 오염 이득이 **없다**(아래 ⚠️).
 
 ✅ **정비 이력(해결됨)**: 파일럿 dr_grpo 의 ① 데이터 21%만 학습 ② 평가 누수(stride 슬라이스)를 → **층화 홀드아웃 분리**(math 453 + vl 519) + **fresh 재학습**으로 교정. 무효 "+67%"는 폐기·정식 수치로 대체.
 
@@ -87,11 +89,13 @@ RL 이 최적화하는 `format_think`(`configs/accuracy.py`)는 **앵커 매칭*
 
 **데이터 (전부 실측 검증 후 채택 — 이름·초록만 보고 고르지 않음)**
 
-| 소스 | 채택 | 추론 중앙값 | ≤6000자 | 라이선스 | 역할 |
+| 소스 | 샘플링 **목표** | 추론 중앙값 | ≤6000자 | 라이선스 | 역할 |
 |---|---|---|---|---|---|
 | `neginb/OpenMedReason` | 5,000 | 1,927자 | 100% | CC-BY-4.0 | **의료 신규 지식**(19 taxonomy) |
 | `TIGER-Lab/VisualWebInstruct-verified` | 3,000 | 933자 | 100% | MIT | 일반, **자유형 정답 52.9%** |
 | `UCSC-VLAA/VLAA-Thinking` (synthesis·clevr) | 2,500 | 649~934자 | 100% | Apache-2.0 | 일반, **이미 목표 형식** |
+
+> ⚠️ 위는 **요청한 목표치**다. 게이트(`format_think==1.0`)와 풀 부족으로 **실제 채택은 9,889건**(VWI 는 difficulty-5 풀이 57건뿐이라 3,000→**2,390** 미달) → 실측 내역은 [학습에 쓴 데이터](#v3-학습-결과--학습곡선-job-66255-2026-07-18) 표 참조.
 
 **왜 의료를 넣나**: `medix_rl_train`(Stage-3 데이터) 51,335건은 **assistant 가 통째로 비어 있다**(prompt+solution 만) → 프로젝트에 **의료 추론 트레이스가 0건**이었다. v1·v2 는 둘 다 일반(clevr/DeepVision) 전용이라 Stage-3 전이가 미검증 한계로 남아 있었음.
 
@@ -475,7 +479,8 @@ Stage-2 홀드아웃(DeepVision)은 **검증가능 정답** 기준의 내부 지
 | 모델 | **종합** | comm | instr | acc | complete | context | judge실패 | 평균길이 |
 |------|------|------|------|------|------|------|------|------|
 | **base** (Qwen3.5-9B) | **0.229** | 0.580 | 0.489 | 0.351 | 0.235 | 0.098 | 9.9% | 10,689자 |
-| **① 콜드스타트 SFT** | 0.224 | 0.551 | **0.533** | 0.342 | 0.218 | 0.091 | 5.0% | **8,850자** |
+| **① 콜드스타트 SFT (v2)** | 0.224 | 0.551 | **0.533** | 0.342 | 0.218 | 0.091 | 5.0% | **8,850자** |
+| **① 콜드스타트 SFT (v3, 현행)** | *미측정* | | | | | | | |
 | ② Stage-2 (dr_grpo/GDPO) | *예정* | | | | | | | |
 | ③ Stage-3 (RaR) | *예정* | | | | | | | |
 
@@ -559,14 +564,14 @@ Stage-2 홀드아웃(DeepVision)은 **검증가능 정답** 기준의 내부 지
 - 계획서 **8×A100-80GB 노드** = `8gpu` 파티션(4gpu·8gpu=80GB, 1gpu·2gpu=40GB). `bdata_user` 바로 사용, diba 불필요. **80GB 실측 확인**(파일럿 59.6GiB).
 - **wall-clock 5일(120h)**: 70h 단일 OK(`--resume_from_checkpoint` 권장). **배타적 노드**(1노드=1작업). **동시 제출 8gpu 최대 6개**(노드 3×2). **노드시간** 8gpu=8/h(`cat /scratch/account/kbds0754`). `#SBATCH --comment=pytorch` 필수.
 
-#### 🔴 예산 실적 (2026-07-16 기준, `sacct` 실측)
+#### 🔴 예산 실적 (2026-07-21 기준, `sacct` 실측)
 
-**4,154.6 / 5,000 노드시간 소진 (83.1%) → 잔여 ~845.** 계획서 방식(8gpu = ×8)으로 계산.
+**4,164.4 / 5,000 노드시간 소진 (83.3%) → 잔여 ~836.** 계획서 방식(8gpu = ×8)으로 계산.
 
 | 실측 항목 | 노드시간 |
 |---|---|
 | 8gpu 잡 40개 (Stage-2 GRPO 계열 대부분) | 4,112.3 |
-| 그 외(4gpu·1gpu·debug·cpu) | 42.3 |
+| 그 외(4gpu 45.8·1gpu 3.2·debug 2.6·2gpu 0.4·cpu 0.1) | 52.1 |
 | **Stage-2 GRPO 1회** (70h×8) | **490~560** ← 재실행 여력 없음 |
 | **SFT 1회** (12~39분) | **2~5** ← 사실상 공짜 |
 | Stage-3 (미시작, 계획서 핵심 산출물) | ~500 예상 |
@@ -635,20 +640,37 @@ kbds_project/
 │   ├── accuracy.py          # Stage-2 보상 accuracy_mix + format_think
 │   ├── medical_reward.py    # Stage-3 RaR 루브릭 보상 clinical_judge(AsyncORM)
 │   └── ds_zero{2,3,3_offload}.json
-├── scripts/
+├── scripts/                             # (총 49개 — 아래는 주요 스크립트)
 │   ├── 00_common.sh                     # 공통 경로/환경/실행 래퍼
-│   ├── 10_sft.slurm / 20_rlvr_grpo.slurm / 30_medical_rl.slurm / 40_eval.slurm  # 단계별
-│   ├── 21_rlvr_grpo_adv.slurm           # Stage-2 A/B(dapo/gspo/dr_grpo, RESUME/MAX_STEPS)
-│   ├── 11_build_coldstart.slurm         # 콜드스타트 v3 데이터 빌드 (cpu32 잡)
-│   ├── build_mixed_coldstart.py         # 콜드스타트 v3 — 일반+의료 혼합, format_think==1.0 게이트
-│   ├── _archive/                        # 폐기 스크립트(v1·v2 빌더 등, 이력 보존)
+│   ├── 10_sft.slurm / 20_rlvr_grpo.slurm / 30_medical_rl.slurm / 40_eval.slurm  # 단계별 뼈대
+│   │
+│   │  # ── Stage-1 콜드스타트 v3 ──
+│   ├── 11_build_coldstart.slurm         # 데이터 빌드 (cpu32 잡)
+│   ├── build_mixed_coldstart.py         # 일반+의료 혼합, format_think==1.0 게이트
+│   ├── 12_merge_mixed.slurm             # LoRA 병합 + 형식/길이 프로브
+│   ├── 50_eval_v3.slurm / eval_v3_holdout.py   # 병합+홀드아웃 채점(strict format_think·층별·pred 덤프)
+│   ├── 52_eval_v2_baseline.slurm        # v2 동일조건 재측정(A/B 확정용)
+│   ├── plot_sft_curve.py                # SFT 학습곡선 → docs/assets/
+│   │
+│   │  # ── Stage-2 RLVR ──
+│   ├── 21_rlvr_grpo_adv.slurm           # A/B(dapo/gspo/dr_grpo, RESUME/MAX_STEPS)
 │   ├── make_holdout.py                  # 층화 홀드아웃 분리
-│   ├── plot_grpo_multi.py               # N개 기법 성능 plot(일반화, 6패널)
-│   ├── judge_server.sh / 31_judge_smoke.slurm / 33_judge_probe.slurm  # judge 서빙·검증
-│   ├── 35_stage3_smoke.slurm            # Stage-3 배선 end-to-end 스모크
-│   ├── merge_drgrpo.slurm / launch_stage3.sh / launch_gspo_ab.sh      # 오케스트레이터
-│   ├── 40_eval_compare.slurm / eval_compare.py                        # base vs 학습 벤치
-│   ├── test_medical_reward.py           # Stage-3 보상 유닛테스트(29)
+│   ├── 40_eval_compare.slurm / eval_compare.py            # base vs 학습 벤치
+│   ├── eval_midtrain.slurm              # 중간 홀드아웃 벤치(RL 25%)
+│   ├── 46_eval_gdpo_ab.slurm / 47_eval_ablation.slurm     # GDPO 판정 · 콜드스타트 ablation
+│   ├── 48_eval_gspo_holdout.slurm / 49_eval_contaminated.slurm  # GSPO 홀드아웃 · 오염 참고치
+│   ├── plot_grpo_multi.py / plot_grpo_compare.py / plot_grpo_trend.py  # 기법 성능 plot
+│   ├── merge_drgrpo.slurm / launch_stage3.sh / launch_gspo_ab.sh       # 오케스트레이터
+│   │
+│   │  # ── Stage-3 의료 RL ──
+│   ├── judge_server.sh / 31_judge_smoke.slurm / 33_judge_probe.slurm   # judge 서빙·검증
+│   ├── 34_rubric_compare.slurm / judge_compare_rubric.py  # 정적 vs 인스턴스 루브릭 비교
+│   ├── 35_stage3_smoke.slurm            # 배선 end-to-end 스모크
+│   ├── test_medical_reward.py           # 보상 유닛테스트(29)
+│   │
+│   │  # ── HealthBench / 공통 ──
+│   ├── 45_healthbench_smoke.slurm / run_healthbench.py    # HealthBench Hard 하니스(n=1000 실측)
+│   ├── _archive/                        # 폐기 스크립트(v1·v2 빌더 등, 이력 보존)
 │   └── convert_to_swift.py / download_{model,dataset}.py
 ├── docs/ (medical_reward_spec.md · worklog_*.md) · logs/
 ```
@@ -779,7 +801,7 @@ sbatch          --dependency=afterok:$JID3 scripts/40_eval.slurm
 - [x] **콜드스타트 v3 SFT 실행** → `sft_mixed_lora/checkpoint-298` (job 66255, 41분·298스텝, 과적합 없음)
 - [x] **v3 DeepVision 홀드아웃 평가** → **acc 0.348 · strict `format_think` 0.909**(천장 0.473 완파). `sft_mixed_merged` 생성 (job 69807)
 - [ ] **v2 동일조건 재측정** — 과거 0.22 는 조건불명 → 같은 하니스로 A/B 확정 ← **진행 중**(70342 TIMEOUT → **70671** 재제출)
-- [ ] **v3 HealthBench Hard** — 단, 기존 근거가 base 모델 limit-20 스모크뿐이라 **비교기준 재설계 필요**(gpu:2 judge)
+- [ ] **v3 HealthBench Hard** — base **0.229** / v2 콜드스타트 **0.224**(둘 다 `n=1000` 정식 실측)와 **동일 하니스로 즉시 비교 가능**. judge 동시 서빙 때문에 `gpu:2` 필요 → [추적표 ①행 아래 채우기](#단계별-추적--healthbench-hard-n1000)
 - [ ] **잔여 ~845 노드시간 배분 결정** — ⓐ Stage-3 직행 ⓑ 짧은 Stage-2 후 Stage-3. **v3 가 이미 0.348 로 Stage-2 산출물(0.38~0.39)에 근접 → Stage-2 한계효용 의문**이 핵심 논점
 - [ ] **Stage-3 본실행**(`launch_stage3.sh`) → init 교체 ← **계획서 핵심 산출물, 미시작**
 - [ ] Stage-2·3 모델 HealthBench 추적표 ②③ 채움

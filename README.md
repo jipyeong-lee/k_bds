@@ -129,7 +129,26 @@ RL 이 최적화하는 `format_think`(`configs/accuracy.py`)는 **앵커 매칭*
 | `UCSC-VLAA/VLAA-Thinking` · clevr_math | **1,250** | 일반. 풀 5,923 → 채택 |
 | **합계** | **9,889** | 고유질문 7,923 → **질문 단위** 분할: train **9,507** / val **382** |
 
-**② 학습 설정** — Qwen3.5-9B **LoRA**(r16/α32, all-linear) · 2 epochs · 4gpu 유효배치 64 · `max_len` 4096 · LR 1e-4 · **41분/298스텝**(job 66255).
+**② 학습 설정 — v2 와 LoRA 세팅 완전 동일**(대조 조건 확보). 두 체크포인트의 `args.json` 직접 대조:
+
+| 항목 | **v3 `sft_mixed`** | v2 `sft_rft_coldstart` | |
+|---|---|---|---|
+| base / tuner | Qwen3.5-9B / `lora` | 동일 | ✅ |
+| `lora_rank` / `lora_alpha` / `lora_dropout` | **16 / 32 / 0.05** | 동일 | ✅ |
+| `target_modules` / `modules_to_save` / `lora_bias` / `use_dora` | `all-linear` / `[]` / none / False | 동일 | ✅ |
+| `learning_rate` / 스케줄 / `warmup_ratio` | **1e-4** / cosine / 0.03 | 동일 | ✅ |
+| `max_length` / `max_pixels` | 4096 / 1003520 | 동일 | ✅ |
+| dtype / `attn_impl` / `gradient_checkpointing` | bf16 / `flash_attn` / False | 동일 | ✅ |
+| `weight_decay` / `seed` | 0.1 / 42 | 동일 | ✅ |
+| **유효배치** | **64** (1×16×4gpu) | **64** (1×8×8gpu) | ✅ *(`grad_accum` 16 vs 8 은 GPU 수 보정 — 결과 동일)* |
+| `num_train_epochs` | **2** | 4 | ⚠️ 아래 |
+| **실제 옵티마이저 스텝** | **298** | **48** | ⚠️ 데이터량 차이 |
+
+> **epoch 수가 다른 이유**: v2 는 727건뿐이라 4 epoch 을 돌려도 **48스텝**에 그친다. v3 는 9,507건이라 2 epoch 만으로 **298스텝** — 실제 학습량은 **약 6.2배**. epoch 을 2 로 줄인 건 v2 에서 **val 이 epoch1 이후 평탄**함을 확인했기 때문(`scripts/10_sft.slurm` 주석).
+>
+> ⚠️ 따라서 v3 의 우위는 **"데이터 품질" + "데이터량/학습스텝(48→298)"의 합산 효과**다. LoRA 하이퍼파라미터·LR·유효배치·시드가 전부 같으므로 **"튜닝 덕분"은 배제**되지만, 품질만 단독 분리한 것은 아니다.
+
+소요: **41분 / 298스텝**(job 66255, 4gpu).
 
 곡선·검증·안정성 모두 초록불:
 

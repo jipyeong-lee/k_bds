@@ -8,7 +8,7 @@
 
 ## 현황 (2026-07-20)
 
-**지금 위치**: **Stage-1 콜드스타트 v3 학습완료 → 홀드아웃 평가중**(형식보상 천장 발견 → 일반+의료 혼합으로 재구축, 9,507건 41분 학습 [곡선](#v3-학습-결과--학습곡선-job-66255-2026-07-18)) · Stage-2 방법론 전부 판정 완료 · **Stage-3(의료 RL) 본실행 대기**(배선 검증완료).
+**지금 위치**: **Stage-1 콜드스타트 v3 평가완료 — 형식 천장 완파**(`format_think` 0.473→**0.909**, 홀드아웃 acc ~0.22→**0.348** [결과](#v3-홀드아웃-평가-결과--형식-천장-완파-job-69807-2026-07-20)) · Stage-2 방법론 전부 판정 완료 · **Stage-3(의료 RL) 본실행 대기**(배선 검증완료). → 다음: v2 동일조건 재측정 후 **Stage-2 재개 vs Stage-3 직행** 결정.
 
 > 📋 **문제정의·실험결과·해결방안·목표·기한** 4축 → [`docs/project_status_2026-07-05.md`](docs/project_status_2026-07-05.md)
 
@@ -16,7 +16,7 @@
 
 | 단계 | 상태 | 핵심 결과 |
 |---|---|---|
-| **① 콜드스타트 SFT** | 🔄 **v3 학습완료·평가중** | v2(RFT 727건)로 **필수성은 입증**(ablation). 그러나 **v2 데이터 자체가 `format_think` 0.473** — RL 형식보상의 천장이었음. → **v3: 일반+의료 혼합·게이트 1.0** ([상세](#stage-1--콜드스타트-sft)) |
+| **① 콜드스타트 SFT** | ✅ **v3 평가완료** | **v2 데이터가 `format_think` 0.473** = RL 형식보상의 천장이었음(RL 0.425 정체). → **v3 일반+의료 혼합·게이트 1.0** 으로 재구축 후 **SFT만으로 0.909 달성**(천장 완파), 홀드아웃 acc **0.348**(v2 ~0.22, v2-RL 0.38~0.39) ([상세](#stage-1--콜드스타트-sft)) |
 | **② 범용 RLVR** | ✅ **방법론 전부 종결** | plateau 진단 → **dr_grpo 승자**(Acc 0.526 돌파). **홀드아웃 3종(step600)**: GDPO 0.390 ≈ dr_grpo 0.380 (동률) ≫ **GSPO 0.290**(on-policy 동률이나 홀드아웃 열위=일반화 실패, 미채택). GDPO는 Stage-3용 채택 권고. → [상세](#stage-2--범용-rlvr-grpo) |
 | **③ 의료 RL (RaR)** | ⏳ 배선 검증완료·**본실행 대기** | 루브릭·judge·배선 end-to-end PASS(유닛 29/29·스모크). step600 ckpt(dr_grpo/GDPO)가 init 후보. → [상세](#stage-3--의료-rl-rar-루브릭-보상) |
 | **④ 평가** | 🔄 base·콜드스타트 기준선 확보 | **HealthBench Hard(1000)**: base 0.229 / 콜드스타트 0.224(동률, 오프타깃). DeepVision 홀드아웃: base 0.15→콜드스타트 0.22→+RL 0.38. → [상세](#타겟-벤치마크-healthbench--의료-성능-측정) |
@@ -47,7 +47,7 @@
 
 | 단계 | 목적 | 데이터 | 방법 | 상태 |
 |---|---|---|---|---|
-| **①** 콜드스타트 SFT | `<think>/<answer>` 추론 형식 주입 + **의료 추론 시드** | **v3: OpenMedReason + VisualWebInstruct + VLAA 혼합**<br>(v2: 자기증류 RFT 727 → 형식 0.473) | LoRA SFT | 🔄 v3 학습완료·평가중(병합 후 새 init 후보) |
+| **①** 콜드스타트 SFT | `<think>/<answer>` 추론 형식 주입 + **의료 추론 시드** | **v3: OpenMedReason + VisualWebInstruct + VLAA 혼합**<br>(v2: 자기증류 RFT 727 → 형식 0.473) | LoRA SFT | ✅ v3 평가완료 — `format_think` **0.909**·acc **0.348**. `sft_mixed_merged` = 새 init |
 | **②** 범용 RLVR | 검증가능 정답으로 추론 강화 | DeepVision-103K | GRPO 계열(dr_grpo/GDPO) | ✅ A/B 판정완료(dr_grpo·GDPO 동급) |
 | **③** 의료 특화 RL | 개방형 의료 VQA 추론 | medix-rl-data 51K | GRPO + RaR 루브릭 보상 | ⏳ 배선 검증완료·대기 |
 | **④** 평가 | base 대비 성능 정량화 | 층화 홀드아웃 / **HealthBench** | vLLM 추론·채점 | 🔄 base·콜드스타트 측정완료(HealthBench 0.229/0.224) |
@@ -67,7 +67,7 @@
 |---|---|---|---|
 | **v1** `sft_coldstart_*` | VLAA **clevr_math 단일** 2,913 | — | ❌ 도메인 단일 → 일반화 실패, 폐기 |
 | **v2** `sft_rft_coldstart_*` | 자기증류(RFT) **727** | **0.473** | ✅ 필수성 입증(ablation)·Stage-2 성공. 그러나 **형식 천장** |
-| **v3** `sft_mixed_*` (현행) | 일반+의료 **혼합 9,507** | **1.000**(게이트 강제) | ✅ 학습완료(`checkpoint-298`)·홀드아웃 평가중([곡선](#v3-학습-결과--학습곡선-job-66255-2026-07-18)) |
+| **v3** `sft_mixed_*` (현행) | 일반+의료 **혼합 9,507** | **1.000**(게이트 강제) | ✅ **생성 `format_think` 0.909 · acc 0.348** — 천장 완파 ([곡선](#v3-학습-결과--학습곡선-job-66255-2026-07-18) · [평가](#v3-홀드아웃-평가-결과--형식-천장-완파-job-69807-2026-07-20)) |
 
 ### v2 의 진짜 결함 — 데이터가 형식보상의 천장이었다 (2026-07-16 발견)
 
@@ -133,6 +133,27 @@ RL 이 최적화하는 `format_think`(`configs/accuracy.py`)는 **앵커 매칭*
 
 - **재현**: `singularity exec $SB python scripts/plot_sft_curve.py docs/assets/sft_mixed_traincurve.png` (데이터 `work/data/sft_mixed_traincurve.json` ← `logs/sft_66255.log` 추출)
 - ⚠️ **이 지표는 "학습이 안정적이었나"까지만 말한다.** token_acc 0.79 는 teacher-forcing 다음토큰 정확도지 생성 정답률이 아니다. v3 의 핵심 질문 — 생성시 **strict `format_think`**(v2 데이터 0.473 천장 돌파 여부)와 **홀드아웃 정답률**(v2 콜드스타트 0.22 대비) — 은 병합+평가 **job 69807**(`scripts/50_eval_v3.slurm`, `scripts/eval_v3_holdout.py`)가 답한다.
+
+### v3 홀드아웃 평가 결과 — 형식 천장 완파 (job 69807, 2026-07-20)
+
+병합(`sft_mixed_merged`) → vLLM serve → **누수 없는 홀드아웃 972건 전량** 채점
+(`scripts/50_eval_v3.slurm` + `scripts/eval_v3_holdout.py`, temp=0 · `max_tok` 2048 · system 동일).
+
+| 지표 | **v3 `sft_mixed`** | v2 콜드스타트 | v2 **RL 이후**(step600) |
+|---|---|---|---|
+| **strict `format_think`** | **0.909** | 데이터 천장 **0.473** | RL 정체 **0.425** |
+| **홀드아웃 accuracy** | **0.348** | ~0.22 | 0.380 dr_grpo / 0.390 GDPO |
+| 층별 accuracy | math **0.324**(n=453) · vl **0.368**(n=519) | — | — |
+| mean_chars / errors | 1,982 / **1**건 | — | — |
+
+**v3 재설계의 두 가설이 모두 실측 입증됐다.**
+
+1. **형식 천장은 데이터 문제였다.** 게이트 1.0 데이터로 **SFT만** 했는데 생성 출력 `format_think` 가 **0.909** — RL 을 한 번도 안 돌리고 v2 의 *RL 이후*(0.425)를 **2배 이상** 상회. "RL 이 못 배운 게 아니라 초기화가 잘못 가르쳤다"는 진단이 그대로 확인됐다.
+2. **혼합 데이터가 정답률도 올렸다.** v3 **SFT 콜드스타트(0.348)** 가, v2 가 **풀 Stage-2 RL(~500 노드시간)** 을 태워야 도달한 0.380~0.390 에 근접했다. → Stage-2 의 한계효용 재검토 필요.
+
+- 잔여 형식위반 **9.1%(88건)** 는 주로 **2048토큰 잘림**(`</answer>` 전 절단) → `max_new_tokens` 상향 여지.
+- 채점은 RL 보상과 **동일 규칙**(템플릿 `response_prefix='<think>\n'` 전제 + `configs/accuracy.py:FormatThink` 와 같은 앵커·16자 조건). 예측 덤프 `logs/eval_v3_preds_69807.jsonl` 로 표본 검증함.
+- ⚠️ **v2 의 0.22 는 조건 불명의 과거값.** 동일 하니스 재측정(`scripts/52_eval_v2_baseline.slurm`)으로 A/B 를 못박는 중 — 1차(70342)는 벽시계 초과 TIMEOUT, `--time 2:30` 으로 재제출.
 
 ### 콜드스타트 Ablation Study (순가치 확정, 2026-07-09)
 

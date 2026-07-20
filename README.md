@@ -6,9 +6,9 @@
 
 ---
 
-## 현황 (2026-07-16)
+## 현황 (2026-07-20)
 
-**지금 위치**: **Stage-1 콜드스타트 v3 재설계 중**(형식보상 천장 발견 → 일반+의료 혼합 데이터로 재구축) · Stage-2 방법론 전부 판정 완료 · **Stage-3(의료 RL) 본실행 대기**(배선 검증완료).
+**지금 위치**: **Stage-1 콜드스타트 v3 학습완료 → 홀드아웃 평가중**(형식보상 천장 발견 → 일반+의료 혼합으로 재구축, 9,507건 41분 학습 [곡선](#v3-학습-결과--학습곡선-job-66255-2026-07-18)) · Stage-2 방법론 전부 판정 완료 · **Stage-3(의료 RL) 본실행 대기**(배선 검증완료).
 
 > 📋 **문제정의·실험결과·해결방안·목표·기한** 4축 → [`docs/project_status_2026-07-05.md`](docs/project_status_2026-07-05.md)
 
@@ -16,7 +16,7 @@
 
 | 단계 | 상태 | 핵심 결과 |
 |---|---|---|
-| **① 콜드스타트 SFT** | 🔄 **v3 재구축 중** | v2(RFT 727건)로 **필수성은 입증**(ablation). 그러나 **v2 데이터 자체가 `format_think` 0.473** — RL 형식보상의 천장이었음. → **v3: 일반+의료 혼합·게이트 1.0** ([상세](#stage-1--콜드스타트-sft)) |
+| **① 콜드스타트 SFT** | 🔄 **v3 학습완료·평가중** | v2(RFT 727건)로 **필수성은 입증**(ablation). 그러나 **v2 데이터 자체가 `format_think` 0.473** — RL 형식보상의 천장이었음. → **v3: 일반+의료 혼합·게이트 1.0** ([상세](#stage-1--콜드스타트-sft)) |
 | **② 범용 RLVR** | ✅ **방법론 전부 종결** | plateau 진단 → **dr_grpo 승자**(Acc 0.526 돌파). **홀드아웃 3종(step600)**: GDPO 0.390 ≈ dr_grpo 0.380 (동률) ≫ **GSPO 0.290**(on-policy 동률이나 홀드아웃 열위=일반화 실패, 미채택). GDPO는 Stage-3용 채택 권고. → [상세](#stage-2--범용-rlvr-grpo) |
 | **③ 의료 RL (RaR)** | ⏳ 배선 검증완료·**본실행 대기** | 루브릭·judge·배선 end-to-end PASS(유닛 29/29·스모크). step600 ckpt(dr_grpo/GDPO)가 init 후보. → [상세](#stage-3--의료-rl-rar-루브릭-보상) |
 | **④ 평가** | 🔄 base·콜드스타트 기준선 확보 | **HealthBench Hard(1000)**: base 0.229 / 콜드스타트 0.224(동률, 오프타깃). DeepVision 홀드아웃: base 0.15→콜드스타트 0.22→+RL 0.38. → [상세](#타겟-벤치마크-healthbench--의료-성능-측정) |
@@ -30,7 +30,7 @@
 ---
 
 ## 목차
-1. [현황](#현황-2026-07-16)
+1. [현황](#현황-2026-07-20)
 2. [파이프라인 4단계](#파이프라인-4단계)
 3. [Stage-1 · 콜드스타트 SFT](#stage-1--콜드스타트-sft) — **v3 일반+의료 혼합 재설계**(형식 천장 규명) + ablation study(순가치)
 4. [Stage-2 · 범용 RLVR (GRPO)](#stage-2--범용-rlvr-grpo) — baseline·기법 통합비교(GRPO/DAPO/dr_grpo/GSPO/GDPO)·벤치마크
@@ -47,7 +47,7 @@
 
 | 단계 | 목적 | 데이터 | 방법 | 상태 |
 |---|---|---|---|---|
-| **①** 콜드스타트 SFT | `<think>/<answer>` 추론 형식 주입 + **의료 추론 시드** | **v3: OpenMedReason + VisualWebInstruct + VLAA 혼합**<br>(v2: 자기증류 RFT 727 → 형식 0.473) | LoRA SFT | 🔄 v3 재구축(v2 `sft_rft_coldstart_merged` 가 현행 init) |
+| **①** 콜드스타트 SFT | `<think>/<answer>` 추론 형식 주입 + **의료 추론 시드** | **v3: OpenMedReason + VisualWebInstruct + VLAA 혼합**<br>(v2: 자기증류 RFT 727 → 형식 0.473) | LoRA SFT | 🔄 v3 학습완료·평가중(병합 후 새 init 후보) |
 | **②** 범용 RLVR | 검증가능 정답으로 추론 강화 | DeepVision-103K | GRPO 계열(dr_grpo/GDPO) | ✅ A/B 판정완료(dr_grpo·GDPO 동급) |
 | **③** 의료 특화 RL | 개방형 의료 VQA 추론 | medix-rl-data 51K | GRPO + RaR 루브릭 보상 | ⏳ 배선 검증완료·대기 |
 | **④** 평가 | base 대비 성능 정량화 | 층화 홀드아웃 / **HealthBench** | vLLM 추론·채점 | 🔄 base·콜드스타트 측정완료(HealthBench 0.229/0.224) |
@@ -67,7 +67,7 @@
 |---|---|---|---|
 | **v1** `sft_coldstart_*` | VLAA **clevr_math 단일** 2,913 | — | ❌ 도메인 단일 → 일반화 실패, 폐기 |
 | **v2** `sft_rft_coldstart_*` | 자기증류(RFT) **727** | **0.473** | ✅ 필수성 입증(ablation)·Stage-2 성공. 그러나 **형식 천장** |
-| **v3** `sft_mixed_*` (현행) | 일반+의료 **혼합 ~10.5K** | **1.000**(게이트 강제) | 🔄 구축중 |
+| **v3** `sft_mixed_*` (현행) | 일반+의료 **혼합 9,507** | **1.000**(게이트 강제) | ✅ 학습완료(`checkpoint-298`)·홀드아웃 평가중([곡선](#v3-학습-결과--학습곡선-job-66255-2026-07-18)) |
 
 ### v2 의 진짜 결함 — 데이터가 형식보상의 천장이었다 (2026-07-16 발견)
 
@@ -116,6 +116,23 @@ RL 이 최적화하는 `format_think`(`configs/accuracy.py`)는 **앵커 매칭*
 | `BoKelvin/GEMeX-ThinkVG`(=논문의 GEMeX-RMCoT, 개명) | — | ⏸ 텍스트만 공개 — 이미지는 **MIMIC-CXR(PhysioNet)** 자격심사+CITI+DUA 필요(수주). CC-BY-NC |
 | `Xkev/LLaVA-CoT-100k`(170GB) · `Mulberry` · `Zebra-CoT` | — | ❌ 용량·형식(interleaved 시각 CoT)·NC 라이선스 |
 </details>
+
+### v3 학습 결과 — 학습곡선 (job 66255, 2026-07-18)
+
+`sft_mixed_train.jsonl` **9,507건**(val 382)으로 LoRA SFT **2 epochs**(Qwen3.5-9B, 4gpu·유효배치 64, **41분**). 곡선·검증·안정성 모두 초록불:
+
+![Stage-1 v3 콜드스타트 SFT 학습곡선](docs/assets/sft_mixed_traincurve.png)
+
+| 지표 | epoch 1 | epoch 2 | 판정 |
+|---|---|---|---|
+| train loss | 1.12 → ~0.62 | ~0.60 (전체 평균 **0.665**) | 초반 ~50스텝에 대부분 수렴 |
+| **eval_loss** | 0.6793 | **0.6681** (−1.6%) | 악화 아닌 개선 → 과적합 아님 |
+| **eval_token_acc** | 0.7906 | **0.7939** | 소폭 개선(epoch1 수렴) |
+| train↔eval 격차 | ~0.66 vs ~0.67 | | 격차 거의 0 = **과적합 없음** |
+| grad_norm | 평균 **0.29** (max 1.23, 마지막 ~0.27) | | 스파이크·발산·NaN·OOM 전무 |
+
+- **재현**: `singularity exec $SB python scripts/plot_sft_curve.py docs/assets/sft_mixed_traincurve.png` (데이터 `work/data/sft_mixed_traincurve.json` ← `logs/sft_66255.log` 추출)
+- ⚠️ **이 지표는 "학습이 안정적이었나"까지만 말한다.** token_acc 0.79 는 teacher-forcing 다음토큰 정확도지 생성 정답률이 아니다. v3 의 핵심 질문 — 생성시 **strict `format_think`**(v2 데이터 0.473 천장 돌파 여부)와 **홀드아웃 정답률**(v2 콜드스타트 0.22 대비) — 은 병합+평가 **job 69807**(`scripts/50_eval_v3.slurm`, `scripts/eval_v3_holdout.py`)가 답한다.
 
 ### 콜드스타트 Ablation Study (순가치 확정, 2026-07-09)
 

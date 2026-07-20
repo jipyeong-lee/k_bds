@@ -801,7 +801,7 @@ sbatch          --dependency=afterok:$JID3 scripts/40_eval.slurm
 - [x] **콜드스타트 v3 SFT 실행** → `sft_mixed_lora/checkpoint-298` (job 66255, 41분·298스텝, 과적합 없음)
 - [x] **v3 DeepVision 홀드아웃 평가** → **acc 0.348 · strict `format_think` 0.909**(천장 0.473 완파). `sft_mixed_merged` 생성 (job 69807)
 - [ ] **v2 동일조건 재측정** — 과거 0.22 는 조건불명 → 같은 하니스로 A/B 확정 ← **진행 중**(70342 TIMEOUT → **70671** 재제출)
-- [ ] **v3 HealthBench Hard** — base **0.229** / v2 콜드스타트 **0.224**(둘 다 `n=1000` 정식 실측)와 **동일 하니스로 즉시 비교 가능**. judge 동시 서빙 때문에 `gpu:2` 필요 → [추적표 ①행 아래 채우기](#단계별-추적--healthbench-hard-n1000)
+- [ ] **v3 HealthBench Hard** *(보류 — 비용 재검토 후 결정)* — base **0.229** / v2 콜드스타트 **0.224**(둘 다 `n=1000` 정식 실측)와 동일 하니스로 비교 가능하나, **실측 비용이 크다**: 과거 런 `59666`(base) **7:03 on 4gpu ≈ 28 노드시간**, `59691`(v2) **6:53 on 8gpu ≈ 55**. judge(27B)+타깃 동시 서빙이라 `gpu:2` 필수. → 잔여 예산 배분 결정 후 재검토. [추적표](#단계별-추적--healthbench-hard-n1000)
 - [ ] **잔여 ~845 노드시간 배분 결정** — ⓐ Stage-3 직행 ⓑ 짧은 Stage-2 후 Stage-3. **v3 가 이미 0.348 로 Stage-2 산출물(0.38~0.39)에 근접 → Stage-2 한계효용 의문**이 핵심 논점
 - [ ] **Stage-3 본실행**(`launch_stage3.sh`) → init 교체 ← **계획서 핵심 산출물, 미시작**
 - [ ] Stage-2·3 모델 HealthBench 추적표 ②③ 채움

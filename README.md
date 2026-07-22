@@ -17,7 +17,7 @@
 | 단계 | 상태 | 핵심 결과 |
 |---|---|---|
 | **① 콜드스타트 SFT** | ✅ **v3 평가완료 (v2 동일조건 A/B 확정)** | **v2 데이터가 `format_think` 0.473** = RL 형식보상의 천장(RL 0.425 정체). → **v3 게이트 1.0** 재구축 후 **SFT만으로 생성 `format_think` 0.909**(v2-SFT 0.185의 5배, 같은 하니스). 홀드아웃 acc **0.348**(동일조건 v2 **0.295**, +18%·vl 주도; v2-RL 0.38~0.39) ([상세](#stage-1--콜드스타트-sft)) |
-| **② 범용 RLVR** | ✅ **방법론 전부 종결** | plateau 진단 → **dr_grpo 승자**(Acc 0.526 돌파). **홀드아웃 3종(step600)**: GDPO 0.390 ≈ dr_grpo 0.380 (동률) ≫ **GSPO 0.290**(on-policy 동률이나 홀드아웃 열위=일반화 실패, 미채택). GDPO는 Stage-3용 채택 권고. → [상세](#stage-2--범용-rlvr-grpo) |
+| **② 범용 RLVR** | ✅ 방법론 종결 · 🔧 **풀확장 세팅완료** | plateau 진단 → **dr_grpo 승자**(Acc 0.526). 홀드아웃 GDPO 0.390 ≈ dr_grpo 0.380 ≫ GSPO 0.290(일반화 실패). **[풀확장 재설계](#0-풀확장-재설계-2026-07-22-세팅-완료실행-대기)**: DeepVision+MMK12+ThinkLite=128,349, init=v3, 다른계정 실행대기. → [상세](#stage-2--범용-rlvr-grpo) |
 | **③ 의료 RL (RaR)** | ⏳ 배선 검증완료·**본실행 대기** | 루브릭·judge·배선 end-to-end PASS(유닛 29/29·스모크). step600 ckpt(dr_grpo/GDPO)가 init 후보. → [상세](#stage-3--의료-rl-rar-루브릭-보상) |
 | **④ 평가** | 🔄 기준선 확보·**v3 홀드아웃 완료** | **HealthBench Hard(n=1000)**: base 0.229 / v2 콜드스타트 0.224(동률, 오프타깃) — **v3 는 미측정**(동일 하니스로 즉시 비교 가능). **DeepVision 홀드아웃**: base 0.15 → v2 콜드스타트 0.22 → +RL 0.38–0.39, **v3 콜드스타트 0.348**(RL 無). → [상세](#타겟-벤치마크-healthbench--의료-성능-측정) |
 
@@ -50,7 +50,7 @@
 | 단계 | 목적 | 데이터 | 방법 | 상태 |
 |---|---|---|---|---|
 | **①** 콜드스타트 SFT | `<think>/<answer>` 추론 형식 주입 + **의료 추론 시드** | **v3: OpenMedReason + VisualWebInstruct + VLAA 혼합**<br>(v2: 자기증류 RFT 727 → 형식 0.473) | LoRA SFT | ✅ v3 평가완료 — `format_think` **0.909**·acc **0.348**. `sft_mixed_merged` = 새 init |
-| **②** 범용 RLVR | 검증가능 정답으로 추론 강화 | DeepVision-103K | GRPO 계열(dr_grpo/GDPO) | ✅ A/B 판정완료(dr_grpo·GDPO 동급) |
+| **②** 범용 RLVR | 검증가능 정답으로 추론 강화 | **풀확장** DeepVision + MMK12 + ThinkLite-VL = **128,349** | GRPO(dr_grpo/GDPO) · init=v3 | ✅ A/B 판정완료 · 🔧 **확장 세팅완료**(다른계정 실행대기) |
 | **③** 의료 특화 RL | 개방형 의료 VQA 추론 | medix-rl-data 51K | GRPO + RaR 루브릭 보상 | ⏳ 배선 검증완료·대기 |
 | **④** 평가 | base 대비 성능 정량화 | 층화 홀드아웃 / **HealthBench** | vLLM 추론·채점 | 🔄 base·콜드스타트 측정완료(HealthBench 0.229/0.224) |
 
@@ -249,7 +249,24 @@ RL 이 최적화하는 `format_think`(`configs/accuracy.py`)는 **앵커 매칭*
 
 ## Stage-2 · 범용 RLVR (GRPO)
 
-> **요약 (Stage-2 방법론 실험 완료)**: baseline GRPO 에서 **Acc plateau** 진단 → GRPO 파생기법 5종 **clean A/B** → **dr_grpo 승자**(plateau 돌파, 홀드아웃 +73%). 최신기법 **GSPO·GDPO**도 검증: **GDPO 홀드아웃 동률**(0.390 vs 0.380, Stage-3용 채택 권고), **GSPO는 on-policy 동률이나 홀드아웃 열위**(0.290=일반화 실패, 미채택). step600 홀드아웃 **~0.38–0.39 포화**. **Stage-2 방법론 확정** — 남은 건 Stage-3.
+> **요약 (Stage-2 방법론 실험 완료)**: baseline GRPO 에서 **Acc plateau** 진단 → GRPO 파생기법 5종 **clean A/B** → **dr_grpo 승자**(plateau 돌파, 홀드아웃 +73%). 최신기법 **GSPO·GDPO**도 검증: **GDPO 홀드아웃 동률**(0.390 vs 0.380, Stage-3용 채택 권고), **GSPO는 on-policy 동률이나 홀드아웃 열위**(0.290=일반화 실패, 미채택). step600 홀드아웃 **~0.38–0.39 포화**. **Stage-2 방법론 확정**.
+
+### 0) 풀확장 재설계 (2026-07-22, 세팅 완료·실행 대기)
+
+**동기**: v3 콜드스타트 A/B 에서 **math 가 v2 와 동률(0.3245)** — 혼합 데이터가 vl 은 올렸으나 수치계산은 못 올림. Stage-2 를 **DeepVision 단일 → STEM RLVR 추가**로 확장해 수학/과학 다양성을 보강한다. (예산: 다른 계정 5,000 노드시간 확보 → Stage-2 재실행 여력 생김. 현재 계정은 **세팅·검증 전담**, GitHub 공유 → 다른 계정 재현 실행.)
+
+| 소스 | 학습 | 홀드아웃 | 정답형식 | 왜 |
+|---|---|---|---|---|
+| DeepVision-103K (기존) | 102,531 | 972 | math/MC | 일반 시각추론 |
+| **MMK12** | 15,207 | 400 | 수치/수식 87% | **K-12 STEM** — math 약점 직격 |
+| **ThinkLite-VL-hard** | 10,611 | 301 | 수치 34%·짧은문자열 61% | hard 멀티모달·다양성 |
+| **합계** | **128,349** | **1,673** | | |
+
+- **RLVR 에 이상적**: 이 둘은 콜드스타트에서 "추론 trace 없음"으로 탈락했으나, RLVR 은 prompt+검증가능정답만 필요 → 오히려 적합.
+- **오염 방지**: 신규 홀드아웃은 **이미지 바이트해시 dedup**(구 22% 오염 원인이던 경로기준 분리를 교정) — 검증됨 누수 0.
+- **init = v3** `sft_mixed_merged`. 재현 절차 → [`docs/stage2_expansion_runbook.md`](docs/stage2_expansion_runbook.md).
+- 스크립트: `13_build_stage2_expanded.slurm`(변환) · `build_stage2_mix.py`(조립) · `launch_stage2_expanded.sh`(제출) · `20_rlvr_grpo.slurm`(기본값=확장).
+- ⏳ **남은 것**: 배선 스모크(`SMOKE=1`) 후 다른 계정서 본실행(dr_grpo, ~70h). 평가는 소스별 확장 홀드아웃.
 
 ### 1) baseline → Acc plateau 진단 (job 57249, step 1000 완주)
 

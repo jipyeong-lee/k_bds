@@ -1,11 +1,19 @@
 #!/bin/bash
 # =============================================================================
 # 20_rlvr_grpo.slurm — [2단계] 범용 멀티모달 RLVR/GRPO 훈련
-#   데이터: DeepVision-103K (검증가능 정답 → 규칙기반 보상)
+#   데이터: (풀확장) DeepVision-103K + MMK12 + ThinkLite-VL = 128,349 (검증가능 정답)
 #   계획서 산정: 1노드 × 70h × 8GPU × 6사이클(ablation) = 3,360 노드시간
 #   GRPO: 정책/참조 모델 + vLLM rollout 동시 적재 → VRAM 압박 큼.
 #         8gpu=A100 80GB라 7B는 server 모드(GPU 분리)로 안정. colocate도 가능.
 #   ※ ablation 6사이클을 동시 제출하면 8gpu 동시제출 한도(6개)에 도달.
+#
+#   ── 2026-07-22 풀확장 재설계 (Stage-2 다양성↑, v3 약점 math 겨냥) ──────────
+#   기본값이 바뀜: INIT = v3 콜드스타트 병합본(sft_mixed_merged), DATA = 확장셋.
+#   재현: 데이터 빌드 = scripts/{13_build_stage2_expanded.slurm, build_stage2_mix.py}
+#         런처       = scripts/launch_stage2_expanded.sh (env 세팅 + 제출)
+#         상세       = docs/stage2_expansion_runbook.md
+#   구 경로(DeepVision 단일·base init)로 돌리려면:
+#     INIT_MODEL=$BASE_MODEL DATASET_FILE=$DATA_DIR/deepvision103k_train.jsonl sbatch ...
 # =============================================================================
 #SBATCH --job-name=kbds-grpo
 #SBATCH --partition=8gpu          # A100 80GB ×8 — GRPO에 충분
@@ -22,9 +30,10 @@ source /home01/k252a01/kbds_project/scripts/00_common.sh
 # 호스트 모듈은 conda 폴백 시에만 필요(컨테이너는 자체 cuda/gcc 보유)
 if [[ "$ENV_MODE" == conda ]]; then module load compilers/cuda/12.4 compilers/gcc/10.2.0; fi
 
-# 베이스(또는 cold-start 병합 모델)에서 GRPO. cold-start LoRA 병합본을 INIT_MODEL 로 지정 권장.
-INIT_MODEL="${INIT_MODEL:-$BASE_MODEL}"
-DATASET_FILE="${DATASET_FILE:-$DATA_DIR/deepvision103k_train.jsonl}"
+# 기본값 = 풀확장 경로. INIT = v3 콜드스타트 병합본, DATA = 확장 RLVR 셋(128,349).
+#  (sft_mixed_merged 가 없으면 먼저 scripts/50_eval_v3.slurm 또는 12_merge_mixed 로 병합)
+INIT_MODEL="${INIT_MODEL:-$CKPT_DIR/sft_mixed_merged}"
+DATASET_FILE="${DATASET_FILE:-$DATA_DIR/stage2_expanded_train.jsonl}"
 EXTRA_ARGS="${EXTRA_ARGS:-}"            # 스모크 테스트: EXTRA_ARGS="--max_steps 3"
 
 # ⚠️ 이 클러스터는 NVLink 없음(PCIe A100, NCCL→SHM) → full-FT 멀티GPU 통신병목(375~660s/step).

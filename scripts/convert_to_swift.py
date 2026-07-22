@@ -7,8 +7,10 @@ ms-swift GRPO 포맷(검증가능/개방형 공통):
   - 이미지는 parquet 내장({bytes,path}) → 로컬 PNG 추출(컴퓨트노드 오프라인 대비), images 에 경로 기록.
 
 지원 스키마 (자동 감지):
-  - DeepVision-103K : question / images(list) / reward_model.ground_truth   [RLVR]
-  - medix-rl-data   : problem  / image(list)  / solution                    [개방형 의료]
+  - DeepVision-103K : question / images(list)   / reward_model.ground_truth  [RLVR]
+  - medix-rl-data   : problem  / image(list)    / solution                   [개방형 의료]
+  - MMK12           : question / image(dict)    / answer                     [RLVR·STEM, $$..$$ 정규화]
+  - ThinkLite-VL    : problem(이미 <image> 포함) / image(raw bytes) / ground_truth [RLVR·hard]
 
 * datasets 라이브러리 대신 pyarrow 로 스트리밍(저메모리 + datasets 버전 무관).
 
@@ -26,9 +28,11 @@ from PIL import Image
 
 
 def to_pil(item):
-    """parquet 이미지 항목({'bytes','path'} 또는 PIL)을 PIL.Image 로."""
+    """parquet 이미지 항목(PIL / {'bytes','path'} / raw bytes)을 PIL.Image 로."""
     if isinstance(item, Image.Image):
         return item
+    if isinstance(item, (bytes, bytearray)):           # ThinkLite-VL: 컬럼이 raw bytes
+        return Image.open(io.BytesIO(item))
     if isinstance(item, dict):
         if item.get('bytes'):
             return Image.open(io.BytesIO(item['bytes']))
@@ -62,13 +66,20 @@ def main():
         raise SystemExit(f'parquet 파일 없음: {args.parquet}')
     # 스키마 감지(첫 파일 top-level 컬럼 — arrow 스키마라야 struct 가 평탄화 안 됨)
     cols = set(pq.ParquetFile(files[0]).schema_arrow.names)
+    ans_col = None
     if 'reward_model' in cols:
-        q_col, img_col, kind = 'question', 'images', 'deepvision'
+        q_col, img_col, kind = 'question', 'images', 'deepvision'   # ans = reward_model.ground_truth
     elif {'problem', 'solution'} <= cols:
-        q_col, img_col, kind = 'problem', 'image', 'medix'
+        q_col, ans_col, img_col, kind = 'problem', 'solution', 'image', 'medix'
+    elif {'question', 'answer'} <= cols:                            # MMK12
+        q_col, ans_col, img_col, kind = 'question', 'answer', 'image', 'mmk12'
+    elif {'problem', 'answer'} <= cols:                             # ThinkLite-VL (problem 에 <image> 내장)
+        q_col = 'problem'
+        ans_col = 'ground_truth' if 'ground_truth' in cols else 'answer'
+        img_col, kind = 'image', 'thinklite'
     else:
         raise SystemExit(f'알 수 없는 스키마. columns={sorted(cols)}')
-    print(f'[{kind}] parquet {len(files)}개, q={q_col}, img={img_col} → {args.out}')
+    print(f'[{kind}] parquet {len(files)}개, q={q_col}, ans={ans_col or "reward_model"}, img={img_col} → {args.out}')
 
     tag = args.name.split('/')[-1].replace('.', '_')
     n = 0
@@ -76,9 +87,15 @@ def main():
         for i, row in enumerate(iter_rows(files)):
             if args.limit and n >= args.limit:
                 break
-            sol = (row.get('reward_model') or {}).get('ground_truth') if kind == 'deepvision' else row.get('solution')
-            if not sol:
+            if kind == 'deepvision':
+                sol = (row.get('reward_model') or {}).get('ground_truth')
+            else:
+                sol = row.get(ans_col)
+            if sol is None or str(sol).strip() in ('', 'None'):
                 continue
+            sol = str(sol).strip()
+            if kind in ('mmk12', 'thinklite'):
+                sol = sol.strip('$').strip()               # $$10$$ → 10 (검증가능 평문화)
             imgs = row.get(img_col) or []
             if not isinstance(imgs, list):
                 imgs = [imgs]
@@ -93,10 +110,12 @@ def main():
                 paths.append(p)
             if not paths:
                 continue
-            content = '<image>' * len(paths) + '\n' + str(row.get(q_col, '')).strip()
+            q = str(row.get(q_col, '')).strip()
+            # ThinkLite 의 problem 은 이미 <image> 토큰을 포함 → 중복 방지
+            content = q if '<image>' in q else ('<image>' * len(paths) + '\n' + q)
             rec = {'messages': [{'role': 'user', 'content': content}],
                    'images': paths,
-                   'solution': str(sol).strip()}
+                   'solution': sol}
             f.write(json.dumps(rec, ensure_ascii=False) + '\n')
             n += 1
             if n % 1000 == 0:

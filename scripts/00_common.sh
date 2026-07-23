@@ -5,7 +5,9 @@
 # =============================================================================
 
 # ---- 프로젝트 경로 ----------------------------------------------------------
-export PROJ_DIR="/home01/k252a01/kbds_project"
+# 다른 계정 이식: PROJ_DIR 만 바꾸면 파생경로(WORK_DIR 등) 자동 추종. 단 *.slurm 의
+#  #SBATCH --output 은 SBATCH 지시어라 env 치환 불가 → 인수인계(HANDOFF.md)의 sed 로 일괄교체.
+export PROJ_DIR="${PROJ_DIR:-/home01/k252a01/kbds_project}"
 # 가이드: 모든 분석/저장은 작업(홈) 디렉토리에서 수행. 홈 quota는 사실상 무제한(Lustre).
 # (대용량 임시 IO를 scratch에 두려면 WORK_DIR=/scratch/k252a01/kbds 로 override)
 export WORK_DIR="${WORK_DIR:-/home01/k252a01/kbds_project/work}"  # 산출물 루트

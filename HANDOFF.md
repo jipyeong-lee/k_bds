@@ -1,116 +1,118 @@
-# HANDOFF — K-BDS 의료 멀티모달 교차추론 학습 파이프라인
+# 인수인계 (HANDOFF) — K-BDS 의료 멀티모달 파이프라인
 
-> 갱신: 2026-06-30 / 다음 작업자(또는 다음 세션)를 위한 인수인계.
-> 상세 배경은 `README.md`(현황·의사결정·섹션별)와 `docs/worklog_*.md`(일별) 참조.
-
----
-
-## 1. 현재 위치 (TL;DR)
-
-- **Stage-2(범용 RLVR/GRPO) — dr_grpo 로 1 epoch 재학습 진행 중.**
-  - GRPO 파생기법 A/B 결과 **dr_grpo 가 승자**(baseline·DAPO 는 plateau 미돌파). → §2.
-  - ⚠️ **직전까지의 dr_grpo 런은 두 문제로 재학습 중**: ① 데이터의 **21%(step~650)만** 학습(중간 중단), ② 평가가 학습 파일 stride 슬라이스라 **진짜 홀드아웃이 아님**(누수).
-  - **조치**: 정답유형 **층화 홀드아웃 분리** + **init 부터 trainonly 로 fresh 1 epoch 재학습**(누수 0). → §2.
-  - **현재 실행 중**: job **58892**(dr_grpo, trainonly, MAX_STEPS=3204) + afterany 체인 5잡(총 6잡, QOS 상한).
-- **Stage-3(의료 RL, RaR) — 설계·검증 완료, Stage-2 완주까지 대기.** 루브릭 보상·judge 검증·배선 끝. 정적 vs 인스턴스 루브릭 실증 비교로 **정적 채택 확정**. → §3.
+> **갱신 2026-07-23.** 다른 계정/사람이 **이어받아 실행**하기 위한 단일 문서.
+> 큰 그림·수치는 [`README.md`](README.md), 확장 재현은 [`docs/stage2_expansion_runbook.md`](docs/stage2_expansion_runbook.md).
 
 ---
 
-## 2. Stage-2 — 범용 RLVR (GRPO 파생기법 A/B → dr_grpo 재학습)
+## 1. 지금 어디까지 왔나 (한눈에)
 
-### 2.1 기법 A/B 결론 (완결)
+| 단계 | 상태 | 핵심 |
+|---|---|---|
+| ① 콜드스타트 SFT | ✅ **v3 완료·평가됨** | 형식천장 완파(`format_think` v2 0.185→**v3 0.909**), 홀드아웃 acc v2 0.295→**v3 0.348** |
+| ② 범용 RLVR | ✅ 방법론 종결(dr_grpo) · 🔧 **풀확장 세팅완료·실행대기** | DeepVision+MMK12+ThinkLite=**128,349**, init=v3 |
+| ③ 의료 RL (RaR) | 🟡 배선 e2e PASS · **본실행 미시작** | judge(Qwen3.6-27B-FP8)·루브릭 검증완료 |
+| ④ 평가 | 🔄 기준선·v3 홀드아웃 완료 | HealthBench base 0.229/v2 0.224(n=1000), v3 미측정 |
 
-| | baseline | DAPO | **dr_grpo (승자)** |
-|---|---|---|---|
-| 레시피 차이 | 표준 GRPO | `loss_type=dapo`+clip-higher(0.28) | `loss_type=dr_grpo`+`scale_rewards=none` |
-| 공통 코어 | — | `dynamic_sample`+`overlong_filter` | `dynamic_sample`+`overlong_filter` |
-| step501~600 Acc(학습) | 0.500 | 0.465 ❌ | **0.526 ✅** |
-| 진단 | plateau(zero_std 0.24→0.33) | 돌파 미확인·길이 재폭주 | **돌파**(길이 억제 동반) |
-
-- 메커니즘: dr_grpo 는 loss_type(길이정규화 편향)·scale_rewards=none(난이도 편향) 두 편향 제거로 plateau 직격.
-- 스크립트: `scripts/21_rlvr_grpo_adv.slurm`(RECIPE=dapo|gspo|dr_grpo, RESUME/MAX_STEPS 지원).
-
-### 2.2 🚨 홀드아웃 정비 + 1 epoch 재학습 (현재 작업)
-
-- **문제**: 기존 평가(`eval_compare.py`)가 학습 파일 `deepvision103k_train.jsonl` 의 stride(`i%137==11`) 슬라이스라 **분리 보장 없음**. 1 epoch 가면 평가샘플 전부 학습 포함 → 암기 측정.
-- **분리** (`scripts/make_holdout.py`, 재현 가능): DeepVision 엔 카테고리 라벨 없음 → **정답유형을 math/visual-logic 프록시**로.
-  - `math`(수치+수식) 45,284 / `vl`(객관식 MC) 51,896 / `other`(모호) 6,323.
-  - 각 층 **1%** 추출 → **`deepvision_holdout.jsonl` 972**(math 453 + vl 519), 나머지 `deepvision103k_trainonly.jsonl` **102,531**. 합계 103,503 검증.
-- **재학습**: init=`sft_rft_coldstart_merged` 에서 **fresh**(체크포인트 resume 아님 = 홀드아웃 미관측 보장), `DATASET=trainonly`, `MAX_STEPS=3204`(=1 epoch, 102531/32).
-  - 출력 `work/checkpoints/grpo_general_adv_dr_grpo_he/`. 6잡 afterany 체인(58892~58982).
-- **평가**: `eval_compare.py` → holdout 전용(stride 제거) + **math/vl 층별 정확도 분리 보고**(`_stratum` 필드).
-- **속도/병목 진단**: 실측 ~365s/step(step_time 185 + 생성·동기화 ~180). **병리적 정체 아님** — 긴 생성(max_completion 6144, num_gen 4) + 40GB colocate(vllm_util 0.4) + NVLink 부재의 구조적 비용. 6잡 체인으로 완주 여유 확보.
-
-### 2.3 ⚠️ 무효화된 이전 수치
-
-- 이전 "base→학습모델 정확도 0.21→0.35(+67%)"(구 checkpoint-600, 구 stride 평가)는 **in-distribution 오염 + 21% 학습** 이라 **무효**. 1 epoch 완주 후 **층화 홀드아웃에서 재측정**해 교체.
-- 구 산출물 `work/checkpoints/dr_grpo_merged`(구 checkpoint-600 병합)도 재학습 최종본으로 교체 예정.
+**바로 다음 임계경로**: Stage-2 풀확장 **배선 스모크 → 본실행**(다른 계정, ~70h/8gpu). 그 다음 Stage-3.
 
 ---
 
-## 3. Stage-3 — RaR 루브릭 보상 (설계 확정·judge 검증 완료, 대기)
+## 2. 🚨 다른 계정으로 옮길 때 — 반드시 먼저 (경로/토큰/컨테이너)
 
-개방형 의료 VQA(medix)는 단일정답 규칙검증 불가 → **Rubric-as-a-Reward**(arXiv:2507.17746). 상세 `docs/medical_reward_spec.md`.
+이 레포는 `/home01/k252a01/kbds_project` 를 가정한다. 새 계정에선 아래 3가지를 **먼저** 처리:
 
-- **데이터**: `work/data/medix_rl_train.jsonl`(51,335, 단답 의료 VQA. 예 "28×27mm"·"X-ray"). RaR-Medicine-20k 는 텍스트전용·장문이라 스키마만 차용.
-- **루브릭(정적 통일 4차원, 가중=RaR 정수)**: 정답정확성(5,참조답 주입) / 시각근거(3,`<think>`) / 정밀도·단위(3,측정형 자동분기) / 환각Pitfall(4). explicit 집계 `r=Σwⱼcⱼ/Σwⱼ`.
-- **정적 vs 인스턴스(논문식) 실증 비교** (`scripts/34_rubric_compare.slurm`, medix 40샘플): 항목수 비슷(3.0 vs 2.7)이나
-  - 오답 기각 **정적 0.000 vs 인스턴스 0.118**, 환각변별(good−halluc) **정적 +0.338 vs 인스턴스 +0.021**.
-  - 인스턴스는 이미지 없이 참조답만으로 생성돼 **시각근거 항목을 못 만듦** → **정적 통일 루브릭 채택 확정**.
-- **구현** `configs/medical_reward.py` `ClinicalJudgeReward(AsyncORM)`: 형식게이트→멀티모달 judge API→JSON 0/1 파싱→집계. 유닛테스트 24/24.
-  - 사용 `--reward_funcs format_think clinical_judge --external_plugins configs/accuracy.py configs/medical_reward.py --reward_weights 0.2 1.0`.
-  - env: `JUDGE_BASE_URL`/`JUDGE_MODEL=qwen36-judge`/`JUDGE_API_KEY`.
+```bash
+# (A) 경로 일괄 치환 — PROJ_DIR 은 env 로 되지만, *.slurm 의 #SBATCH --output 은 지시어라 치환 필요
+NEW=/home01/<새계정>/kbds_project
+grep -rl "/home01/k252a01/kbds_project" scripts/ | \
+  xargs sed -i "s#/home01/k252a01/kbds_project#$NEW#g"
+#   → 38개 스크립트의 하드코딩 경로 + 26개 slurm 의 --output 을 한 번에 교체.
+#   00_common.sh 의 PROJ_DIR 도 이 값으로 바뀜(파생 WORK_DIR/HF_HOME/CKPT_DIR 자동 추종).
 
-### judge 모델 = `Qwen/Qwen3.6-27B-FP8` (검증 완료)
-- 멀티모달, **`model_type=qwen3_5` = base 와 동일 arch** → 컨테이너 vLLM 0.19.1 그대로 서빙. `work/hf_cache` 다운로드 완료(~30GB).
-- 서버 `scripts/judge_server.sh`(40GB 보수설정). 스모크(58296): FP8 36.6GB 단일40GB 적합, 멀티모달 채점·JSON OK, 정답1.0>오답0.0 단조성 PASS.
-- 분포 프로브(33): good0.96/wrong0.00/halluc0.64, 단조성99%, c2변별 good0.94 vs halluc0.00(c2 완화 반영).
-- 내부망 도달성(32): hostname·IP 200 통과.
+# (B) HF 토큰 (게이트·rate-limit 회피, MMK12 큰 parquet 정체 방지)
+export HF_TOKEN=hf_xxx           # 이 계정은 ~/model_download.py 에 보유했음
 
----
+# (C) 컨테이너 이미지 재빌드 (git 에 없음, ~수GB)
+bash env/build_image.sh          # → $WORK_DIR/images/ms-swift-413-sandbox
 
-## 4. 🚨 핵심 제약 / 함정 (Lessons learned)
+# (D) 변환용 python (pyarrow+PIL) — 위 sed 가 못 잡는 계정밖 경로. 13_build_stage2_expanded 에서 씀.
+export BUILD_PY=/home01/<새계정>/.conda/envs/<env>/bin/python   # pyarrow+PIL 있는 아무 python
+```
 
-- **NVLink 없음** → ZeRO-3/full-FT 5배 느림(불채택). **전 단계 LoRA-DDP**.
-- **로그인노드 vLLM 불가**: 드라이버 470(CUDA11.4) → `cuTensorMapEncodeTiled` 없어 로드 실패. **모든 GPU 추론/학습은 컴퓨트노드(550)**. judge 도 컴퓨트노드.
-- **컴퓨트노드 외부망 차단**(오프라인): 외부 API judge 불가 → 내부 self-host. **노드 간 내부망은 열림**.
-- **Qwen3 judge 는 추론모델** → `enable_thinking=False`(chat_template_kwargs)로 끄고 JSON만 받음.
-- **vLLM 0.19.1 `--limit-mm-per-prompt` 는 JSON 문법**(`'{"image":1}'`).
-- **base 평가는 로컬 스냅샷 경로**로(HF id 주면 컨테이너가 modelscope 접근→read-only 실패). `VLLM_USE_MODELSCOPE=False`.
-- **swift GRPO 는 reward 플러그인에 `images` 를 str 경로가 아니라 dict `{'bytes':..,'path':..}` 로 넘김**(스모크 실측). 커스텀 보상은 이 형식을 처리해야 함(안 하면 이미지 누락·시각근거 채점 blind). `medical_reward.py:_image_to_data_url` 가 str/dict/PIL 모두 처리. reward kwargs 실측 키: `['finish_reason','images','is_truncated','messages','prompt_id','request_id','response_token_ids','rollout_logprobs','solution','trainer_state']`.
-- **Stage-3 배선 스모크**(`35_stage3_smoke.slurm`): idle 8gpu 노드에서 GPU0=judge/GPU1=소형 트레이너(max_steps 2). `JUDGE_DEBUG=1` 로 images kwarg 도달 검증. **PASS 확인**: data_url_ok=True, ClinicalJudgeReward 0.58→1.0, reward=0.2·Format+1.0·Clinical 정확 통합.
-- **평가는 반드시 학습 미관측 홀드아웃에서** — stride 슬라이스는 학습 파일과 겹침(누수). §2.2.
-- 단일 step 지표 노이즈 큼 → 구간평균으로 판단. 출력 형식 `<think>…</think><answer>…</answer>` 공통.
+> **git 에 없는 것(전부 재생성/재빌드)**: `work/` 하위 전체 — 데이터 jsonl·이미지·체크포인트·컨테이너·HF캐시. 코드/설정/문서만 git 에 있다. 데이터는 §4 로 재현.
 
 ---
 
-## 5. 다음 할 일 (순서)
+## 3. 환경 함정 (겪고 기록한 것 — 재발 방지)
 
-1. [진행중] **Stage-2 dr_grpo 1 epoch 완주** — 58892~58982 체인(trainonly, MAX_STEPS=3204). 모니터: `squeue -u $USER`, `ls work/checkpoints/grpo_general_adv_dr_grpo_he/*/checkpoint-*`.
-2. [ ] **최종 checkpoint 재병합** → `dr_grpo_merged` 갱신 (`merge_drgrpo.slurm ADAPTER=<최종ckpt>`).
-3. [ ] **층화 홀드아웃 벤치마크** (`40_eval_compare.slurm`): base vs 학습본, **math/visual-logic 분리** 정확도 → README 정식 수치로 교체.
-4. [ ] **Stage-3 init 교체**(→ 재병합본) 후 **Stage-3 본실행** `bash scripts/launch_stage3.sh`(judge 1gpu + 학습 8gpu 동시, 끝나면 judge scancel).
-5. [ ] `40_eval` 의료 멀티모달 벤치마크 교체.
-
----
-
-## 6. 실행 / 환경 메모
-
-- **클러스터**: KISTI K-BDS Slurm. 파티션 `1gpu`/`2gpu`(A100 40GB)·`4gpu`/`8gpu`(80GB). 학습=8gpu, judge/eval=1gpu. **QOS 사용자당 제출 상한 6잡**.
-- **컨테이너**: `work/images/ms-swift-413-sandbox`(swift4.1.3/torch2.10/vllm0.19.1). glibc2.17이라 conda vLLM 불가.
-- **공통설정**: `scripts/00_common.sh`. 단일GPU 디버그 `export NPROC_PER_NODE=1`.
-- **홀드아웃 재생성**: `python3 scripts/make_holdout.py`.
-- **1 epoch 재학습 체인 제출**(참고): `--export=ALL,RECIPE=dr_grpo,[RESUME=1,]DATASET_FILE=<trainonly>,OUTPUT_DIR=<_he>,MAX_STEPS=3204` 로 첫잡 fresh + afterany 체인.
-- **Stage-3 실행**: `bash scripts/launch_stage3.sh`. **푸시**: `git push origin HEAD:master`.
-- ⚠️ **보안**: `~/model_download.py` HF 토큰 평문 노출 — 재발급·env 분리 권장.
+- **NVLink 없음**(PCIe A100, NCCL→SHM) → full-FT 375~660s/step. **전 단계 LoRA 필수**.
+- **계산노드 컨테이너 불가**: CPU 노드 `max_user_namespaces=0` → Singularity 즉사. GPU 노드만 컨테이너 O. **데이터 변환은 conda `swift` env(pyarrow+PIL)로 CPU 잡** 실행(컨테이너 우회).
+- **로그인노드 워치독**: 무거운 작업(대용량 이미지 추출 등) ~15분 무통보 kill. → 빌드는 CPU 잡으로. 로그는 항상 `python -u`.
+- **HF 오프라인 플래그**: `00_common.sh` 가 `HF_HUB_OFFLINE=1` 설정 → 다운로드 시 런칭셸에서 **`unset HF_HUB_OFFLINE` + `--env HF_HUB_OFFLINE=0`**.
+- **글로벌 vLLM 로그인노드 불가**(드라이버) → judge·학습·추론 전부 컴퓨트노드.
+- **swift export 병합/eval 은 GPU 노드에서만**(컨테이너 필요). merge_lora 는 CPU 연산이지만 컨테이너가 CPU 노드서 안 도는 게 제약.
 
 ---
 
-## 7. 자산 위치
+## 4. Stage-2 풀확장 — 실행 절차 (이 계정서 세팅·검증 완료)
 
-- **Stage-2 재학습 출력**: `work/checkpoints/grpo_general_adv_dr_grpo_he/` (진행중, save_steps=50).
-- **Stage-3 init(예정)**: 위 재학습 최종 checkpoint 병합본(= `dr_grpo_merged` 갱신).
-- **judge 모델**: `work/hf_cache/.../models--Qwen--Qwen3.6-27B-FP8` (~30GB).
-- **데이터**: `work/data/{deepvision103k_trainonly.jsonl, deepvision_holdout.jsonl, medix_rl_train.jsonl}`. 분리기 `scripts/make_holdout.py`.
-- **스펙/일지**: `docs/medical_reward_spec.md`, `docs/worklog_2026-06-*.md`.
-- **메모리**: `~/.claude/.../memory/` (클러스터 환경·과제목표·glibc/컨테이너 제약).
+전 과정 상세 = [`docs/stage2_expansion_runbook.md`](docs/stage2_expansion_runbook.md). 요약:
+
+```bash
+# 1) 데이터 다운로드 (로그인노드, 컨테이너, HF_TOKEN)
+#    DeepVision-103K · medix-rl-data · FanqingM/MMK12 · russwang/ThinkLite-VL-hard-11k
+# 2) 신규 2종 변환 (CPU 잡)
+sbatch scripts/13_build_stage2_expanded.slurm
+# 3) 확장셋 조립 (bytehash dedup, seed=42)
+python3 scripts/build_stage2_mix.py            # → stage2_expanded_{train 128,349 / holdout 1,673}
+# 4) v3 init 준비
+sbatch scripts/10_sft.slurm                    # v3 SFT → sft_mixed_lora
+sbatch scripts/12_merge_mixed.slurm            #  → sft_mixed_merged (또는 50_eval_v3.slurm)
+# 5) Stage-2 확장 GRPO
+SMOKE=1 bash scripts/launch_stage2_expanded.sh # 배선 스모크(먼저!)
+bash scripts/launch_stage2_expanded.sh         # 본실행 (dr_grpo, ~70h)
+# 6) 평가: stage2_expanded_holdout.jsonl 소스별(_source)·층별(_stratum) 채점
+```
+
+**검증된 기준선(이 계정 실측)**: v3 콜드스타트 홀드아웃 **0.348**(math 0.324=약점) / v2+RL 0.380~0.390.
+→ 확장 성패 = **신규 홀드아웃(MMK12/ThinkLite)에서 v3(0.348) 대비 상승 + DeepVision 유지**.
+
+---
+
+## 5. 남은 일 (우선순위)
+
+1. **Stage-2 확장 스모크 → 본실행** (다른 계정, 예산 5,000h).
+2. **확장 결과 평가** → v3 대비 STEM 이득 확인.
+3. **Stage-3 본실행**: `bash scripts/launch_stage3.sh` (init=Stage-2 산출 병합본, GDPO 레시피 권고). 계획서 핵심 산출물·미시작.
+4. (옵션) v3 HealthBench Hard(n=1000, ~28 노드시간, gpu:2) — base 0.229/v2 0.224 대비.
+5. (기록만) 구 DeepVision 홀드아웃 22% 오염 재구성.
+
+---
+
+## 6. 파일 지도 (핵심만)
+
+```
+scripts/
+  00_common.sh                     공통 경로/환경/run_py 래퍼  ← 이식 시 PROJ_DIR
+  10_sft.slurm                     Stage-1 v3 SFT (기본값=sft_mixed)
+  build_mixed_coldstart.py         v3 콜드스타트 데이터 빌드
+  50_eval_v3.slurm / eval_v3_holdout.py   병합+홀드아웃 평가(strict format_think·층별)
+  52_eval_v2_baseline.slurm        v2 동일조건 재측정
+  13_build_stage2_expanded.slurm   MMK12·ThinkLite 변환(CPU)
+  build_stage2_mix.py              확장셋 조립+홀드아웃(bytehash dedup)
+  convert_to_swift.py              parquet→swift (DeepVision/medix/MMK12/ThinkLite 자동감지)
+  20_rlvr_grpo.slurm               Stage-2 GRPO (기본값=v3 init+확장셋)
+  launch_stage2_expanded.sh        Stage-2 확장 표준 진입점
+  30_medical_rl.slurm / launch_stage3.sh / judge_server.sh   Stage-3
+  make_holdout.py                  DeepVision 층화 홀드아웃
+configs/
+  accuracy.py                      accuracy_mix + format_think 보상
+  medical_reward.py                Stage-3 RaR clinical_judge
+docs/
+  stage2_expansion_runbook.md      확장 재현 0~6단계
+  medical_reward_spec.md · worklog_*.md · project_status_*.md
+work/  (git 제외 — 재생성)          data·images·checkpoints·hf_cache·images/컨테이너
+```
+
+**막히면**: README 현황·진행이력, 이 문서 §2(경로)·§3(함정) 순으로 확인.

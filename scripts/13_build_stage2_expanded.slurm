@@ -20,7 +20,9 @@
 
 set -uo pipefail
 cd /home01/k252a01/kbds_project
-PY=/home01/k252a01/.conda/envs/swift/bin/python     # pyarrow17+PIL (ms-swift import 는 깨졌지만 변환엔 무관)
+# 변환용 python = pyarrow+PIL 만 있으면 됨(ms-swift 불필요). 다른 계정은 BUILD_PY 로 override
+#  (conda env 경로는 계정마다 다름 — 이 값은 kbds_project 밖이라 HANDOFF 의 sed 가 못 잡음).
+PY="${BUILD_PY:-/home01/k252a01/.conda/envs/swift/bin/python}"
 DATA=work/data
 
 MMDIR=$(ls -d work/hf_cache/hub/datasets--FanqingM--MMK12/snapshots/*/data 2>/dev/null | head -1)

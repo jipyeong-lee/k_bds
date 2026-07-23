@@ -2,17 +2,17 @@
 
 계획서(`plan.hwp`) 기반, **ms-swift**로 4단계 파이프라인을 KISTI Slurm 클러스터에 맞춰 구성:
 **① (format) 콜드스타트 SFT → ② 범용 RLVR/GRPO → ③ 의료 특화 RL(RaR) → ④ 평가**.
-일별 상세는 `docs/worklog_*.md`.
+일별 상세는 `docs/worklog_*.md`. **다른 계정 인수인계·이식 → [`HANDOFF.md`](HANDOFF.md)**.
 
 ---
 
-## 현황 (2026-07-20)
+## 현황 (2026-07-23)
 
 **지금 위치**: **Stage-1 콜드스타트 v3 평가완료 — 형식 천장 완파**(생성 `format_think` v2-SFT **0.185**→v3 **0.909**, 같은 하니스; 홀드아웃 acc v2 **0.295**→v3 **0.348** [결과](#v3-홀드아웃-평가-결과--형식-천장-완파-job-69807-2026-07-20), **v2 동일조건 재측정 완료**) · Stage-2 방법론 전부 판정 완료 · **Stage-3(의료 RL) 본실행 대기**. → 다음: **Stage-2 재개 vs Stage-3 직행** 결정.
 
 > 📋 **문제정의·실험결과·해결방안·목표·기한** 4축 → [`docs/project_status_2026-07-05.md`](docs/project_status_2026-07-05.md)
 
-> ⚠️ **예산 주의**: 계획서 5,000 노드시간 중 **약 4,164 소진(83.3%)** — 잔여 **~836**. Stage-2 GRPO 1회 = **~500**(70h×8)이라 **재실행 여력 없음**. SFT 는 ~5로 저렴. → [자원](#자원--운영-정책-가이드)
+> ⚠️ **예산**: 이 계정(k252a01)은 5,000 중 **~4,164 소진(83%)** — 잔여 ~836, Stage-2 재실행 불가. **그러나 2026-07-22 다른 계정에 5,000 노드시간 별도 확보** → **Stage-2 풀확장 본실행은 그쪽에서**. 이 계정은 **세팅·검증 전담**(SFT·데이터빌드·평가 = 저렴). → [자원](#자원--운영-정책-가이드) · 이식 [`HANDOFF.md`](HANDOFF.md)
 
 | 단계 | 상태 | 핵심 결과 |
 |---|---|---|
@@ -32,7 +32,7 @@
 ---
 
 ## 목차
-1. [현황](#현황-2026-07-20)
+1. [현황](#현황-2026-07-23)
 2. [파이프라인 4단계](#파이프라인-4단계)
 3. [Stage-1 · 콜드스타트 SFT](#stage-1--콜드스타트-sft) — **v3 일반+의료 혼합 재설계**(형식 천장 규명) + ablation study(순가치)
 4. [Stage-2 · 범용 RLVR (GRPO)](#stage-2--범용-rlvr-grpo) — baseline·기법 통합비교(GRPO/DAPO/dr_grpo/GSPO/GDPO)·벤치마크
@@ -596,9 +596,11 @@ Stage-2 홀드아웃(DeepVision)은 **검증가능 정답** 기준의 내부 지
 |---|---|
 | 8gpu 잡 40개 (Stage-2 GRPO 계열 대부분) | 4,112.3 |
 | 그 외(4gpu 45.8·1gpu 3.2·debug 2.6·2gpu 0.4·cpu 0.1) | 52.1 |
-| **Stage-2 GRPO 1회** (70h×8) | **490~560** ← 재실행 여력 없음 |
+| **Stage-2 GRPO 1회** (70h×8) | **490~560** ← 이 계정 불가, **다른 계정(5,000h)서 실행** |
 | **SFT 1회** (12~39분) | **2~5** ← 사실상 공짜 |
 | Stage-3 (미시작, 계획서 핵심 산출물) | ~500 예상 |
+
+> **2026-07-22 예산 방향전환**: 다른 계정에 5,000 노드시간 별도 확보 → Stage-2 풀확장 + Stage-3 둘 다 가능. 이 계정은 세팅·검증만. → [Stage-2 풀확장](#0-풀확장-재설계-2026-07-22-세팅-완료실행-대기) · [`HANDOFF.md`](HANDOFF.md)
 
 → **콜드스타트 v3 재구축은 저렴(SFT+평가 ~15)하나, 그 위에 Stage-2 를 다시 돌릴 여력은 없다.** 잔여 배분은 v3 SFT+평가 수치를 보고 결정.
 *(Slurm 에 하드 리밋은 없음 — `GrpTRESMins` 미설정이라 잡이 거부되진 않는다. 계획서/보고 기준.)*
@@ -616,7 +618,7 @@ Stage-2 홀드아웃(DeepVision)은 **검증가능 정답** 기준의 내부 지
 ### 데이터 (소스 확정 + 변환 검증)
 - **Stage-1 (v3 혼합 콜드스타트)**: `neginb/OpenMedReason`(150,246·CC-BY-4.0·**게이트 auto**, 웹 동의 1회 필요) + `TIGER-Lab/VisualWebInstruct-verified`(97,295·MIT) + `UCSC-VLAA/VLAA-Thinking`(126,413·Apache-2.0). 전부 이미지 내장·다운로드 완료. 빌드 `build_mixed_coldstart.py` → [Stage-1](#stage-1--콜드스타트-sft).
   - ⚠️ VLAA 는 `vg`(38,242)·`coco`(8,727) = **46,969건의 이미지 tar 이 레포에 없음** → 해당 서브셋 제외(Visual Genome·COCO 별도 수급 시 복귀 가능). tar 보유: allava_laion·arxivqa·chartqa·clevr_math·docvqa·geoqa170k·synthesis·vizwiz(총 26.2GB).
-- **Stage-2**: `skylenage-ai/DeepVision-103K`(수학 77K + 시각논리 26K = 103K, 검증가능 정답). `DeepMath-103K`(텍스트) 혼동 주의.
+- **Stage-2 (풀확장)**: `skylenage-ai/DeepVision-103K`(수학 77K + 시각논리 26K, 검증가능) + `FanqingM/MMK12`(15,616·K-12 STEM·수치정답 87%) + `russwang/ThinkLite-VL-hard-11k`(11,031·hard). 셋 다 비게이트·이미지내장. 조립 = `build_stage2_mix.py`(bytehash dedup) → 확장 train 128,349 / holdout 1,673. `DeepMath-103K`(텍스트) 혼동 주의.
 - **Stage-3**: `MBZUAI/medix-rl-data`(51K, 개방형 의료 멀티모달). 둘 다 `work/hf_cache` 다운로드 완료·게이트 없음.
   - ⚠️ medix 는 **assistant 가 비어 있다**(prompt+solution 만) → 의료 추론 트레이스 없음. 정답도 `<MODALITY>\n자유서술`(중앙값 47자)이라 정확매칭 불가 = Stage-3 가 RaR judge 를 쓰는 이유.
 - K-BDS 공개데이터 경로: `/kobic/ICECAP/DataStation/` · 매핑표 `/scratch/database/KBDSMAP/` · 업로드 `kbds-dm.kisti.re.kr`.
@@ -728,7 +730,7 @@ sbatch          --dependency=afterok:$JID3 scripts/40_eval.slurm
 |---|---|---|---|
 | **기반** | 06-15 | ✅ | NVLink 부재 발견 → **전 단계 LoRA** 강제 (full-FT 375~660s/step) |
 | **① 콜드스타트 SFT** | 06-15~16, 07-08~20 | ✅ **v3 평가완료** | 세 번 재설계(v1→v2→v3). **형식 천장 0.473 → 0.909 완파**, acc 0.348 |
-| **② 범용 RLVR** | 06-16~07-13 | ✅ 종결 | 기법 토너먼트 → **dr_grpo 승자**(Acc 0.526 돌파). GDPO 동률·Stage-3용 권고 |
+| **② 범용 RLVR** | 06-16~07-13 · 확장 07-22~23 | ✅ 방법론 종결 · 🔧 확장 세팅완료 | dr_grpo 승자(Acc 0.526). **풀확장**(DeepVision+MMK12+ThinkLite=128,349, init=v3) 세팅·검증 후 다른계정 실행대기 |
 | **③ 의료 RL** | 06-28~07-01 | 🟡 배선완료·본실행 대기 | RaR 루브릭·judge(27B) 검증·**e2e 스모크 PASS** |
 | **④ 평가** | 전 기간 산발 | 🔄 진행 | 누수·오염 발견마다 재측정. v3 홀드아웃 0.348 |
 
@@ -807,6 +809,8 @@ sbatch          --dependency=afterok:$JID3 scripts/40_eval.slurm
 - **07-18** — **v3 SFT 학습 완주**(job 66255, 4gpu·41분·298스텝). 9,507건 2 epochs, `train 1.12→0.60`·`eval_loss 0.679→0.668`·`eval_token_acc 0.794`, grad_norm 0.29 안정·**과적합 없음**. 병합+프로브 스크립트(`12_merge_mixed.slurm`) 작성. → [학습곡선](#v3-학습-결과--학습곡선-job-66255-2026-07-18)
 - **07-20** — **v3 홀드아웃 평가 완주**(job 69807, 972건 전량): **strict `format_think` 0.909**(v2 데이터 천장 0.473·RL 정체 0.425 **완파**), **accuracy 0.348**(v2 ~0.22, v2-RL 0.380/0.390 에 근접) — *RL 없이 SFT 만으로* 달성. 층별 math 0.324/vl 0.368, mean 1,982자, 형식위반 9.1%는 2048토큰 잘림. 부수: `sft_mixed_merged` 생성(Stage-2 새 init). **오염 비대칭 규명** — v3 는 DeepVision 미학습이라 홀드아웃 22% 오염 이득이 없어 **비교가 v3 에 보수적**. v2 동일조건 재측정 제출(70342 TIMEOUT → 70671 재제출). → [평가결과](#v3-홀드아웃-평가-결과--형식-천장-완파-job-69807-2026-07-20)
 - **07-21** — **v2 동일조건 재측정 완주**(job 70671, 972건 전량, 같은 하니스). v2-SFT: acc **0.295**·strict `format_think` **0.185**·mean **4,824자**. **A/B 확정**: 형식 v2 0.185 → v3 0.909(**5배**, 압도적), 정답률 v2 0.295 → v3 0.348(**+0.053·+18%**, 전부 **vl** 0.270→0.368; **math 는 0.3245 우연 동률**, per-sample 검증으로 artifact 아님 확인 — 정답 겹침 76/147). 과거 "~0.22"는 소표본값이라 폐기. **간결성**: v3 가 절반 길이(1,982 vs 4,824자)라 v2 는 1차 재측정서 TIMEOUT 났고 RL 잘림→형식0 의 근원. → [평가결과](#v3-홀드아웃-평가-결과--형식-천장-완파-job-69807-2026-07-20)
+- **07-22** — **예산 방향전환 + Stage-2 풀확장 착수**. 다른 계정 5,000 노드시간 확보 → "836으로 Stage-2 vs Stage-3 택1" 제약 해제. v3 약점(math 동률) 겨냥해 **STEM RLVR 추가**: `MMK12`(15,616)·`ThinkLite-VL-hard`(11,031) 다운로드·검증(정답형식 검증가능 확인)·변환(`convert_to_swift` 스키마 2종 추가, CPU 잡). 콜드스타트서 탈락했던 데이터(trace 없음)가 RLVR 엔 적합.
+- **07-23** — **Stage-2 확장 세팅 완료·GitHub 공유**. `build_stage2_mix.py`(bytehash dedup, seed42) → train **128,349**/holdout **1,673**(신규 누수 0 검증). `20_rlvr_grpo` 기본값=v3 init+확장셋, `launch_stage2_expanded.sh`, `docs/stage2_expansion_runbook.md`. **[`HANDOFF.md`](HANDOFF.md) 전면 갱신**(계정 이식 sed·환경함정·실행절차). → 다른 계정이 clone→재현→본실행. → [풀확장](#0-풀확장-재설계-2026-07-22-세팅-완료실행-대기)
 
 ### TODO
 - [x] 환경·모델·데이터 확정 + 전체 변환 (DeepVision 103K / medix 51K)
@@ -827,7 +831,10 @@ sbatch          --dependency=afterok:$JID3 scripts/40_eval.slurm
 - [x] **v3 DeepVision 홀드아웃 평가** → **acc 0.348 · strict `format_think` 0.909**(천장 0.473 완파). `sft_mixed_merged` 생성 (job 69807)
 - [x] **v2 동일조건 재측정** (job 70671, 07-21) → acc **0.295** / `format_think` **0.185**. 과거 소표본 "~0.22" 대체, v3 A/B 확정(+0.053 acc·vl 주도, 형식 5배)
 - [ ] **v3 HealthBench Hard** *(보류 — 비용 재검토 후 결정)* — base **0.229** / v2 콜드스타트 **0.224**(둘 다 `n=1000` 정식 실측)와 동일 하니스로 비교 가능하나, **실측 비용이 크다**: 과거 런 `59666`(base) **7:03 on 4gpu ≈ 28 노드시간**, `59691`(v2) **6:53 on 8gpu ≈ 55**. judge(27B)+타깃 동시 서빙이라 `gpu:2` 필수. → 잔여 예산 배분 결정 후 재검토. [추적표](#단계별-추적--healthbench-hard-n1000)
-- [ ] **잔여 ~845 노드시간 배분 결정** — ⓐ Stage-3 직행 ⓑ 짧은 Stage-2 후 Stage-3. **v3 가 이미 0.348 로 Stage-2 산출물(0.38~0.39)에 근접 → Stage-2 한계효용 의문**이 핵심 논점
+- [x] **예산 배분 결정** → 다른 계정 5,000h 확보로 제약 해제, **Stage-2 풀확장 + Stage-3 둘 다** 진행
+- [x] **Stage-2 풀확장 세팅·검증** → MMK12+ThinkLite 수급·변환·조립(train 128,349/holdout 1,673, dedup 누수0), 학습스크립트·런처·런북·HANDOFF 커밋 (다른 계정 실행대기)
+- [ ] **Stage-2 확장 배선 스모크 → 본실행** (`launch_stage2_expanded.sh`, 다른 계정 ~70h) ← **다음 임계경로**
+- [ ] **확장 결과 평가**(소스별 홀드아웃) → v3(0.348) 대비 STEM 이득 확인
 - [ ] **Stage-3 본실행**(`launch_stage3.sh`) → init 교체 ← **계획서 핵심 산출물, 미시작**
 - [ ] Stage-2·3 모델 HealthBench 추적표 ②③ 채움
 - [ ] (보류) 홀드아웃 이미지해시 기준 재구성 + clean 3종 재측정 — 예산 확보 시

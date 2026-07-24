@@ -40,7 +40,21 @@ bash env/build_image.sh          # → $WORK_DIR/images/ms-swift-413-sandbox
 export BUILD_PY=/home01/<새계정>/.conda/envs/<env>/bin/python   # pyarrow+PIL 있는 아무 python
 ```
 
-> **git 에 없는 것(전부 재생성/재빌드)**: `work/` 하위 전체 — 데이터 jsonl·이미지·체크포인트·컨테이너·HF캐시. 코드/설정/문서만 git 에 있다. 데이터는 §4 로 재현.
+> **git 에 없는 것**: `work/` 하위 전체(데이터·이미지·체크포인트·컨테이너·HF캐시). 코드/설정/문서만 git.
+> **두 경로**: ⓐ **직접 전송**(같은 클러스터 — 아래) 이 재다운로드/재빌드보다 훨씬 빠름. ⓑ 다른 클러스터면 §4 재현.
+
+### 2-A. 직접 전송 (같은 클러스터·같은 그룹 — 권장)
+
+`work/` 데이터를 재생성하지 말고 소스 계정에서 **당겨온다**. 확인된 사실(2026-07-24): k252a01·k252a02 는 같은 그룹(`kbds0754`), 소스 홈은 group-readable(`drwxr-x---`)·파일 644 → **받는 계정이 pull 가능**(소스는 남의 홈에 push 불가).
+
+```bash
+# 받는 계정(k252a02)에서, 자기 kbds_project 루트에서:
+bash scripts/transfer_pull.sh                  # Stage-2 필수 subset + 경로 자동치환
+WITH_STAGE3=1 bash scripts/transfer_pull.sh    # + judge(27B) + medix
+```
+- 전송량 ≈ **60~80GB**(데이터+이미지 + `sft_mixed_merged` 18G + base 9B + 컨테이너). 전체 work/(~210G, HF캐시 원본 zip·A/B 체크포인트 포함)는 불필요.
+- **⚠️ 핵심**: jsonl 의 이미지 경로가 **절대경로**(`/home01/k252a01/...`) → 전송 후 반드시 치환. `transfer_pull.sh` 가 scripts + `work/data/*.jsonl` 을 함께 sed 처리한다(§2 의 경로 sed 와 동일 패턴).
+- diba·다른 클러스터로 나갈 땐 데이터전송노드 `kbds-dm.kisti.re.kr`(FTP 21 / Aspera 33001).
 
 ---
 

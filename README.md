@@ -6,7 +6,7 @@
 
 ---
 
-## 현황 (2026-07-23)
+## 현황 (2026-07-24)
 
 **지금 위치**: **Stage-1 콜드스타트 v3 평가완료 — 형식 천장 완파**(생성 `format_think` v2-SFT **0.185**→v3 **0.909**, 같은 하니스; 홀드아웃 acc v2 **0.295**→v3 **0.348** [결과](#v3-홀드아웃-평가-결과--형식-천장-완파-job-69807-2026-07-20), **v2 동일조건 재측정 완료**) · Stage-2 방법론 전부 판정 완료 · **Stage-3(의료 RL) 본실행 대기**. → 다음: **Stage-2 재개 vs Stage-3 직행** 결정.
 
@@ -17,7 +17,7 @@
 | 단계 | 상태 | 핵심 결과 |
 |---|---|---|
 | **① 콜드스타트 SFT** | ✅ **v3 평가완료 (v2 동일조건 A/B 확정)** | **v2 데이터가 `format_think` 0.473** = RL 형식보상의 천장(RL 0.425 정체). → **v3 게이트 1.0** 재구축 후 **SFT만으로 생성 `format_think` 0.909**(v2-SFT 0.185의 5배, 같은 하니스). 홀드아웃 acc **0.348**(동일조건 v2 **0.295**, +18%·vl 주도; v2-RL 0.38~0.39) ([상세](#stage-1--콜드스타트-sft)) |
-| **② 범용 RLVR** | ✅ 방법론 종결 · 🔧 **풀확장 세팅완료** | plateau 진단 → **dr_grpo 승자**(Acc 0.526). 홀드아웃 GDPO 0.390 ≈ dr_grpo 0.380 ≫ GSPO 0.290(일반화 실패). **[풀확장 재설계](#0-풀확장-재설계-2026-07-22-세팅-완료실행-대기)**: DeepVision+MMK12+ThinkLite=128,349, init=v3, 다른계정 실행대기. → [상세](#stage-2--범용-rlvr-grpo) |
+| **② 범용 RLVR** | ✅ 방법론 종결 · 🔧 **풀확장 세팅완료** | plateau 진단 → **dr_grpo 승자**(Acc 0.526). 홀드아웃 GDPO 0.390 ≈ dr_grpo 0.380 ≫ GSPO 0.290(일반화 실패). **[풀확장 재설계](#0-풀확장-재설계-2026-07-2224-데이터-완료실행-대기)**: DeepVision 40K+MMK12+**PMC-VQA(의료)**=74,787(일반53/math20/의료26), init=v3·GDPO, 다른계정 실행대기. → [상세](#stage-2--범용-rlvr-grpo) |
 | **③ 의료 RL (RaR)** | ⏳ 배선 검증완료·**본실행 대기** | 루브릭·judge·배선 end-to-end PASS(유닛 29/29·스모크). step600 ckpt(dr_grpo/GDPO)가 init 후보. → [상세](#stage-3--의료-rl-rar-루브릭-보상) |
 | **④ 평가** | 🔄 기준선 확보·**v3 홀드아웃 완료** | **HealthBench Hard(n=1000)**: base 0.229 / v2 콜드스타트 0.224(동률, 오프타깃) — **v3 는 미측정**(동일 하니스로 즉시 비교 가능). **DeepVision 홀드아웃**: base 0.15 → v2 콜드스타트 0.22 → +RL 0.38–0.39, **v3 콜드스타트 0.348**(RL 無). → [상세](#타겟-벤치마크-healthbench--의료-성능-측정) |
 
@@ -32,7 +32,7 @@
 ---
 
 ## 목차
-1. [현황](#현황-2026-07-23)
+1. [현황](#현황-2026-07-24)
 2. [파이프라인 4단계](#파이프라인-4단계)
 3. [Stage-1 · 콜드스타트 SFT](#stage-1--콜드스타트-sft) — **v3 일반+의료 혼합 재설계**(형식 천장 규명) + ablation study(순가치)
 4. [Stage-2 · 범용 RLVR (GRPO)](#stage-2--범용-rlvr-grpo) — baseline·기법 통합비교(GRPO/DAPO/dr_grpo/GSPO/GDPO)·벤치마크
@@ -50,7 +50,7 @@
 | 단계 | 목적 | 데이터 | 방법 | 상태 |
 |---|---|---|---|---|
 | **①** 콜드스타트 SFT | `<think>/<answer>` 추론 형식 주입 + **의료 추론 시드** | **v3: OpenMedReason + VisualWebInstruct + VLAA 혼합**<br>(v2: 자기증류 RFT 727 → 형식 0.473) | LoRA SFT | ✅ v3 평가완료 — `format_think` **0.909**·acc **0.348**. `sft_mixed_merged` = 새 init |
-| **②** 범용 RLVR | 검증가능 정답으로 추론 강화 | **풀확장** DeepVision + MMK12 + ThinkLite-VL = **128,349** | GRPO(dr_grpo/GDPO) · init=v3 | ✅ A/B 판정완료 · 🔧 **확장 세팅완료**(다른계정 실행대기) |
+| **②** 범용 RLVR | 검증가능 정답으로 추론 강화 | **풀확장** DeepVision 40K + MMK12 + **PMC-VQA(의료)** = **74,787** | GRPO **GDPO** · init=v3 | ✅ A/B 판정완료 · 🔧 **데이터 완료**(다른계정 실행대기) |
 | **③** 의료 특화 RL | 개방형 의료 VQA 추론 | medix-rl-data 51K | GRPO + RaR 루브릭 보상 | ⏳ 배선 검증완료·대기 |
 | **④** 평가 | base 대비 성능 정량화 | 층화 홀드아웃 / **HealthBench** | vLLM 추론·채점 | 🔄 base·콜드스타트 측정완료(HealthBench 0.229/0.224) |
 
@@ -251,22 +251,24 @@ RL 이 최적화하는 `format_think`(`configs/accuracy.py`)는 **앵커 매칭*
 
 > **요약 (Stage-2 방법론 실험 완료)**: baseline GRPO 에서 **Acc plateau** 진단 → GRPO 파생기법 5종 **clean A/B** → **dr_grpo 승자**(plateau 돌파, 홀드아웃 +73%). 최신기법 **GSPO·GDPO**도 검증: **GDPO 홀드아웃 동률**(0.390 vs 0.380, Stage-3용 채택 권고), **GSPO는 on-policy 동률이나 홀드아웃 열위**(0.290=일반화 실패, 미채택). step600 홀드아웃 **~0.38–0.39 포화**. **Stage-2 방법론 확정**.
 
-### 0) 풀확장 재설계 (2026-07-22, 세팅 완료·실행 대기)
+### 0) 풀확장 재설계 (2026-07-22~24, 데이터 완료·실행 대기)
 
-**동기**: v3 콜드스타트 A/B 에서 **math 가 v2 와 동률(0.3245)** — 혼합 데이터가 vl 은 올렸으나 수치계산은 못 올림. Stage-2 를 **DeepVision 단일 → STEM RLVR 추가**로 확장해 수학/과학 다양성을 보강한다. (예산: 다른 계정 5,000 노드시간 확보 → Stage-2 재실행 여력 생김. 현재 계정은 **세팅·검증 전담**, GitHub 공유 → 다른 계정 재현 실행.)
+**동기**: v3 콜드스타트 A/B 에서 **math 가 v2 와 동률(0.3245)** — vl 은 올렸으나 수치계산은 못 올림. 게다가 프로젝트 목표는 **의료**인데 Stage-2 가 일반 전용이었음. → **DeepVision 단일 → math(MMK12) + 의료(PMC-VQA) 추가**. (예산: 다른 계정 5,000 노드시간 확보 → 현재 계정은 **세팅·검증 전담**, GitHub 공유.)
+
+**확장셋 (의료 27% 확정, 2026-07-24 재조립):**
 
 | 소스 | 학습 | 홀드아웃 | 정답형식 | 왜 |
 |---|---|---|---|---|
-| DeepVision-103K (기존) | 102,531 | 972 | math/MC | 일반 시각추론 |
-| **MMK12** | 15,207 | 400 | 수치/수식 87% | **K-12 STEM** — math 약점 직격 |
-| **ThinkLite-VL-hard** | 10,611 | 301 | 수치 34%·짧은문자열 61% | hard 멀티모달·다양성 |
-| **합계** | **128,349** | **1,673** | | |
+| DeepVision (서브샘플) | 40,000 | 972 | math/MC | 일반 시각추론 base(RL 검증됨) |
+| **MMK12** (전량) | 15,204 | 400 | 수치/수식 82% | **순수 math** — 약점 직격 |
+| **PMC-VQA** (의료 20K) | 19,583 | 400 | **MC(B/C/A/D 균형)** | **의료 광범위** — 목표 정렬 |
+| **합계** | **74,787** | **1,772** | | 일반53 / math20 / 의료26 |
 
-- **RLVR 에 이상적**: 이 둘은 콜드스타트에서 "추론 trace 없음"으로 탈락했으나, RLVR 은 prompt+검증가능정답만 필요 → 오히려 적합.
-- **오염 방지**: 신규 홀드아웃은 **이미지 바이트해시 dedup**(구 22% 오염 원인이던 경로기준 분리를 교정) — 검증됨 누수 0.
-- **init = v3** `sft_mixed_merged`. 데이터 상세(스크리닝·분석·비율) → [`docs/stage2_data.md`](docs/stage2_data.md) · 실행 절차 → [`docs/stage2_expansion_runbook.md`](docs/stage2_expansion_runbook.md).
-- 스크립트: `13_build_stage2_expanded.slurm`(변환) · `build_stage2_mix.py`(조립) · `launch_stage2_expanded.sh`(제출) · `20_rlvr_grpo.slurm`(기본값=확장).
-- ⏳ **남은 것**: 배선 스모크(`SMOKE=1`) 후 다른 계정서 본실행(dr_grpo, ~70h). 평가는 소스별 확장 홀드아웃.
+- **데이터 = "받아서 실측"으로 선별**: Kvasir(58K인데 고유이미지 671·degenerate)·SLAKE(이미지 450)·ThinkLite(노이즈)는 실측 후 탈락. **PMC-VQA만 대형·다양·검증가능 의료**(329K MC·PubMed 광범위). 상세 → [`docs/stage2_data.md`](docs/stage2_data.md).
+- **오염 최종 해소**: 전 소스 **이미지 바이트해시 dedup**. 이번 재조립에서 **DeepVision 구 22% 오염까지 제거**(홀드아웃 이미지해시를 train 서브샘플서 배제) → 전 소스 홀드아웃 1,772건 누수 0 검증.
+- **init = v3** `sft_mixed_merged` · **레시피 = GDPO**(`21_rlvr_grpo_adv` 경유, dynamic_sample 코어 포함). 실행 → [`docs/stage2_expansion_runbook.md`](docs/stage2_expansion_runbook.md).
+- 스크립트: `build_pmcvqa.py`·`13_build_stage2_expanded.slurm`(변환) · `build_stage2_mix.py`(조립·`DV_CAP`/`PMC_CAP` 비율조정) · `launch_stage2_expanded.sh`(GDPO 제출).
+- ⏳ **남은 것**: 배선 스모크(`SMOKE=1`) 후 다른 계정서 본실행(~70h). 평가는 소스별(`_source`) 확장 홀드아웃.
 
 ### 1) baseline → Acc plateau 진단 (job 57249, step 1000 완주)
 
@@ -600,7 +602,7 @@ Stage-2 홀드아웃(DeepVision)은 **검증가능 정답** 기준의 내부 지
 | **SFT 1회** (12~39분) | **2~5** ← 사실상 공짜 |
 | Stage-3 (미시작, 계획서 핵심 산출물) | ~500 예상 |
 
-> **2026-07-22 예산 방향전환**: 다른 계정에 5,000 노드시간 별도 확보 → Stage-2 풀확장 + Stage-3 둘 다 가능. 이 계정은 세팅·검증만. → [Stage-2 풀확장](#0-풀확장-재설계-2026-07-22-세팅-완료실행-대기) · [`HANDOFF.md`](HANDOFF.md)
+> **2026-07-22 예산 방향전환**: 다른 계정에 5,000 노드시간 별도 확보 → Stage-2 풀확장 + Stage-3 둘 다 가능. 이 계정은 세팅·검증만. → [Stage-2 풀확장](#0-풀확장-재설계-2026-07-2224-데이터-완료실행-대기) · [`HANDOFF.md`](HANDOFF.md)
 
 → **콜드스타트 v3 재구축은 저렴(SFT+평가 ~15)하나, 그 위에 Stage-2 를 다시 돌릴 여력은 없다.** 잔여 배분은 v3 SFT+평가 수치를 보고 결정.
 *(Slurm 에 하드 리밋은 없음 — `GrpTRESMins` 미설정이라 잡이 거부되진 않는다. 계획서/보고 기준.)*
@@ -618,7 +620,7 @@ Stage-2 홀드아웃(DeepVision)은 **검증가능 정답** 기준의 내부 지
 ### 데이터 (소스 확정 + 변환 검증)
 - **Stage-1 (v3 혼합 콜드스타트)**: `neginb/OpenMedReason`(150,246·CC-BY-4.0·**게이트 auto**, 웹 동의 1회 필요) + `TIGER-Lab/VisualWebInstruct-verified`(97,295·MIT) + `UCSC-VLAA/VLAA-Thinking`(126,413·Apache-2.0). 전부 이미지 내장·다운로드 완료. 빌드 `build_mixed_coldstart.py` → [Stage-1](#stage-1--콜드스타트-sft).
   - ⚠️ VLAA 는 `vg`(38,242)·`coco`(8,727) = **46,969건의 이미지 tar 이 레포에 없음** → 해당 서브셋 제외(Visual Genome·COCO 별도 수급 시 복귀 가능). tar 보유: allava_laion·arxivqa·chartqa·clevr_math·docvqa·geoqa170k·synthesis·vizwiz(총 26.2GB).
-- **Stage-2 (풀확장)**: `skylenage-ai/DeepVision-103K`(수학 77K + 시각논리 26K, 검증가능) + `FanqingM/MMK12`(15,616·K-12 STEM·수치정답 87%) + `russwang/ThinkLite-VL-hard-11k`(11,031·hard). 셋 다 비게이트·이미지내장. 조립 = `build_stage2_mix.py`(bytehash dedup) → 확장 train 128,349 / holdout 1,673. `DeepMath-103K`(텍스트) 혼동 주의.
+- **Stage-2 (풀확장, 의료 27%)**: `skylenage-ai/DeepVision-103K`(일반, 서브샘플 40K) + `FanqingM/MMK12`(순수 math 15K) + `xmcmic/PMC-VQA`(**의료 MC** 20K, 329K 중 서브샘플). 조립 = `build_stage2_mix.py`(bytehash dedup) → train **74,787** / holdout 1,772. 탈락(실측): Kvasir(degenerate)·SLAKE(이미지450)·ThinkLite(노이즈)·PathVQA(절반개방형). 상세 → [`docs/stage2_data.md`](docs/stage2_data.md). `DeepMath-103K`(텍스트) 혼동 주의.
 - **Stage-3**: `MBZUAI/medix-rl-data`(51K, 개방형 의료 멀티모달). 둘 다 `work/hf_cache` 다운로드 완료·게이트 없음.
   - ⚠️ medix 는 **assistant 가 비어 있다**(prompt+solution 만) → 의료 추론 트레이스 없음. 정답도 `<MODALITY>\n자유서술`(중앙값 47자)이라 정확매칭 불가 = Stage-3 가 RaR judge 를 쓰는 이유.
 - K-BDS 공개데이터 경로: `/kobic/ICECAP/DataStation/` · 매핑표 `/scratch/database/KBDSMAP/` · 업로드 `kbds-dm.kisti.re.kr`.
@@ -730,7 +732,7 @@ sbatch          --dependency=afterok:$JID3 scripts/40_eval.slurm
 |---|---|---|---|
 | **기반** | 06-15 | ✅ | NVLink 부재 발견 → **전 단계 LoRA** 강제 (full-FT 375~660s/step) |
 | **① 콜드스타트 SFT** | 06-15~16, 07-08~20 | ✅ **v3 평가완료** | 세 번 재설계(v1→v2→v3). **형식 천장 0.473 → 0.909 완파**, acc 0.348 |
-| **② 범용 RLVR** | 06-16~07-13 · 확장 07-22~23 | ✅ 방법론 종결 · 🔧 확장 세팅완료 | dr_grpo 승자(Acc 0.526). **풀확장**(DeepVision+MMK12+ThinkLite=128,349, init=v3) 세팅·검증 후 다른계정 실행대기 |
+| **② 범용 RLVR** | 06-16~07-13 · 확장 07-22~24 | ✅ 방법론 종결 · 🔧 데이터 완료 | dr_grpo 승자(Acc 0.526). **풀확장**(DeepVision 40K+MMK12+PMC-VQA 의료=74,787, init=v3·GDPO) 데이터·검증 후 다른계정 실행대기 |
 | **③ 의료 RL** | 06-28~07-01 | 🟡 배선완료·본실행 대기 | RaR 루브릭·judge(27B) 검증·**e2e 스모크 PASS** |
 | **④ 평가** | 전 기간 산발 | 🔄 진행 | 누수·오염 발견마다 재측정. v3 홀드아웃 0.348 |
 
@@ -810,7 +812,8 @@ sbatch          --dependency=afterok:$JID3 scripts/40_eval.slurm
 - **07-20** — **v3 홀드아웃 평가 완주**(job 69807, 972건 전량): **strict `format_think` 0.909**(v2 데이터 천장 0.473·RL 정체 0.425 **완파**), **accuracy 0.348**(v2 ~0.22, v2-RL 0.380/0.390 에 근접) — *RL 없이 SFT 만으로* 달성. 층별 math 0.324/vl 0.368, mean 1,982자, 형식위반 9.1%는 2048토큰 잘림. 부수: `sft_mixed_merged` 생성(Stage-2 새 init). **오염 비대칭 규명** — v3 는 DeepVision 미학습이라 홀드아웃 22% 오염 이득이 없어 **비교가 v3 에 보수적**. v2 동일조건 재측정 제출(70342 TIMEOUT → 70671 재제출). → [평가결과](#v3-홀드아웃-평가-결과--형식-천장-완파-job-69807-2026-07-20)
 - **07-21** — **v2 동일조건 재측정 완주**(job 70671, 972건 전량, 같은 하니스). v2-SFT: acc **0.295**·strict `format_think` **0.185**·mean **4,824자**. **A/B 확정**: 형식 v2 0.185 → v3 0.909(**5배**, 압도적), 정답률 v2 0.295 → v3 0.348(**+0.053·+18%**, 전부 **vl** 0.270→0.368; **math 는 0.3245 우연 동률**, per-sample 검증으로 artifact 아님 확인 — 정답 겹침 76/147). 과거 "~0.22"는 소표본값이라 폐기. **간결성**: v3 가 절반 길이(1,982 vs 4,824자)라 v2 는 1차 재측정서 TIMEOUT 났고 RL 잘림→형식0 의 근원. → [평가결과](#v3-홀드아웃-평가-결과--형식-천장-완파-job-69807-2026-07-20)
 - **07-22** — **예산 방향전환 + Stage-2 풀확장 착수**. 다른 계정 5,000 노드시간 확보 → "836으로 Stage-2 vs Stage-3 택1" 제약 해제. v3 약점(math 동률) 겨냥해 **STEM RLVR 추가**: `MMK12`(15,616)·`ThinkLite-VL-hard`(11,031) 다운로드·검증(정답형식 검증가능 확인)·변환(`convert_to_swift` 스키마 2종 추가, CPU 잡). 콜드스타트서 탈락했던 데이터(trace 없음)가 RLVR 엔 적합.
-- **07-23** — **Stage-2 확장 세팅 완료·GitHub 공유**. `build_stage2_mix.py`(bytehash dedup, seed42) → train **128,349**/holdout **1,673**(신규 누수 0 검증). `20_rlvr_grpo` 기본값=v3 init+확장셋, `launch_stage2_expanded.sh`, `docs/stage2_expansion_runbook.md`. **[`HANDOFF.md`](HANDOFF.md) 전면 갱신**(계정 이식 sed·환경함정·실행절차). → 다른 계정이 clone→재현→본실행. → [풀확장](#0-풀확장-재설계-2026-07-22-세팅-완료실행-대기)
+- **07-23** — **Stage-2 확장 세팅 완료·GitHub 공유**. `build_stage2_mix.py`(bytehash dedup, seed42) → train **128,349**/holdout **1,673**(신규 누수 0 검증). `20_rlvr_grpo` 기본값=v3 init+확장셋, `launch_stage2_expanded.sh`, `docs/stage2_expansion_runbook.md`. **[`HANDOFF.md`](HANDOFF.md) 전면 갱신**(계정 이식 sed·환경함정·실행절차). → 다른 계정이 clone→재현→본실행. → [풀확장](#0-풀확장-재설계-2026-07-2224-데이터-완료실행-대기)
+- **07-24** — **의료 데이터 추가 + 확장셋 재조립**. 의료 VQA 스크리닝(전부 실측): Kvasir(58K인데 고유이미지 671·degenerate)·SLAKE(이미지 450)·PathVQA(절반 개방형) 탈락, **PMC-VQA(329K MC·PubMed 광범위·B/C/A/D 균형) 채택**(`build_pmcvqa.py` — CSV+MC+zip 선택추출). reward 견고성 실측(0/12 손실 → 정규화 불필요). ThinkLite 드롭. **재조립 = DeepVision 40K+MMK12 15.2K+PMC-VQA 20K = 74,787**(일반53/math20/의료26), **DeepVision 구 22% 오염까지 최종 해소**(홀드아웃 해시 배제), 전 소스 dedup 누수 0. **GDPO 배선 수정**(런처가 검증된 `21_rlvr_grpo_adv` 경유하도록 — dynamic_sample 코어 누락 버그). `docs/stage2_data.md` 신설. → [상세](#0-풀확장-재설계-2026-07-2224-데이터-완료실행-대기)
 
 ### TODO
 - [x] 환경·모델·데이터 확정 + 전체 변환 (DeepVision 103K / medix 51K)
@@ -832,7 +835,7 @@ sbatch          --dependency=afterok:$JID3 scripts/40_eval.slurm
 - [x] **v2 동일조건 재측정** (job 70671, 07-21) → acc **0.295** / `format_think` **0.185**. 과거 소표본 "~0.22" 대체, v3 A/B 확정(+0.053 acc·vl 주도, 형식 5배)
 - [ ] **v3 HealthBench Hard** *(보류 — 비용 재검토 후 결정)* — base **0.229** / v2 콜드스타트 **0.224**(둘 다 `n=1000` 정식 실측)와 동일 하니스로 비교 가능하나, **실측 비용이 크다**: 과거 런 `59666`(base) **7:03 on 4gpu ≈ 28 노드시간**, `59691`(v2) **6:53 on 8gpu ≈ 55**. judge(27B)+타깃 동시 서빙이라 `gpu:2` 필수. → 잔여 예산 배분 결정 후 재검토. [추적표](#단계별-추적--healthbench-hard-n1000)
 - [x] **예산 배분 결정** → 다른 계정 5,000h 확보로 제약 해제, **Stage-2 풀확장 + Stage-3 둘 다** 진행
-- [x] **Stage-2 풀확장 세팅·검증** → MMK12+ThinkLite 수급·변환·조립(train 128,349/holdout 1,673, dedup 누수0), 학습스크립트·런처·런북·HANDOFF 커밋 (다른 계정 실행대기)
+- [x] **Stage-2 풀확장 데이터·검증** → MMK12·**PMC-VQA(의료)** 수급·변환·조립(train **74,787** 일반53/math20/의료26, holdout 1,772 dedup 누수0), GDPO 배선·런북·HANDOFF·`docs/stage2_data.md` 커밋 (다른 계정 실행대기)
 - [ ] **Stage-2 확장 배선 스모크 → 본실행** (`launch_stage2_expanded.sh`, 다른 계정 ~70h) ← **다음 임계경로**
 - [ ] **확장 결과 평가**(소스별 홀드아웃) → v3(0.348) 대비 STEM 이득 확인
 - [ ] **Stage-3 본실행**(`launch_stage3.sh`) → init 교체 ← **계획서 핵심 산출물, 미시작**

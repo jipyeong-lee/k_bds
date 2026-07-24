@@ -47,12 +47,14 @@ sbatch scripts/50_eval_v3.slurm                   # 병합(sft_mixed_merged) + �
 
 ## 5. Stage-2 확장 GRPO 실행
 ```bash
-SMOKE=1 bash scripts/launch_stage2_expanded.sh    # 배선 확인(max_steps 3) — 먼저 권장
-bash scripts/launch_stage2_expanded.sh            # 본실행 (dr_grpo, ~70h/8gpu)
-# RECIPE=gdpo 로 GDPO(Stage-3용 권고 레시피) 선택 가능
+SMOKE=1 bash scripts/launch_stage2_expanded.sh    # 배선 확인(max_steps 5) — 먼저 권장
+bash scripts/launch_stage2_expanded.sh            # 본실행 (기본=GDPO, ~70h/8gpu)
+# RECIPE=dr_grpo 로 dr_grpo 선택 가능
 ```
+- **런처는 검증된 `21_rlvr_grpo_adv.slurm` 를 제출**(20 아님) — GDPO/dr_grpo 의 plateau 돌파 핵심 `dynamic_sample`+`overlong_filter`+`beta 0.04` 는 21 에만 있음.
+- **GDPO** = `--loss_type dr_grpo --scale_rewards gdpo` (보상별 advantage 개별정규화). A/B 검증(job 59191, 홀드아웃 0.390).
 - 보상: `accuracy_mix 1.0 + format_think 0.2 + soft_overlong 0.2` (configs/accuracy.py).
-- 산출: `work/checkpoints/grpo_expanded`.
+- 산출: `work/checkpoints/grpo_expanded_gdpo`.
 
 ## 6. 평가 (확장 홀드아웃)
 ```bash

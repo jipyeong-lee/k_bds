@@ -1,17 +1,20 @@
 #!/usr/bin/env python3
 """build_stage2_mix.py — Stage-2 풀확장 데이터 조립 + 소스별 클린 홀드아웃.
 
-train   = DeepVision trainonly(102,531) + MMK12 + ThinkLite  (신규는 홀드아웃 이미지해시 제외)
-holdout = DeepVision holdout(972·기존) + MMK12 holdout + ThinkLite holdout
-  · 신규 2종 홀드아웃은 **이미지 바이트해시 dedup**(경로 아닌 해시 기준 → 22% 오염 재발 방지)
-  · 각 홀드아웃 행에 _source·_stratum(정답유형) 태그 → 소스/층별 리포트용
-  · DeepVision 은 기존 split 재사용(102k 재해싱 회피, 기존 Stage-2 와 연속성)
-seed=42. 산출: work/data/stage2_expanded_{train,holdout}.jsonl
+구성 (2026-07-24, 의료 27% — docs/stage2_data.md):
+  train   = DeepVision(서브샘플 DV_CAP) + MMK12(전량) + PMC-VQA(서브샘플 PMC_CAP)   ← ThinkLite 드롭
+  holdout = DeepVision(972·기존) + MMK12(HOLD) + PMC-VQA(HOLD)
+  · **전 소스 이미지 바이트해시 dedup**: DeepVision 도 홀드아웃 이미지해시를 train 서브샘플에서
+    제외 → 구 22% 오염(경로만 다른 동일 그림)을 이번에 최종 해소.
+  · 각 홀드아웃 행에 _source·_stratum(정답유형) 태그 → 소스/층별 리포트용.
+seed=42. env 캡: DV_CAP(40000) PMC_CAP(20000). 산출: work/data/stage2_expanded_{train,holdout}.jsonl
 """
-import json, hashlib, collections, random, re
+import json, hashlib, collections, random, re, os
 random.seed(42)
 D = 'work/data'
-HOLD_MMK12, HOLD_THINKLITE = 400, 300
+DV_CAP = int(os.environ.get('DV_CAP', 40000))
+PMC_CAP = int(os.environ.get('PMC_CAP', 20000))
+HOLD = {'mmk12': 400, 'pmcvqa': 400}
 
 
 def imghash(p):
@@ -61,21 +64,36 @@ def dump(rows, path, tags):
             f.write(json.dumps(o, ensure_ascii=False) + '\n')
 
 
-print('[mix] 신규 소스 홀드아웃 분리(bytehash dedup)...')
-mm_tr, mm_ho = carve(load(f'{D}/mmk12_train.jsonl'), HOLD_MMK12, 'mmk12')
-tl_tr, tl_ho = carve(load(f'{D}/thinklite_train.jsonl'), HOLD_THINKLITE, 'thinklite')
+print(f'[mix] 신규 소스 홀드아웃 분리(bytehash dedup)  DV_CAP={DV_CAP:,} PMC_CAP={PMC_CAP:,}')
+mm = load(f'{D}/mmk12_train.jsonl'); random.shuffle(mm)
+mm_tr, mm_ho = carve(mm, HOLD['mmk12'], 'mmk12')
 
-dv_tr = load(f'{D}/deepvision103k_trainonly.jsonl')
-for r in dv_tr:
-    r['_source'] = 'deepvision'
-dv_ho = load(f'{D}/deepvision_holdout.jsonl')      # 이미 _stratum(math/vl) 보유
+pmc = load(f'{D}/pmcvqa_train.jsonl'); random.shuffle(pmc)
+pmc = pmc[:PMC_CAP]
+pmc_tr, pmc_ho = carve(pmc, HOLD['pmcvqa'], 'pmcvqa')
+
+# DeepVision: 홀드아웃(972·기존) 재사용 + 그 이미지해시를 trainonly 서브샘플에서 제외(22% 오염 최종 해소)
+dv_ho = load(f'{D}/deepvision_holdout.jsonl')
+ho_hashes = {imghash(r['images'][0]) for r in dv_ho}; ho_hashes.discard(None)
 for r in dv_ho:
     r['_source'] = 'deepvision'
+dv = load(f'{D}/deepvision103k_trainonly.jsonl'); random.shuffle(dv)
+dv_tr, skipped = [], 0
+for r in dv:
+    if len(dv_tr) >= DV_CAP:
+        break
+    if imghash(r['images'][0]) in ho_hashes:   # 홀드아웃과 동일 이미지 → 오염 제외
+        skipped += 1; continue
+    r['_source'] = 'deepvision'
+    dv_tr.append(r)
 
-dump(dv_tr + mm_tr + tl_tr, f'{D}/stage2_expanded_train.jsonl', tags=False)
-dump(dv_ho + mm_ho + tl_ho, f'{D}/stage2_expanded_holdout.jsonl', tags=True)
+dump(dv_tr + mm_tr + pmc_tr, f'{D}/stage2_expanded_train.jsonl', tags=False)
+dump(dv_ho + mm_ho + pmc_ho, f'{D}/stage2_expanded_holdout.jsonl', tags=True)
 
-print(f'[mix] ✅ train   = DeepVision {len(dv_tr):,} + MMK12 {len(mm_tr):,} + ThinkLite {len(tl_tr):,} '
-      f'= {len(dv_tr)+len(mm_tr)+len(tl_tr):,}')
-print(f'[mix] ✅ holdout = DeepVision {len(dv_ho)} + MMK12 {len(mm_ho)} + ThinkLite {len(tl_ho)} '
-      f'= {len(dv_ho)+len(mm_ho)+len(tl_ho)}')
+tot_tr = len(dv_tr) + len(mm_tr) + len(pmc_tr)
+print(f'[mix] ✅ train   = DeepVision {len(dv_tr):,}(오염제외 {skipped}) + MMK12 {len(mm_tr):,} '
+      f'+ PMC-VQA {len(pmc_tr):,} = {tot_tr:,}')
+print(f'[mix]   비율: 일반 {len(dv_tr)/tot_tr*100:.0f} / math {len(mm_tr)/tot_tr*100:.0f} '
+      f'/ 의료 {len(pmc_tr)/tot_tr*100:.0f}')
+print(f'[mix] ✅ holdout = DeepVision {len(dv_ho)} + MMK12 {len(mm_ho)} + PMC-VQA {len(pmc_ho)} '
+      f'= {len(dv_ho)+len(mm_ho)+len(pmc_ho)}')

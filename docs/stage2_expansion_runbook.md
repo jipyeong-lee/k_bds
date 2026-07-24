@@ -31,11 +31,16 @@ sbatch scripts/13_build_stage2_expanded.slurm     # conda swift env(pyarrow+PIL)
 
 ## 3. 확장셋 조립 + 클린 홀드아웃
 ```bash
-python3 scripts/build_stage2_mix.py     # seed=42, bytehash dedup
-# train   = DeepVision 102,531 + MMK12 15,207 + ThinkLite 10,611 = 128,349
-# holdout = DeepVision 972 + MMK12 400 + ThinkLite 301 = 1,673  (_source·_stratum 태그)
+# 신규 소스 변환: MMK12·ThinkLite (parquet) 는 13_build 로, PMC-VQA (CSV+zip) 는 build_pmcvqa 로
+python3 scripts/build_pmcvqa.py --n 30000 --csv <train.csv> <train_2.csv> \
+  --zips <images.zip> <images_2.zip> --out work/data/pmcvqa_train.jsonl --images-dir work/data/images/pmcvqa
+python3 scripts/build_stage2_mix.py     # seed=42, bytehash dedup, 의료 27% 기본
+# train   = DeepVision 40,000 + MMK12 15,204 + PMC-VQA 19,583 = 74,787 (일반53/math20/의료26)
+# holdout = DeepVision 972 + MMK12 400 + PMC-VQA 400 = 1,772  (_source·_stratum 태그)
 ```
-- 신규 홀드아웃은 **이미지 바이트해시로 dedup**(구 DeepVision 홀드아웃의 22% 오염 재발 방지). 검증됨: 신규 홀드아웃 701건 train 누수 0.
+- **전 소스 이미지 바이트해시 dedup**(구 DeepVision 22% 오염 최종 해소). 검증됨: 전 소스 홀드아웃 1,772건 train 누수 0.
+- 비율 조정: `DV_CAP=33000 PMC_CAP=28000 python3 scripts/build_stage2_mix.py`(의료 40%).
+- 데이터 상세·근거: [`stage2_data.md`](stage2_data.md).
 
 ## 4. v3 콜드스타트 init 준비
 ```bash

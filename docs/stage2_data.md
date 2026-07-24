@@ -68,25 +68,29 @@ MMK12·MM-Eureka·ThinkLite는 콜드스타트에서 "추론 trace 없음"으로
 
 ## 5. 현재 상태 & 빌드 파이프라인
 
-**변환 완료 (work/data/):**
-| 파일 | 건수 | 상태 |
-|---|---|---|
-| `deepvision103k_trainonly.jsonl` | 102,531 | 기존 |
-| `mmk12_train.jsonl` | 15,616 | ✅ |
-| `pmcvqa_train.jsonl` | 30,000 (이미지 29,133) | ✅ 풀(20K로 서브샘플 예정) |
-| `thinklite_train.jsonl` | 11,031 | 드롭 예정 |
-| `stage2_expanded_{train,holdout}.jsonl` | 128,349 / 1,673 | **v1(의료 전)** — 의료 반영해 재조립 필요 |
+**✅ 재조립 완료 (2026-07-24, `build_stage2_mix.py`):**
+
+| | 소스 | 건수 | 비중 |
+|---|---|---|---|
+| **train** | DeepVision(서브샘플·오염453 제외) | 40,000 | 53% |
+| | MMK12(전량) | 15,204 | 20% |
+| | PMC-VQA(서브샘플 20K) | 19,583 | 26% |
+| | **합계** | **74,787** | 일반53/math20/의료26 |
+| **holdout** | DeepVision 972 + MMK12 400 + PMC-VQA 400 | **1,772** | `_source` 태그 |
+
+- **전 소스 bytehash dedup 검증: 누수 0** (deepvision·mmk12·pmcvqa 홀드아웃 전부 train과 이미지해시 중복 0).
+- **구 DeepVision 22% 오염 최종 해소**: 홀드아웃 972의 이미지해시를 train 서브샘플에서 제외(453건). 이제 확장 홀드아웃 전체가 클린.
+- 산출: `work/data/stage2_expanded_{train,holdout}.jsonl`.
 
 **스크립트:**
 - `scripts/convert_to_swift.py` — parquet→swift (DeepVision/medix/MMK12/ThinkLite/SLAKE 자동감지)
 - `scripts/build_pmcvqa.py` — PMC-VQA CSV+MC+zip 선택추출 (letter 균형, seed42)
 - `scripts/13_build_stage2_expanded.slurm` — 신규 소스 변환 CPU 잡 (conda swift env, 컨테이너 불필요)
-- `scripts/build_stage2_mix.py` — 확장셋 조립 + 소스별 층화 홀드아웃 (bytehash dedup, seed42)
+- `scripts/build_stage2_mix.py` — 확장셋 조립 + 소스별 층화 홀드아웃 (bytehash dedup, `DV_CAP`/`PMC_CAP` env)
 
-**⏳ 미결(다음 작업):**
-1. 최종 비율 확정(위 27% 권장) → `build_stage2_mix.py`에 PMC-VQA 소스 + DeepVision cap(40K) 추가
-2. 재조립 → `stage2_expanded_{train,holdout}.jsonl` 갱신 (의료 포함)
-3. 홀드아웃 소스별(`_source`: deepvision/mmk12/pmcvqa) 층화 + medix/eval dedup 검토
+> **비율 조정**: `DV_CAP=33000 PMC_CAP=28000 python3 scripts/build_stage2_mix.py` 로 의료 40% 등 재조립 가능.
+
+**남은 소스(미사용, 재현용 보존)**: `thinklite_train.jsonl`(11,031·노이즈로 드롭), `pmcvqa_train.jsonl`(30K 풀 중 20K 사용), SLAKE(변환 안 함).
 
 ## 6. 학습 연결 (Stage-2 GDPO)
 

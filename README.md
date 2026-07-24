@@ -264,7 +264,7 @@ RL 이 최적화하는 `format_think`(`configs/accuracy.py`)는 **앵커 매칭*
 
 - **RLVR 에 이상적**: 이 둘은 콜드스타트에서 "추론 trace 없음"으로 탈락했으나, RLVR 은 prompt+검증가능정답만 필요 → 오히려 적합.
 - **오염 방지**: 신규 홀드아웃은 **이미지 바이트해시 dedup**(구 22% 오염 원인이던 경로기준 분리를 교정) — 검증됨 누수 0.
-- **init = v3** `sft_mixed_merged`. 재현 절차 → [`docs/stage2_expansion_runbook.md`](docs/stage2_expansion_runbook.md).
+- **init = v3** `sft_mixed_merged`. 데이터 상세(스크리닝·분석·비율) → [`docs/stage2_data.md`](docs/stage2_data.md) · 실행 절차 → [`docs/stage2_expansion_runbook.md`](docs/stage2_expansion_runbook.md).
 - 스크립트: `13_build_stage2_expanded.slurm`(변환) · `build_stage2_mix.py`(조립) · `launch_stage2_expanded.sh`(제출) · `20_rlvr_grpo.slurm`(기본값=확장).
 - ⏳ **남은 것**: 배선 스모크(`SMOKE=1`) 후 다른 계정서 본실행(dr_grpo, ~70h). 평가는 소스별 확장 홀드아웃.
 

@@ -13,7 +13,7 @@ import os
 import sys
 import time
 
-os.environ.setdefault('HF_HOME', '/home01/k252a01/kbds_project/work/hf_cache')
+os.environ.setdefault('HF_HOME', '/home01/k252a02/kbds_project/work/hf_cache')
 os.environ.setdefault('HF_HUB_ENABLE_HF_TRANSFER', '0')   # 컨테이너에 hf_transfer 없음
 
 from huggingface_hub import snapshot_download

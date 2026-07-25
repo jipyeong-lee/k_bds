@@ -15,7 +15,7 @@ import sys
 import time
 
 # 컨테이너 학습이 참조하는 캐시와 동일 위치 (00_common.sh 의 HF_HOME 과 일치)
-os.environ.setdefault('HF_HOME', '/home01/k252a01/kbds_project/work/hf_cache')
+os.environ.setdefault('HF_HOME', '/home01/k252a02/kbds_project/work/hf_cache')
 os.environ.setdefault('HF_HUB_ENABLE_HF_TRANSFER', '1')   # 고속 전송(hf_transfer 필요)
 os.environ.setdefault('HF_HUB_DISABLE_XET', '1')
 

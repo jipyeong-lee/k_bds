@@ -16,11 +16,11 @@
 #SBATCH --gres=gpu:8
 #SBATCH --cpus-per-task=64
 #SBATCH --time=70:00:00
-#SBATCH --output=/home01/k252a01/kbds_project/logs/medrl_%j.log
-#SBATCH --error=/home01/k252a01/kbds_project/logs/medrl_%j.log
+#SBATCH --output=/home01/k252a02/kbds_project/logs/medrl_%j.log
+#SBATCH --error=/home01/k252a02/kbds_project/logs/medrl_%j.log
 
 set -euo pipefail
-source /home01/k252a01/kbds_project/scripts/00_common.sh
+source /home01/k252a02/kbds_project/scripts/00_common.sh
 if [[ "$ENV_MODE" == conda ]]; then module load compilers/cuda/12.4 compilers/gcc/10.2.0; fi
 
 INIT_MODEL="${INIT_MODEL:-$CKPT_DIR/dr_grpo_merged}"

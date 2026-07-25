@@ -9,7 +9,7 @@
 #        MAX_STEPS=2000 N_JOBS=3 bash scripts/launch_stage2_epoch.sh
 # =============================================================================
 set -euo pipefail
-cd /home01/k252a01/kbds_project
+cd /home01/k252a02/kbds_project
 MAX_STEPS="${MAX_STEPS:-3235}"
 N_JOBS="${N_JOBS:-5}"
 

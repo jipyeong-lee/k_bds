@@ -13,11 +13,11 @@
 #SBATCH --gres=gpu:8
 #SBATCH --cpus-per-task=32
 #SBATCH --time=00:40:00
-#SBATCH --output=/home01/k252a01/kbds_project/logs/stage3_smoke_%j.log
-#SBATCH --error=/home01/k252a01/kbds_project/logs/stage3_smoke_%j.log
+#SBATCH --output=/home01/k252a02/kbds_project/logs/stage3_smoke_%j.log
+#SBATCH --error=/home01/k252a02/kbds_project/logs/stage3_smoke_%j.log
 
 set -uo pipefail   # -e 제외: 트레이너 실패해도 judge teardown 보장
-cd /home01/k252a01/kbds_project
+cd /home01/k252a02/kbds_project
 source scripts/00_common.sh
 PORT="${JUDGE_PORT:-8177}"
 

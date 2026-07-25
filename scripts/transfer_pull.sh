@@ -11,7 +11,7 @@
 #     WITH_STAGE3=1 bash scripts/transfer_pull.sh    # + judge(27B) + medix (Stage-3 까지)
 # =============================================================================
 set -euo pipefail
-SRC="${SRC:-/home01/k252a01/kbds_project}"
+SRC="${SRC:-/home01/k252a02/kbds_project}"
 DST="${DST:-$(cd "$(dirname "$0")/.." && pwd)}"
 echo "[pull] SRC=$SRC"
 echo "[pull] DST=$DST"

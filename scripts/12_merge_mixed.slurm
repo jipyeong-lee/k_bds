@@ -12,11 +12,11 @@
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=8
 #SBATCH --time=00:40:00
-#SBATCH --output=/home01/k252a01/kbds_project/logs/merge_mixed_%j.log
-#SBATCH --error=/home01/k252a01/kbds_project/logs/merge_mixed_%j.log
+#SBATCH --output=/home01/k252a02/kbds_project/logs/merge_mixed_%j.log
+#SBATCH --error=/home01/k252a02/kbds_project/logs/merge_mixed_%j.log
 
 set -uo pipefail
-source /home01/k252a01/kbds_project/scripts/00_common.sh
+source /home01/k252a02/kbds_project/scripts/00_common.sh
 export NPROC_PER_NODE=1
 if [[ "$ENV_MODE" == conda ]]; then module load compilers/cuda/12.4 compilers/gcc/10.2.0; fi
 

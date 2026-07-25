@@ -27,7 +27,7 @@ DEFAULT_SYS = (
     "Then give ONLY the final answer INSIDE <answer> </answer>. "
     "For multiple-choice, put only the letter, e.g. <answer>A</answer>."
 )
-IMG_ROOT = "/home01/k252a01/kbds_project/work/data/images/vlaa_clevr"
+IMG_ROOT = "/home01/k252a02/kbds_project/work/data/images/vlaa_clevr"
 
 THINK_RE = re.compile(r"<think>(.*?)</think>", re.DOTALL)
 ANS_RE = re.compile(r"<answer>\s*(.*?)\s*</answer>", re.DOTALL)

@@ -35,7 +35,7 @@ import sys
 import pyarrow.parquet as pq
 from PIL import Image
 
-PROJ = '/home01/k252a01/kbds_project'
+PROJ = '/home01/k252a02/kbds_project'
 HUB = f'{PROJ}/work/hf_cache/hub'
 
 SYSTEM = ('You are a multimodal reasoning assistant. Carefully examine the image(s) and reason step by step '

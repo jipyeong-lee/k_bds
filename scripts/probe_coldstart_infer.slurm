@@ -11,11 +11,11 @@
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=8
 #SBATCH --time=00:30:00
-#SBATCH --output=/home01/k252a01/kbds_project/logs/probe_%j.log
-#SBATCH --error=/home01/k252a01/kbds_project/logs/probe_%j.log
+#SBATCH --output=/home01/k252a02/kbds_project/logs/probe_%j.log
+#SBATCH --error=/home01/k252a02/kbds_project/logs/probe_%j.log
 
 set -euo pipefail
-source /home01/k252a01/kbds_project/scripts/00_common.sh
+source /home01/k252a02/kbds_project/scripts/00_common.sh
 if [[ "$ENV_MODE" == conda ]]; then module load compilers/cuda/12.4 compilers/gcc/10.2.0; fi
 export NPROC_PER_NODE=1            # debug-1gpu: 단일 GPU (00_common 기본 8 override)
 

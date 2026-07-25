@@ -25,10 +25,10 @@
 #         MAX_STEPS=1000 bash scripts/launch_gspo_ab.sh   # 더 긴 창(2잡 필요할 수 있음)
 # =============================================================================
 set -uo pipefail   # -e 제외: sbatch 실패 시 버퍼 출력 유실 방지(명시적으로 에러 처리)
-cd /home01/k252a01/kbds_project
+cd /home01/k252a02/kbds_project
 
-DATASET="${DATASET_FILE:-/home01/k252a01/kbds_project/work/data/deepvision103k_trainonly.jsonl}"
-OUTDIR="${OUTPUT_DIR:-/home01/k252a01/kbds_project/work/checkpoints/grpo_general_adv_gspo_he}"
+DATASET="${DATASET_FILE:-/home01/k252a02/kbds_project/work/data/deepvision103k_trainonly.jsonl}"
+OUTDIR="${OUTPUT_DIR:-/home01/k252a02/kbds_project/work/checkpoints/grpo_general_adv_gspo_he}"
 MAX="${MAX_STEPS:-600}"
 
 [[ -f "$DATASET" ]] || { echo "[gspo-ab] ❌ 데이터 없음: $DATASET"; exit 1; }

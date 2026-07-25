@@ -11,11 +11,11 @@
 #SBATCH --cpus-per-task=16
 #SBATCH --time=02:00:00
 #SBATCH --comment=pytorch
-#SBATCH --output=/home01/k252a01/kbds_project/logs/healthbench_smoke_%j.log
-#SBATCH --error=/home01/k252a01/kbds_project/logs/healthbench_smoke_%j.log
+#SBATCH --output=/home01/k252a02/kbds_project/logs/healthbench_smoke_%j.log
+#SBATCH --error=/home01/k252a02/kbds_project/logs/healthbench_smoke_%j.log
 
 set -u
-cd /home01/k252a01/kbds_project
+cd /home01/k252a02/kbds_project
 source scripts/00_common.sh
 SB="${CONTAINER_IMG:-work/images/ms-swift-413-sandbox}"
 
@@ -26,7 +26,7 @@ TARGET="${HB_TARGET_MODEL:-$BASE}"
 TID="${HB_MODEL_ID:-base9b}"
 [ -z "$TARGET" ] && { echo "❌ 평가대상 모델 없음"; exit 1; }
 [ -z "$JUDGE" ]  && { echo "❌ judge 모델 없음"; exit 1; }
-MSCACHE=/home01/k252a01/kbds_project/work/ms_cache
+MSCACHE=/home01/k252a02/kbds_project/work/ms_cache
 PORT_BASE=8710; PORT_JUDGE=8720
 
 serve() {  # $1=gpu $2=model $3=name $4=port $5=maxlen $6=extra

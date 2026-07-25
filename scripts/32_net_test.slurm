@@ -10,11 +10,11 @@
 #SBATCH --ntasks-per-node=1
 #SBATCH --time=00:08:00
 #SBATCH --comment=etc
-#SBATCH --output=/home01/k252a01/kbds_project/logs/net_test_%j.log
-#SBATCH --error=/home01/k252a01/kbds_project/logs/net_test_%j.log
+#SBATCH --output=/home01/k252a02/kbds_project/logs/net_test_%j.log
+#SBATCH --error=/home01/k252a02/kbds_project/logs/net_test_%j.log
 
 set -u
-cd /home01/k252a01/kbds_project
+cd /home01/k252a02/kbds_project
 PY=/home01/k252a01/.conda/envs/swift/bin/python3   # 공유(/home01) 경로 → 전 노드 가시
 PORT="${NET_TEST_PORT:-8137}"
 

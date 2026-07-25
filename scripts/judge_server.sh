@@ -10,7 +10,7 @@
 # 클라이언트: JUDGE_BASE_URL=http://<이 노드 IP>:8100/v1  JUDGE_MODEL=qwen36-judge
 # =============================================================================
 set -eu
-cd /home01/k252a01/kbds_project
+cd /home01/k252a02/kbds_project
 SB="${CONTAINER_IMG:-work/images/ms-swift-413-sandbox}"
 MODEL=$(ls -d work/hf_cache/hub/models--Qwen--Qwen3.6-27B-FP8/snapshots/*/ 2>/dev/null | head -1)
 [ -z "$MODEL" ] && { echo "모델 미다운로드"; exit 1; }

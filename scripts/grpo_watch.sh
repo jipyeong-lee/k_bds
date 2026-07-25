@@ -16,7 +16,7 @@
 # 상태/로그: logs/grpo_watch_<RECIPE>.log  (per-recipe state: logs/grpo_watch_<RECIPE>.state)
 # =============================================================================
 set -u
-cd /home01/k252a01/kbds_project
+cd /home01/k252a02/kbds_project
 
 RECIPE="${RECIPE:-dapo}"                   # 표/마커/파일명에 쓰는 라벨
 JOB_ID="${JOB_ID:?JOB_ID 필요}"

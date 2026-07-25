@@ -10,11 +10,11 @@
 #SBATCH --cpus-per-task=8
 #SBATCH --time=02:00:00
 #SBATCH --comment=pytorch
-#SBATCH --output=/home01/k252a01/kbds_project/logs/eval_compare_%j.log
-#SBATCH --error=/home01/k252a01/kbds_project/logs/eval_compare_%j.log
+#SBATCH --output=/home01/k252a02/kbds_project/logs/eval_compare_%j.log
+#SBATCH --error=/home01/k252a02/kbds_project/logs/eval_compare_%j.log
 
 set -u
-cd /home01/k252a01/kbds_project
+cd /home01/k252a02/kbds_project
 source scripts/00_common.sh
 SB="$CONTAINER_IMG"
 PORT="${EVAL_PORT:-8155}"

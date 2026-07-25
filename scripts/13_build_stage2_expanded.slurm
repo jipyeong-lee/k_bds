@@ -15,11 +15,11 @@
 #SBATCH --nodes=1
 #SBATCH --cpus-per-task=16
 #SBATCH --time=02:00:00
-#SBATCH --output=/home01/k252a01/kbds_project/logs/s2_build_%j.log
-#SBATCH --error=/home01/k252a01/kbds_project/logs/s2_build_%j.log
+#SBATCH --output=/home01/k252a02/kbds_project/logs/s2_build_%j.log
+#SBATCH --error=/home01/k252a02/kbds_project/logs/s2_build_%j.log
 
 set -uo pipefail
-cd /home01/k252a01/kbds_project
+cd /home01/k252a02/kbds_project
 # 변환용 python = pyarrow+PIL 만 있으면 됨(ms-swift 불필요). 다른 계정은 BUILD_PY 로 override
 #  (conda env 경로는 계정마다 다름 — 이 값은 kbds_project 밖이라 HANDOFF 의 sed 가 못 잡음).
 PY="${BUILD_PY:-/home01/k252a01/.conda/envs/swift/bin/python}"

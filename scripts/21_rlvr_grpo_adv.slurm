@@ -39,11 +39,11 @@
 #SBATCH --gres=gpu:8
 #SBATCH --cpus-per-task=64
 #SBATCH --time=70:00:00
-#SBATCH --output=/home01/k252a01/kbds_project/logs/grpo_adv_%j.log
-#SBATCH --error=/home01/k252a01/kbds_project/logs/grpo_adv_%j.log
+#SBATCH --output=/home01/k252a02/kbds_project/logs/grpo_adv_%j.log
+#SBATCH --error=/home01/k252a02/kbds_project/logs/grpo_adv_%j.log
 
 set -euo pipefail
-source /home01/k252a01/kbds_project/scripts/00_common.sh
+source /home01/k252a02/kbds_project/scripts/00_common.sh
 if [[ "$ENV_MODE" == conda ]]; then module load compilers/cuda/12.4 compilers/gcc/10.2.0; fi
 
 # ---- baseline 과 동일한 init/데이터 (clean A/B) ----------------------------
@@ -56,6 +56,16 @@ EXTRA_ARGS="${EXTRA_ARGS:-}"
 LORA_RANK="${LORA_RANK:-16}"
 LORA_ALPHA="${LORA_ALPHA:-32}"
 LR="${LR:-1e-5}"
+
+# ---- 롤아웃 temperature (검증된 A/B 기본값 = ms-swift 기본 0.9) -------------
+#   외부 관행 다수설은 ~1.0(ORZ "T=1 best"). 기본은 재현성 위해 0.9 유지하고
+#   TEMPERATURE=1.0 로 A/B. 상세 = docs/rlvr_hparams_external.md §1,§3.
+TEMPERATURE="${TEMPERATURE:-0.9}"
+# ── 외부 관행 대조 A/B knob (전부 기본=검증값, override 시에만 변경) ──────────
+#   그룹크기:  NUM_GEN=8      (관행 8~16, 기본 4는 메모리 절충)
+#   KL 페널티: BETA=0.01      (관행은 0~0.01, 기본 0.04는 보수적)
+#   temp:      TEMPERATURE=1.0
+#   → 근거·판정표: docs/rlvr_hparams_external.md
 
 # ---- RECIPE 별 GRPO 파생기법 인자 조립 -------------------------------------
 RECIPE="${RECIPE:-dapo}"
@@ -94,6 +104,7 @@ case "$RECIPE" in
 esac
 
 echo "[grpo-adv] RECIPE=$RECIPE  INIT_MODEL=$INIT_MODEL"
+echo "[grpo-adv] knobs: NUM_GEN=${NUM_GEN:-4}  BETA=${BETA:-0.04}  TEMPERATURE=$TEMPERATURE  LR=$LR  (기본=검증값, 변경 시 clean A/B 깨짐 — docs/rlvr_hparams_external.md)"
 echo "[grpo-adv] CORE=$CORE_ARGS"
 echo "[grpo-adv] RECIPE_ARGS=$RECIPE_ARGS"
 
@@ -132,6 +143,7 @@ run_py swift rlhf \
   $RECIPE_ARGS \
   --enable_thinking true \
   --num_generations "${NUM_GEN:-4}" \
+  --temperature "$TEMPERATURE" \
   --max_completion_length "${MAX_COMPLETION:-6144}" \
   --per_device_train_batch_size 1 \
   --gradient_accumulation_steps 4 \

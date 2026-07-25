@@ -59,6 +59,7 @@ bash scripts/launch_stage2_expanded.sh            # 본실행 (기본=GDPO, ~70h
 - **런처는 검증된 `21_rlvr_grpo_adv.slurm` 를 제출**(20 아님) — GDPO/dr_grpo 의 plateau 돌파 핵심 `dynamic_sample`+`overlong_filter`+`beta 0.04` 는 21 에만 있음.
 - **GDPO** = `--loss_type dr_grpo --scale_rewards gdpo` (보상별 advantage 개별정규화). A/B 검증(job 59191, 홀드아웃 0.390).
 - 보상: `accuracy_mix 1.0 + format_think 0.2 + soft_overlong 0.2` (configs/accuracy.py).
+- **하이퍼파라미터 외부 관행 대조·A/B knob** → [`rlvr_hparams_external.md`](rlvr_hparams_external.md). 기본값은 검증된 값(그룹 4·β 0.04·temp 0.9) 유지, `NUM_GEN=8`/`TEMPERATURE=1.0`/`BETA=0.01` 로 override 실험. **에포크는 늘리지 말 것**(≤1ep, 50스텝마다 홀드아웃, 포화 시 조기중단 — 다양성 붕괴 방지).
 - 산출: `work/checkpoints/grpo_expanded_gdpo`.
 
 ## 6. 평가 (확장 홀드아웃)

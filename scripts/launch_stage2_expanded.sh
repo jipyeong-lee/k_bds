@@ -11,6 +11,12 @@
 #   bash scripts/launch_stage2_expanded.sh              # 기본 = GDPO 본실행 (~70h)
 #   RECIPE=dr_grpo bash scripts/launch_stage2_expanded.sh
 #   SMOKE=1 bash scripts/launch_stage2_expanded.sh      # 배선 스모크(max_steps 5)
+#
+#   ── 외부 관행 대조 A/B (기본값=검증값, override 시에만 변경) ──────────────
+#   NUM_GEN=8     bash scripts/launch_stage2_expanded.sh   # 그룹 4→8 (관행 8~16)
+#   TEMPERATURE=1.0 bash scripts/launch_stage2_expanded.sh # 롤아웃 0.9→1.0 (관행 ~1.0)
+#   BETA=0.01     bash scripts/launch_stage2_expanded.sh   # KL 0.04→0.01 (관행 0~0.01)
+#   근거·판정: docs/rlvr_hparams_external.md  ⚠️ 기본값 변경 시 과거 A/B clean 비교 깨짐
 # =============================================================================
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -42,7 +48,15 @@ echo "[launch] RECIPE=$RECIPE → 21_rlvr_grpo_adv (loss=dr_grpo · scale_reward
 echo "[launch] INIT=$INIT_MODEL"
 echo "[launch] DATA=$DATASET_FILE ($(wc -l <"$DATASET_FILE") 건)"
 echo "[launch] OUT =$OUTPUT_DIR"
+echo "[launch] knobs: NUM_GEN=${NUM_GEN:-4(기본)}  TEMPERATURE=${TEMPERATURE:-0.9(기본)}  BETA=${BETA:-0.04(기본)}  (관행 대조: docs/rlvr_hparams_external.md)"
 
-sbatch --export=ALL,RECIPE="$ADV_RECIPE",SCALE_REWARDS="$SCALE",INIT_MODEL="$INIT_MODEL",DATASET_FILE="$DATASET_FILE",OUTPUT_DIR="$OUTPUT_DIR",EXTRA_ARGS="$SMOKE_ARG" \
+# 관행 대조 A/B knob 을 명시적으로 전달(--export=ALL 이 놓치는 경우 대비).
+#   설정 안 하면 21 스크립트의 검증된 기본값(4 / 0.9 / 0.04)이 그대로 쓰임.
+KNOB_EXPORT=""
+[ -n "${NUM_GEN:-}" ]     && KNOB_EXPORT="$KNOB_EXPORT,NUM_GEN=$NUM_GEN"
+[ -n "${TEMPERATURE:-}" ] && KNOB_EXPORT="$KNOB_EXPORT,TEMPERATURE=$TEMPERATURE"
+[ -n "${BETA:-}" ]        && KNOB_EXPORT="$KNOB_EXPORT,BETA=$BETA"
+
+sbatch --export=ALL,RECIPE="$ADV_RECIPE",SCALE_REWARDS="$SCALE",INIT_MODEL="$INIT_MODEL",DATASET_FILE="$DATASET_FILE",OUTPUT_DIR="$OUTPUT_DIR",EXTRA_ARGS="$SMOKE_ARG"$KNOB_EXPORT \
   scripts/21_rlvr_grpo_adv.slurm
 echo "[launch] 제출됨. 진행: squeue -u \$USER / logs/grpo_adv_*.log"

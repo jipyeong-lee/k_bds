@@ -260,13 +260,14 @@ RL 이 최적화하는 `format_think`(`configs/accuracy.py`)는 **앵커 매칭*
 | 소스 | 설명 | 학습 | 홀드아웃 | 정답형식 | 역할 |
 |---|---|---|---|---|---|
 | DeepVision-103K | 수학·시각논리 멀티모달 문제(일반, 검증가능 정답) | 40,000 | 972 | math/MC | 일반 시각추론 base(RL 검증됨) |
-| **MMK12** | 중국 K-12 수학 시험문제(이미지+수치/수식 답) | 15,204 | 400 | 수치/수식 82% | **순수 math** — 약점 직격 |
+| **MMK12** | 중국 K-12 수학 시험문제(**영어 번역본**, 이미지+수치/수식 답) | 15,204 | 400 | 수치/수식 82% | **순수 math** — 약점 직격 |
 | **PMC-VQA** | PubMed 논문 그림 기반 의료 VQA(4지선다) | 19,583 | 400 | **MC(B/C/A/D 균형)** | **의료 광범위** — 목표 정렬 |
 | **합계** | — | **74,787** | **1,772** | | 일반53 / math20 / 의료26 |
 
 - **데이터 = "받아서 실측"으로 선별**: Kvasir(58K인데 고유이미지 671·degenerate)·SLAKE(이미지 450)·ThinkLite(노이즈)는 실측 후 탈락. **PMC-VQA만 대형·다양·검증가능 의료**(329K MC·PubMed 광범위). 상세 → [`docs/stage2_data.md`](docs/stage2_data.md).
 - **오염 최종 해소**: 전 소스 **이미지 바이트해시 dedup**. 이번 재조립에서 **DeepVision 구 22% 오염까지 제거**(홀드아웃 이미지해시를 train 서브샘플서 배제) → 전 소스 홀드아웃 1,772건 누수 0 검증.
 - **init = v3** `sft_mixed_merged` · **레시피 = GDPO**(`21_rlvr_grpo_adv` 경유, dynamic_sample 코어 포함). 실행 → [`docs/stage2_expansion_runbook.md`](docs/stage2_expansion_runbook.md).
+- **하이퍼파라미터 외부 관행 대조** → [`docs/rlvr_hparams_external.md`](docs/rlvr_hparams_external.md): 2026 리포트 기준 KL β·그룹크기·temp·에포크 관행과 대조. 코어(손실·advantage·필터)는 관행 정합, 벌어진 4곳(β 0.04·그룹 4·배치 32·temp 0.9)은 자원 제약. **에포크는 ≤1·조기중단이 정설**. A/B knob: `NUM_GEN=8`/`TEMPERATURE=1.0`/`BETA=0.01`(기본=검증값).
 - 스크립트: `build_pmcvqa.py`·`13_build_stage2_expanded.slurm`(변환) · `build_stage2_mix.py`(조립·`DV_CAP`/`PMC_CAP` 비율조정) · `launch_stage2_expanded.sh`(GDPO 제출).
 - ⏳ **남은 것**: 배선 스모크(`SMOKE=1`) 후 다른 계정서 본실행(~70h). 평가는 소스별(`_source`) 확장 홀드아웃.
 

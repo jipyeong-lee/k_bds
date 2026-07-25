@@ -22,11 +22,11 @@
 #SBATCH --gres=gpu:8
 #SBATCH --cpus-per-task=64
 #SBATCH --time=70:00:00           # 5일(120h) 한도 내. 사이클당 70h 예상
-#SBATCH --output=/home01/k252a01/kbds_project/logs/grpo_%j.log
-#SBATCH --error=/home01/k252a01/kbds_project/logs/grpo_%j.log
+#SBATCH --output=/home01/k252a02/kbds_project/logs/grpo_%j.log
+#SBATCH --error=/home01/k252a02/kbds_project/logs/grpo_%j.log
 
 set -euo pipefail
-source /home01/k252a01/kbds_project/scripts/00_common.sh
+source /home01/k252a02/kbds_project/scripts/00_common.sh
 # 호스트 모듈은 conda 폴백 시에만 필요(컨테이너는 자체 cuda/gcc 보유)
 if [[ "$ENV_MODE" == conda ]]; then module load compilers/cuda/12.4 compilers/gcc/10.2.0; fi
 
@@ -35,6 +35,9 @@ if [[ "$ENV_MODE" == conda ]]; then module load compilers/cuda/12.4 compilers/gc
 INIT_MODEL="${INIT_MODEL:-$CKPT_DIR/sft_mixed_merged}"
 DATASET_FILE="${DATASET_FILE:-$DATA_DIR/stage2_expanded_train.jsonl}"
 EXTRA_ARGS="${EXTRA_ARGS:-}"            # 스모크 테스트: EXTRA_ARGS="--max_steps 3"
+# 롤아웃 temperature: 기본 = ms-swift 기본 0.9(검증값). 관행 ~1.0 A/B 는 TEMPERATURE=1.0.
+#   (그룹크기 NUM_GEN=8·KL BETA=0.01 도 override 로 실험 — docs/rlvr_hparams_external.md)
+TEMPERATURE="${TEMPERATURE:-0.9}"
 
 # ⚠️ 이 클러스터는 NVLink 없음(PCIe A100, NCCL→SHM) → full-FT 멀티GPU 통신병목(375~660s/step).
 #   LoRA 로 통신량을 줄여 우회(권장 기본값). full 은 INIT 시 TUNER_TYPE=full 로 override(느림).
@@ -79,6 +82,7 @@ run_py swift rlhf \
   --soft_cache_length 2048 \
   --enable_thinking true \
   --num_generations "${NUM_GEN:-4}" \
+  --temperature "$TEMPERATURE" \
   --max_completion_length "${MAX_COMPLETION:-6144}" \
   --per_device_train_batch_size 1 \
   --gradient_accumulation_steps 4 \

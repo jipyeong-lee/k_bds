@@ -35,6 +35,8 @@ export HF_TOKEN=hf_xxx           # 이 계정은 ~/model_download.py 에 보유�
 
 # (C) 컨테이너 이미지 재빌드 (git 에 없음, ~수GB)
 bash env/build_image.sh          # → $WORK_DIR/images/ms-swift-413-sandbox
+#  ⚠️ 2026-07-27 현재 클러스터 apptainer 가 파손돼 이 빌드도 불가(singularity pull/build 필요).
+#     이미지를 §2-A 직접전송으로 받아오고, 실행은 ENV_MODE=loader 우회 사용. → §3 맨 아래
 
 # (D) 변환용 python (pyarrow+PIL) — 위 sed 가 못 잡는 계정밖 경로. 13_build_stage2_expanded 에서 씀.
 export BUILD_PY=/home01/<새계정>/.conda/envs/<env>/bin/python   # pyarrow+PIL 있는 아무 python
@@ -66,6 +68,27 @@ WITH_STAGE3=1 bash scripts/transfer_pull.sh    # + judge(27B) + medix
 - **HF 오프라인 플래그**: `00_common.sh` 가 `HF_HUB_OFFLINE=1` 설정 → 다운로드 시 런칭셸에서 **`unset HF_HUB_OFFLINE` + `--env HF_HUB_OFFLINE=0`**.
 - **글로벌 vLLM 로그인노드 불가**(드라이버) → judge·학습·추론 전부 컴퓨트노드.
 - **swift export 병합/eval 은 GPU 노드에서만**(컨테이너 필요). merge_lora 는 CPU 연산이지만 컨테이너가 CPU 노드서 안 도는 게 제약.
+
+### 🚨 apptainer 파손 → `ENV_MODE=loader` 우회 (2026-07-27~)
+
+**증상**: `singularity: error while loading shared libraries: libsubid.so.3` — 로그인·계산 노드 **모두**.
+클러스터 공용 `/apps/application/apptainer/1.4.5` rpm 이 **GLIBC_2.28 요구**(호스트는 CentOS7/glibc 2.17)
++ `libsubid.so.3` 시스템 부재. **7/21 까지는 정상**(job 59191)이었고 원본 계정 로그에도 이 에러 없음
+→ 그 사이 런타임이 교체/파손됨. **이미지 자체는 멀쩡**하므로 재빌드는 해결책이 아니다(빌드도 불가).
+
+**우회**: sandbox 안에 Ubuntu22.04 의 완전한 **glibc 2.35 런타임**이 들어있다. 그 로더(`ld-linux`)로
+sandbox python 을 직접 구동하면 호스트 glibc 를 우회해 동일 스택(torch/vllm/swift)이 그대로 돈다.
+`00_common.sh` 의 `ENV_MODE` 기본값이 **`loader`** 이므로 **추가 조치 없이 기존 스크립트가 그대로 동작**한다.
+
+```bash
+./runc.sh -c "import torch; print(torch.__version__)"   # 단독 실행 확인
+ENV_MODE=container bash scripts/...                      # apptainer 복구 후 원복
+```
+- 구현: `runc.sh`(로더 래퍼) + `bin/python`·`bin/python3`(torchrun 자식용 shim). 함정 5개는 `runc.sh` 주석 참조
+  (sys.executable / PYTHONHOME / LD_LIBRARY_PATH 분리 / CUDA_HOME 실경로 / Triton 용 gcc 10.2.0).
+- **검증**: job 72844(gpu-1-006) GRPO 2 step 완주, 보상 3종·GDPO 손실·KL 전 구간 동작.
+  배선 확인용 1GPU 스모크 = `sbatch -p debug-1gpu ... smoke1gpu.sh`(메모리 맞춤, 성능검증 아님).
+- **apptainer 복구되면** `00_common.sh` 의 `ENV_MODE` 기본값을 `container` 로 되돌릴 것.
 
 ---
 

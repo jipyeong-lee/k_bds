@@ -1,0 +1,5 @@
+#!/bin/bash
+# python shim — 이 스크립트가 sys.executable 이 되어, torchrun/DDP 가 자식 프로세스를
+# 띄울 때도 항상 sandbox glibc 로더를 경유하게 한다. (원리·배경 = ../runc.sh 주석)
+_HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+exec "$_HERE/runc.sh" "$@"

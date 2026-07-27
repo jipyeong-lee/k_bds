@@ -34,7 +34,9 @@ export SYSTEM_PROMPT="${SYSTEM_PROMPT:-You are a multimodal reasoning assistant.
 
 # ---- 환경 방식 선택: container(권장) | conda -------------------------------
 #  glibc 2.17 때문에 vLLM 은 conda/pip 설치 불가 → 컨테이너가 기본. (자세히: 메모리 env-glibc-container)
-export ENV_MODE="${ENV_MODE:-container}"
+# 2026-07-27: 클러스터 apptainer 파손(libsubid/GLIBC_2.28)으로 container 모드 불가 →
+#   기본값을 loader 로 전환. apptainer 복구되면 container 로 되돌릴 것.
+export ENV_MODE="${ENV_MODE:-loader}"
 export CONDA_ENV="${CONDA_ENV:-swift}"                   # conda 폴백용(SFT 한정, vLLM 불가)
 # 실행 이미지: SIF 는 squashfuse/ setuid 제약으로 매 실행 추출이 느려 sandbox(디렉토리) 사용.
 #  기본 = swift4.1.3/cuda12.9.1(Gemma4 지원, 계산노드 검증: vllm._C+커널 OK). 마이너버전 호환 동작.
@@ -44,12 +46,25 @@ export CONTAINER_IMG="${CONTAINER_IMG:-$WORK_DIR/images/ms-swift-413-sandbox}"
 # 단계별 실행 명령을 감싸는 래퍼. 사용:  run_py swift sft ...
 #  singularity 는 기본적으로 호스트 env 를 전달하므로 NPROC_PER_NODE/MASTER_*/NCCL_* 등
 #  앞서 export 한 분산 변수들이 컨테이너 안에서도 보임(--cleanenv 미사용).
+#  ENV_MODE=loader : apptainer 파손 대비 우회 경로(2026-07-27~).
+#    클러스터 공용 apptainer 1.4.5 가 libsubid.so.3 부재 + GLIBC_2.28 요구(호스트 2.17)로
+#    실행 불가. sandbox 안 glibc 2.35 로더로 sandbox python 을 직접 구동해 우회한다.
+#    GPU 노드 검증: torch 2.10.0+cu129 cuda_avail True · vllm 0.19.1 (job 72830).
+#    apptainer 복구되면 ENV_MODE=container 로 되돌릴 것. 상세 = runc.sh 주석.
 run_py() {
   if [[ "$ENV_MODE" == "container" ]]; then
     singularity exec --nv \
       --bind "$WORK_DIR:$WORK_DIR" --bind "$PROJ_DIR:$PROJ_DIR" \
       --env HF_HOME="$HF_HOME",MODELSCOPE_CACHE="$MODELSCOPE_CACHE",USE_HF="$USE_HF",HF_HUB_OFFLINE="$HF_HUB_OFFLINE" \
       "$CONTAINER_IMG" "$@"
+  elif [[ "$ENV_MODE" == "loader" ]]; then
+    # "swift ..." / "python ..." 형태 호출을 sandbox python 진입점으로 변환
+    local first="$1"; shift
+    case "$first" in
+      swift)          "$PROJ_DIR/runc.sh" -m swift.cli.main "$@" ;;
+      python|python3) "$PROJ_DIR/runc.sh" "$@" ;;
+      *)              "$PROJ_DIR/runc.sh" -m "$first" "$@" ;;
+    esac
   else
     conda run -n "$CONDA_ENV" --no-capture-output "$@"
   fi

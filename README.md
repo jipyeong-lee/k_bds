@@ -6,18 +6,20 @@
 
 ---
 
-## 현황 (2026-07-24)
+## 현황 (2026-07-28)
 
-**지금 위치**: **Stage-1 콜드스타트 v3 평가완료 — 형식 천장 완파**(생성 `format_think` v2-SFT **0.185**→v3 **0.909**, 같은 하니스; 홀드아웃 acc v2 **0.295**→v3 **0.348** [결과](#v3-홀드아웃-평가-결과--형식-천장-완파-job-69807-2026-07-20), **v2 동일조건 재측정 완료**) · Stage-2 방법론 전부 판정 완료 · **Stage-3(의료 RL) 본실행 대기**. → 다음: **Stage-2 재개 vs Stage-3 직행** 결정.
+**지금 위치**: **Stage-2 풀확장 본실행 시작**(k252a02 계정으로 이관 완료, 1 epoch=2,337 step 체인 제출). Stage-1 v3 평가완료(형식 천장 완파: 생성 `format_think` v2-SFT **0.185**→v3 **0.909**; 홀드아웃 acc v2 **0.295**→v3 **0.348** [결과](#v3-홀드아웃-평가-결과--형식-천장-완파-job-69807-2026-07-20)) · Stage-2 방법론 전부 판정 완료 · **Stage-3(의료 RL) 본실행 대기**. → 다음: **Stage-2 중간 체크포인트 평가 → 포화 시 조기중단 → Stage-3**.
+
+> 🚨 **환경 이슈(2026-07-27~)**: 클러스터 공용 **apptainer 1.4.5 파손**(`libsubid.so.3` 부재 + rpm 이 GLIBC_2.28 요구, 호스트는 CentOS7/glibc 2.17) → `singularity exec` 불가. **이미지는 정상**이므로 재빌드는 해결책이 아니다(빌드도 불가). **우회 = `ENV_MODE=loader`**(sandbox 안 glibc 2.35 로더로 sandbox python 직접 구동) — 기본값이라 **추가 조치 없이 기존 스크립트 그대로 동작**. 검증: GRPO 8GPU 5 step 완주(job 72832). 상세 → [`HANDOFF.md`](HANDOFF.md) §3 · `runc.sh` 주석.
 
 > 📋 **문제정의·실험결과·해결방안·목표·기한** 4축 → [`docs/project_status_2026-07-05.md`](docs/project_status_2026-07-05.md)
 
-> ⚠️ **예산**: 이 계정(k252a01)은 5,000 중 **~4,164 소진(83%)** — 잔여 ~836, Stage-2 재실행 불가. **그러나 2026-07-22 다른 계정에 5,000 노드시간 별도 확보** → **Stage-2 풀확장 본실행은 그쪽에서**. 이 계정은 **세팅·검증 전담**(SFT·데이터빌드·평가 = 저렴). → [자원](#자원--운영-정책-가이드) · 이식 [`HANDOFF.md`](HANDOFF.md)
+> ⚠️ **예산**: 구 계정(k252a01)은 5,000 중 **~4,164 소진(83%)** → **2026-07-27 k252a02 로 이관 완료**(work/ 293G 직접전송 + 경로 일괄치환). 신규 계정 예산 5,000 노드시간에서 **Stage-2 1 epoch ≈ 1,719 노드시간(34%)** 집행 예정, 나머지 66%는 **Stage-3(계획서 핵심 산출물·미시작)** 와 평가용으로 유보. *(2 epoch 은 69% 라 Stage-3 예산을 위협해 미채택.)* → [자원](#자원--운영-정책-가이드) · 이식 [`HANDOFF.md`](HANDOFF.md)
 
 | 단계 | 상태 | 핵심 결과 |
 |---|---|---|
 | **① 콜드스타트 SFT** | ✅ **v3 평가완료 (v2 동일조건 A/B 확정)** | **v2 데이터가 `format_think` 0.473** = RL 형식보상의 천장(RL 0.425 정체). → **v3 게이트 1.0** 재구축 후 **SFT만으로 생성 `format_think` 0.909**(v2-SFT 0.185의 5배, 같은 하니스). 홀드아웃 acc **0.348**(동일조건 v2 **0.295**, +18%·vl 주도; v2-RL 0.38~0.39) ([상세](#stage-1--콜드스타트-sft)) |
-| **② 범용 RLVR** | ✅ 방법론 종결 · 🔧 **풀확장 세팅완료** | plateau 진단 → **dr_grpo 승자**(Acc 0.526). 홀드아웃 GDPO 0.390 ≈ dr_grpo 0.380 ≫ GSPO 0.290(일반화 실패). **[풀확장 재설계](#0-풀확장-재설계-2026-07-2224-데이터-완료실행-대기)**: DeepVision 40K+MMK12+**PMC-VQA(의료)**=74,787(일반53/math20/의료26), init=v3·GDPO, 다른계정 실행대기. → [상세](#stage-2--범용-rlvr-grpo) |
+| **② 범용 RLVR** | ✅ 방법론 종결 · 🚀 **풀확장 본실행 중** | plateau 진단 → **dr_grpo 승자**(Acc 0.526). 홀드아웃 GDPO 0.390 ≈ dr_grpo 0.380 ≫ GSPO 0.290(일반화 실패). **[풀확장 재설계](#0-풀확장-재설계-2026-07-2224-데이터-완료실행-대기)**: DeepVision 40K+MMK12+**PMC-VQA(의료)**=74,787(일반53/math20/의료26), init=v3·GDPO. **1 epoch(2,337 step) 체인 제출**(job 73312~73315, ~215h). 스모크 완주 검증 완료(8GPU job 72832: AccuracyMix 0.31~0.48 · `frac_reward_zero_std` **0**). → [상세](#stage-2--범용-rlvr-grpo) |
 | **③ 의료 RL (RaR)** | ⏳ 배선 검증완료·**본실행 대기** | 루브릭·judge·배선 end-to-end PASS(유닛 29/29·스모크). step600 ckpt(dr_grpo/GDPO)가 init 후보. → [상세](#stage-3--의료-rl-rar-루브릭-보상) |
 | **④ 평가** | 🔄 기준선 확보·**v3 홀드아웃 완료** | **HealthBench Hard(n=1000)**: base 0.229 / v2 콜드스타트 0.224(동률, 오프타깃) — **v3 는 미측정**(동일 하니스로 즉시 비교 가능). **DeepVision 홀드아웃**: base 0.15 → v2 콜드스타트 0.22 → +RL 0.38–0.39, **v3 콜드스타트 0.348**(RL 無). → [상세](#타겟-벤치마크-healthbench--의료-성능-측정) |
 
@@ -269,7 +271,9 @@ RL 이 최적화하는 `format_think`(`configs/accuracy.py`)는 **앵커 매칭*
 - **init = v3** `sft_mixed_merged` · **레시피 = GDPO**(`21_rlvr_grpo_adv` 경유, dynamic_sample 코어 포함). 실행 → [`docs/stage2_expansion_runbook.md`](docs/stage2_expansion_runbook.md).
 - **하이퍼파라미터 외부 관행 대조** → [`docs/rlvr_hparams_external.md`](docs/rlvr_hparams_external.md): 2026 리포트 기준 KL β·그룹크기·temp·에포크 관행과 대조. 코어(손실·advantage·필터)는 관행 정합, 벌어진 4곳(β 0.04·그룹 4·배치 32·temp 0.9)은 자원 제약. **에포크는 ≤1·조기중단이 정설**. A/B knob: `NUM_GEN=8`/`TEMPERATURE=1.0`/`BETA=0.01`(기본=검증값).
 - 스크립트: `build_pmcvqa.py`·`13_build_stage2_expanded.slurm`(변환) · `build_stage2_mix.py`(조립·`DV_CAP`/`PMC_CAP` 비율조정) · `launch_stage2_expanded.sh`(GDPO 제출).
-- ⏳ **남은 것**: 배선 스모크(`SMOKE=1`) 후 다른 계정서 본실행(~70h). 평가는 소스별(`_source`) 확장 홀드아웃.
+- 🚀 **본실행 진행중(2026-07-28~)**: 배선 스모크 완주(1GPU job 72844 · 8GPU job 72832, 5/5 step, `frac_reward_zero_std` 0) → **1 epoch(2,337 step) 체인 제출**(`scripts/launch_stage2_expanded_epoch.sh`, job 73312~73315, afterany 4잡, ~215h).
+  - **학습량 결정**: 구 데이터셋에선 step600 포화였으나 **확장셋은 MMK12·PMC-VQA 가 새로 들어가 포화점이 다를 수 있어** 1 epoch 으로 확장. `MAX_STEPS` 를 처음부터 목표치로 지정해야 LR 이 매끄럽게 감쇠(600→2337 로 늘리면 불연속).
+  - ⚠️ **조기중단 원칙**: 외부 문헌의 diversity collapse 경고(후반 구간은 Pass@1 이득 없이 high-k Pass@k 감소)에 따라 **중간 체크포인트(save_steps 50)를 소스별(`_source`) 홀드아웃으로 평가하고 포화 시 중단**. → [`docs/rlvr_hparams_external.md`](docs/rlvr_hparams_external.md)
 
 ### 1) baseline → Acc plateau 진단 (job 57249, step 1000 완주)
 
@@ -815,6 +819,7 @@ sbatch          --dependency=afterok:$JID3 scripts/40_eval.slurm
 - **07-22** — **예산 방향전환 + Stage-2 풀확장 착수**. 다른 계정 5,000 노드시간 확보 → "836으로 Stage-2 vs Stage-3 택1" 제약 해제. v3 약점(math 동률) 겨냥해 **STEM RLVR 추가**: `MMK12`(15,616)·`ThinkLite-VL-hard`(11,031) 다운로드·검증(정답형식 검증가능 확인)·변환(`convert_to_swift` 스키마 2종 추가, CPU 잡). 콜드스타트서 탈락했던 데이터(trace 없음)가 RLVR 엔 적합.
 - **07-23** — **Stage-2 확장 세팅 완료·GitHub 공유**. `build_stage2_mix.py`(bytehash dedup, seed42) → train **128,349**/holdout **1,673**(신규 누수 0 검증). `20_rlvr_grpo` 기본값=v3 init+확장셋, `launch_stage2_expanded.sh`, `docs/stage2_expansion_runbook.md`. **[`HANDOFF.md`](HANDOFF.md) 전면 갱신**(계정 이식 sed·환경함정·실행절차). → 다른 계정이 clone→재현→본실행. → [풀확장](#0-풀확장-재설계-2026-07-2224-데이터-완료실행-대기)
 - **07-24** — **의료 데이터 추가 + 확장셋 재조립**. 의료 VQA 스크리닝(전부 실측): Kvasir(58K인데 고유이미지 671·degenerate)·SLAKE(이미지 450)·PathVQA(절반 개방형) 탈락, **PMC-VQA(329K MC·PubMed 광범위·B/C/A/D 균형) 채택**(`build_pmcvqa.py` — CSV+MC+zip 선택추출). reward 견고성 실측(0/12 손실 → 정규화 불필요). ThinkLite 드롭. **재조립 = DeepVision 40K+MMK12 15.2K+PMC-VQA 20K = 74,787**(일반53/math20/의료26), **DeepVision 구 22% 오염까지 최종 해소**(홀드아웃 해시 배제), 전 소스 dedup 누수 0. **GDPO 배선 수정**(런처가 검증된 `21_rlvr_grpo_adv` 경유하도록 — dynamic_sample 코어 누락 버그). `docs/stage2_data.md` 신설. → [상세](#0-풀확장-재설계-2026-07-2224-데이터-완료실행-대기)
+- **07-27~28** — **계정 이관 + 환경 복구 + Stage-2 본실행 착수**. ① **k252a02 이관**: `work/` 293G 직접전송(rsync), jsonl 42만곳·스크립트 95곳 경로 일괄치환(이미지 200/200 해석 검증). owner 전용 3파일(`guide.pdf`·`plan.hwp`·`.msc`)은 권한상 미전송. ② **apptainer 파손 발견**(`libsubid.so.3` 부재 + GLIBC_2.28 요구 vs 호스트 2.17; 로그인·계산 노드 공통, 7/21 까지는 정상) → **`ENV_MODE=loader` 우회 구현**: sandbox 안 glibc 2.35 로더로 sandbox python 직접 구동(`runc.sh` + `bin/python` shim). 함정 5개 해결(sys.executable·PYTHONHOME·LD_LIBRARY_PATH 분리·CUDA_HOME 실경로·Triton 용 gcc 10.2.0). ③ **배선 스모크 완주**: 1GPU(job 72844) 2 step → 8GPU(job 72832) 5 step, AccuracyMix 0.31~0.48·FormatThink 0.95~1.0·`frac_reward_zero_std` **0**·~331 s/it. ④ **1 epoch 체인 제출**(job 73312~73315). ⑤ `docs/rlvr_hparams_external.md` 신설(2026 리포트 대조: KL β·그룹크기·temp·에포크 관행).
 
 ### TODO
 - [x] 환경·모델·데이터 확정 + 전체 변환 (DeepVision 103K / medix 51K)
@@ -836,7 +841,9 @@ sbatch          --dependency=afterok:$JID3 scripts/40_eval.slurm
 - [x] **v2 동일조건 재측정** (job 70671, 07-21) → acc **0.295** / `format_think` **0.185**. 과거 소표본 "~0.22" 대체, v3 A/B 확정(+0.053 acc·vl 주도, 형식 5배)
 - [ ] **v3 HealthBench Hard** *(보류 — 비용 재검토 후 결정)* — base **0.229** / v2 콜드스타트 **0.224**(둘 다 `n=1000` 정식 실측)와 동일 하니스로 비교 가능하나, **실측 비용이 크다**: 과거 런 `59666`(base) **7:03 on 4gpu ≈ 28 노드시간**, `59691`(v2) **6:53 on 8gpu ≈ 55**. judge(27B)+타깃 동시 서빙이라 `gpu:2` 필수. → 잔여 예산 배분 결정 후 재검토. [추적표](#단계별-추적--healthbench-hard-n1000)
 - [x] **예산 배분 결정** → 다른 계정 5,000h 확보로 제약 해제, **Stage-2 풀확장 + Stage-3 둘 다** 진행
-- [x] **Stage-2 풀확장 데이터·검증** → MMK12·**PMC-VQA(의료)** 수급·변환·조립(train **74,787** 일반53/math20/의료26, holdout 1,772 dedup 누수0), GDPO 배선·런북·HANDOFF·`docs/stage2_data.md` 커밋 (다른 계정 실행대기)
+- [x] **Stage-2 풀확장 데이터·검증** → MMK12·**PMC-VQA(의료)** 수급·변환·조립(train **74,787** 일반53/math20/의료26, holdout 1,772 dedup 누수0), GDPO 배선·런북·HANDOFF·`docs/stage2_data.md` 커밋
+- [x] **k252a02 이관 + 환경 복구**(07-27~28) → work/ 293G 직접전송·경로 일괄치환, **apptainer 파손 우회(`ENV_MODE=loader`)**, 배선 스모크 완주(1GPU·8GPU)
+- [ ] **Stage-2 풀확장 본실행**(진행중) → 1 epoch 체인 job 73312~73315, 중간 체크포인트 평가 후 조기중단 판단
 - [ ] **Stage-2 확장 배선 스모크 → 본실행** (`launch_stage2_expanded.sh`, 다른 계정 ~70h) ← **다음 임계경로**
 - [ ] **확장 결과 평가**(소스별 홀드아웃) → v3(0.348) 대비 STEM 이득 확인
 - [ ] **Stage-3 본실행**(`launch_stage3.sh`) → init 교체 ← **계획서 핵심 산출물, 미시작**

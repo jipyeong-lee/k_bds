@@ -74,7 +74,23 @@
 - **평가 누수 차단 → 층화 홀드아웃 + fresh 1 epoch 재학습** (기존 stride 슬라이스는 학습 파일과 겹침).
 - **Stage-3 → 정적 RaR 루브릭** (인스턴스식 대비 시각근거 변별 우세).
 
-### 날짜별 이력 (상세 `docs/worklog_*.md`)
+### 날짜별 이력
+
+<details><summary>일별 상세 worklog (클릭)</summary>
+
+- [2026-06-15](worklog_2026-06-15.md) — 초기 세팅·데이터 수급
+- [2026-06-16](worklog_2026-06-16.md) — 추론모드·길이 전략 정립
+- [2026-06-17](worklog_2026-06-17.md) — Stage-2 추세 확인 & 운영 정리
+- [2026-06-19](worklog_2026-06-19.md) — Stage-2 baseline 완주 & plateau 진단
+- [2026-06-22](worklog_2026-06-22.md) — GRPO 파생기법 A/B 실험 착수
+- [2026-06-24](worklog_2026-06-24.md)
+- [2026-06-25](worklog_2026-06-25.md)
+- [2026-06-28](worklog_2026-06-28.md)
+- [2026-06-29](worklog_2026-06-29.md)
+- [2026-07-01](worklog_2026-07-01.md)
+
+</details>
+
 - **06-15~17** — 환경·모델·데이터 확정. NVLink 부재 발견→LoRA 전환. format 콜드스타트, `accuracy_mix`, GRPO 파일럿. Stage-2 착수(57249).
 - **06-19** — Stage-2 baseline 완주(step1000). **Acc plateau 진단**(zero_std 0.24→0.33).
 - **06-22~24** — plateau 돌파 A/B config(`21_..adv`). **DAPO 착수**(57527) → 안정성↑(grad 무spike·zero_std 0.00)이나 Acc 적신호. step600 돌파판정 자동화.

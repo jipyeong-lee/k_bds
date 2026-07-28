@@ -19,7 +19,7 @@
 | 단계 | 상태 | 핵심 결과 |
 |---|---|---|
 | **① 콜드스타트 SFT** | ✅ **v3 평가완료 (v2 동일조건 A/B 확정)** | **v2 데이터가 `format_think` 0.473** = RL 형식보상의 천장(RL 0.425 정체). → **v3 게이트 1.0** 재구축 후 **SFT만으로 생성 `format_think` 0.909**(v2-SFT 0.185의 5배, 같은 하니스). 홀드아웃 acc **0.348**(동일조건 v2 **0.295**, +18%·vl 주도; v2-RL 0.38~0.39) ([상세](#stage-1--콜드스타트-sft)) |
-| **② 범용 RLVR** | ✅ 방법론 종결 · 🚀 **풀확장 본실행 중** | plateau 진단 → **dr_grpo 승자**(Acc 0.526). 홀드아웃 GDPO 0.390 ≈ dr_grpo 0.380 ≫ GSPO 0.290(일반화 실패). **[풀확장 재설계](#0-풀확장-재설계-2026-07-2224-데이터-완료실행-대기)**: DeepVision 40K+MMK12+**PMC-VQA(의료)**=74,787(일반53/math20/의료26), init=v3·GDPO. **1 epoch(2,337 step) 체인 제출**(job 73312~73315, ~215h). 스모크 완주 검증 완료(8GPU job 72832: AccuracyMix 0.31~0.48 · `frac_reward_zero_std` **0**). → [상세](#stage-2--범용-rlvr-grpo) |
+| **② 범용 RLVR** | ✅ 방법론 종결 · 🚀 **풀확장 본실행 중** | plateau 진단 → **dr_grpo 승자**(Acc 0.526). 홀드아웃 GDPO 0.390 ≈ dr_grpo 0.380 ≫ GSPO 0.290(일반화 실패). **[풀확장 재설계](#0-풀확장-재설계-2026-07-2224-데이터--07-28-본실행-착수)**: DeepVision 40K+MMK12+**PMC-VQA(의료)**=74,787(일반53/math20/의료26), init=v3·GDPO. **1 epoch(2,337 step) 체인 제출**(job 73312~73315, ~215h). 스모크 완주 검증 완료(8GPU job 72832: AccuracyMix 0.31~0.48 · `frac_reward_zero_std` **0**). → [상세](#stage-2--범용-rlvr-grpo) |
 | **③ 의료 RL (RaR)** | ⏳ 배선 검증완료·**본실행 대기** | 루브릭·judge·배선 end-to-end PASS(유닛 29/29·스모크). step600 ckpt(dr_grpo/GDPO)가 init 후보. → [상세](#stage-3--의료-rl-rar-루브릭-보상) |
 | **④ 평가** | 🔄 기준선 확보·**v3 홀드아웃 완료** | **HealthBench Hard(n=1000)**: base 0.229 / v2 콜드스타트 0.224(동률, 오프타깃) — **v3 는 미측정**(동일 하니스로 즉시 비교 가능). **DeepVision 홀드아웃**: base 0.15 → v2 콜드스타트 0.22 → +RL 0.38–0.39, **v3 콜드스타트 0.348**(RL 無). → [상세](#타겟-벤치마크-healthbench--의료-성능-측정) |
 
@@ -34,7 +34,7 @@
 ---
 
 ## 목차
-1. [현황](#현황-2026-07-24)
+1. [현황](#현황-2026-07-28)
 2. [파이프라인 4단계](#파이프라인-4단계)
 3. [Stage-1 · 콜드스타트 SFT](#stage-1--콜드스타트-sft) — **v3 일반+의료 혼합 재설계**(형식 천장 규명) + ablation study(순가치)
 4. [Stage-2 · 범용 RLVR (GRPO)](#stage-2--범용-rlvr-grpo) — baseline·기법 통합비교(GRPO/DAPO/dr_grpo/GSPO/GDPO)·벤치마크
@@ -52,7 +52,7 @@
 | 단계 | 목적 | 데이터 | 방법 | 상태 |
 |---|---|---|---|---|
 | **①** 콜드스타트 SFT | `<think>/<answer>` 추론 형식 주입 + **의료 추론 시드** | **v3: OpenMedReason + VisualWebInstruct + VLAA 혼합**<br>(v2: 자기증류 RFT 727 → 형식 0.473) | LoRA SFT | ✅ v3 평가완료 — `format_think` **0.909**·acc **0.348**. `sft_mixed_merged` = 새 init |
-| **②** 범용 RLVR | 검증가능 정답으로 추론 강화 | **풀확장** DeepVision 40K + MMK12 + **PMC-VQA(의료)** = **74,787** | GRPO **GDPO** · init=v3 | ✅ A/B 판정완료 · 🔧 **데이터 완료**(다른계정 실행대기) |
+| **②** 범용 RLVR | 검증가능 정답으로 추론 강화 | **풀확장** DeepVision 40K + MMK12 + **PMC-VQA(의료)** = **74,787** | GRPO **GDPO** · init=v3 | ✅ A/B 판정완료 · 🚀 **본실행 중**(1 epoch 체인) |
 | **③** 의료 특화 RL | 개방형 의료 VQA 추론 | medix-rl-data 51K | GRPO + RaR 루브릭 보상 | ⏳ 배선 검증완료·대기 |
 | **④** 평가 | base 대비 성능 정량화 | 층화 홀드아웃 / **HealthBench** | vLLM 추론·채점 | 🔄 base·콜드스타트 측정완료(HealthBench 0.229/0.224) |
 
@@ -253,9 +253,9 @@ RL 이 최적화하는 `format_think`(`configs/accuracy.py`)는 **앵커 매칭*
 
 > **요약 (Stage-2 방법론 실험 완료)**: baseline GRPO 에서 **Acc plateau** 진단 → GRPO 파생기법 5종 **clean A/B** → **dr_grpo 승자**(plateau 돌파, 홀드아웃 +73%). 최신기법 **GSPO·GDPO**도 검증: **GDPO 홀드아웃 동률**(0.390 vs 0.380, Stage-3용 채택 권고), **GSPO는 on-policy 동률이나 홀드아웃 열위**(0.290=일반화 실패, 미채택). step600 홀드아웃 **~0.38–0.39 포화**. **Stage-2 방법론 확정**.
 
-### 0) 풀확장 재설계 (2026-07-22~24, 데이터 완료·실행 대기)
+### 0) 풀확장 재설계 (2026-07-22~24 데이터 · 07-28 본실행 착수)
 
-**동기**: v3 콜드스타트 A/B 에서 **math 가 v2 와 동률(0.3245)** — vl 은 올렸으나 수치계산은 못 올림. 게다가 프로젝트 목표는 **의료**인데 Stage-2 가 일반 전용이었음. → **DeepVision 단일 → math(MMK12) + 의료(PMC-VQA) 추가**. (예산: 다른 계정 5,000 노드시간 확보 → 현재 계정은 **세팅·검증 전담**, GitHub 공유.)
+**동기**: v3 콜드스타트 A/B 에서 **math 가 v2 와 동률(0.3245)** — vl 은 올렸으나 수치계산은 못 올림. 게다가 프로젝트 목표는 **의료**인데 Stage-2 가 일반 전용이었음. → **DeepVision 단일 → math(MMK12) + 의료(PMC-VQA) 추가**. (예산: 2026-07-27 **k252a02 로 이관 완료** — 신규 5,000 노드시간에서 1 epoch≈1,719(34%) 집행, 나머지는 Stage-3 유보.)
 
 **확장셋 (의료 27% 확정, 2026-07-24 재조립):**
 
@@ -541,7 +541,8 @@ Stage-2 홀드아웃(DeepVision)은 **검증가능 정답** 기준의 내부 지
 - 노드 OS **CentOS 7.9 / glibc 2.17** → 최신 ML 패키지(특히 vLLM·xformers) pip/conda 설치 불가 → **공식 ms-swift 컨테이너**.
 - 이미지: `...modelscope:ubuntu22.04-cuda12.9.1-py312-torch2.10.0-vllm0.19.1-modelscope1.35.4-swift4.1.3` (Gemma4 지원=swift≥4.0.4).
 - **계산노드 검증**(드라이버 550=CUDA12.4): swift4.1.3 / torch2.10+cu129 / vllm0.19.1(`vllm._C` OK) / transformers5.6.2. CUDA **마이너 호환**(12.9 빌드를 12.4 드라이버) 정상.
-- SIF는 실행마다 추출이 느려 **sandbox(디렉토리)** 변환 사용(`work/images/ms-swift-413-sandbox`). `00_common.sh` `ENV_MODE=container`.
+- SIF는 실행마다 추출이 느려 **sandbox(디렉토리)** 변환 사용(`work/images/ms-swift-413-sandbox`).
+- 🚨 **2026-07-27~ apptainer 파손 → `00_common.sh` 기본값이 `ENV_MODE=loader`**(구 기본값 `container`). 클러스터 공용 apptainer 1.4.5 가 `libsubid.so.3` 부재 + GLIBC_2.28 요구(호스트 2.17)로 실행 불가 — 로그인·계산 노드 공통, **이미지는 정상**이라 재빌드는 무의미(빌드도 불가). 우회는 sandbox 안 **glibc 2.35 로더**로 sandbox python 을 직접 구동(`runc.sh` + `bin/python` shim). GPU 검증: torch2.10+cu129 `cuda_avail True`·vllm0.19.1·GRPO 8GPU 5 step 완주(job 72832). **apptainer 복구 시 `ENV_MODE=container` 로 원복**. → [`HANDOFF.md`](HANDOFF.md) §3
 - 최신 swift 4.2.3은 CUDA 13 요구라 이 드라이버서 불가. 대안 이미지: swift3.8.3/cuda12.6.3, swift3.6.4/cuda12.4.0.
 
 ### 베이스 모델 & ms-swift 4.x 주의
@@ -603,11 +604,11 @@ Stage-2 홀드아웃(DeepVision)은 **검증가능 정답** 기준의 내부 지
 |---|---|
 | 8gpu 잡 40개 (Stage-2 GRPO 계열 대부분) | 4,112.3 |
 | 그 외(4gpu 45.8·1gpu 3.2·debug 2.6·2gpu 0.4·cpu 0.1) | 52.1 |
-| **Stage-2 GRPO 1회** (70h×8) | **490~560** ← 이 계정 불가, **다른 계정(5,000h)서 실행** |
+| **Stage-2 GRPO 1회** (70h×8) | **490~560** ← k252a02(5,000h)서 실행 중. 1 epoch≈2,337 step 은 체인 4잡 ≈**1,719** |
 | **SFT 1회** (12~39분) | **2~5** ← 사실상 공짜 |
 | Stage-3 (미시작, 계획서 핵심 산출물) | ~500 예상 |
 
-> **2026-07-22 예산 방향전환**: 다른 계정에 5,000 노드시간 별도 확보 → Stage-2 풀확장 + Stage-3 둘 다 가능. 이 계정은 세팅·검증만. → [Stage-2 풀확장](#0-풀확장-재설계-2026-07-2224-데이터-완료실행-대기) · [`HANDOFF.md`](HANDOFF.md)
+> **2026-07-22 예산 방향전환 → 07-27 이관 완료**: k252a02 에 5,000 노드시간 확보 → Stage-2 풀확장 + Stage-3 둘 다 가능. **현재 이 레포가 그 계정**(work/ 293G 전송·경로 치환 완료). → [Stage-2 풀확장](#0-풀확장-재설계-2026-07-2224-데이터--07-28-본실행-착수) · [`HANDOFF.md`](HANDOFF.md)
 
 → **콜드스타트 v3 재구축은 저렴(SFT+평가 ~15)하나, 그 위에 Stage-2 를 다시 돌릴 여력은 없다.** 잔여 배분은 v3 SFT+평가 수치를 보고 결정.
 *(Slurm 에 하드 리밋은 없음 — `GrpTRESMins` 미설정이라 잡이 거부되진 않는다. 계획서/보고 기준.)*
@@ -737,7 +738,7 @@ sbatch          --dependency=afterok:$JID3 scripts/40_eval.slurm
 |---|---|---|---|
 | **기반** | 06-15 | ✅ | NVLink 부재 발견 → **전 단계 LoRA** 강제 (full-FT 375~660s/step) |
 | **① 콜드스타트 SFT** | 06-15~16, 07-08~20 | ✅ **v3 평가완료** | 세 번 재설계(v1→v2→v3). **형식 천장 0.473 → 0.909 완파**, acc 0.348 |
-| **② 범용 RLVR** | 06-16~07-13 · 확장 07-22~24 | ✅ 방법론 종결 · 🔧 데이터 완료 | dr_grpo 승자(Acc 0.526). **풀확장**(DeepVision 40K+MMK12+PMC-VQA 의료=74,787, init=v3·GDPO) 데이터·검증 후 다른계정 실행대기 |
+| **② 범용 RLVR** | 06-16~07-13 · 확장 07-22~24 · 본실행 07-28~ | ✅ 방법론 종결 · 🚀 **본실행 중** | dr_grpo 승자(Acc 0.526). **풀확장**(DeepVision 40K+MMK12+PMC-VQA 의료=74,787, init=v3·GDPO) → 1 epoch(2,337 step) 체인 job 73312~73315 |
 | **③ 의료 RL** | 06-28~07-01 | 🟡 배선완료·본실행 대기 | RaR 루브릭·judge(27B) 검증·**e2e 스모크 PASS** |
 | **④ 평가** | 전 기간 산발 | 🔄 진행 | 누수·오염 발견마다 재측정. v3 홀드아웃 0.348 |
 
@@ -817,8 +818,8 @@ sbatch          --dependency=afterok:$JID3 scripts/40_eval.slurm
 - **07-20** — **v3 홀드아웃 평가 완주**(job 69807, 972건 전량): **strict `format_think` 0.909**(v2 데이터 천장 0.473·RL 정체 0.425 **완파**), **accuracy 0.348**(v2 ~0.22, v2-RL 0.380/0.390 에 근접) — *RL 없이 SFT 만으로* 달성. 층별 math 0.324/vl 0.368, mean 1,982자, 형식위반 9.1%는 2048토큰 잘림. 부수: `sft_mixed_merged` 생성(Stage-2 새 init). **오염 비대칭 규명** — v3 는 DeepVision 미학습이라 홀드아웃 22% 오염 이득이 없어 **비교가 v3 에 보수적**. v2 동일조건 재측정 제출(70342 TIMEOUT → 70671 재제출). → [평가결과](#v3-홀드아웃-평가-결과--형식-천장-완파-job-69807-2026-07-20)
 - **07-21** — **v2 동일조건 재측정 완주**(job 70671, 972건 전량, 같은 하니스). v2-SFT: acc **0.295**·strict `format_think` **0.185**·mean **4,824자**. **A/B 확정**: 형식 v2 0.185 → v3 0.909(**5배**, 압도적), 정답률 v2 0.295 → v3 0.348(**+0.053·+18%**, 전부 **vl** 0.270→0.368; **math 는 0.3245 우연 동률**, per-sample 검증으로 artifact 아님 확인 — 정답 겹침 76/147). 과거 "~0.22"는 소표본값이라 폐기. **간결성**: v3 가 절반 길이(1,982 vs 4,824자)라 v2 는 1차 재측정서 TIMEOUT 났고 RL 잘림→형식0 의 근원. → [평가결과](#v3-홀드아웃-평가-결과--형식-천장-완파-job-69807-2026-07-20)
 - **07-22** — **예산 방향전환 + Stage-2 풀확장 착수**. 다른 계정 5,000 노드시간 확보 → "836으로 Stage-2 vs Stage-3 택1" 제약 해제. v3 약점(math 동률) 겨냥해 **STEM RLVR 추가**: `MMK12`(15,616)·`ThinkLite-VL-hard`(11,031) 다운로드·검증(정답형식 검증가능 확인)·변환(`convert_to_swift` 스키마 2종 추가, CPU 잡). 콜드스타트서 탈락했던 데이터(trace 없음)가 RLVR 엔 적합.
-- **07-23** — **Stage-2 확장 세팅 완료·GitHub 공유**. `build_stage2_mix.py`(bytehash dedup, seed42) → train **128,349**/holdout **1,673**(신규 누수 0 검증). `20_rlvr_grpo` 기본값=v3 init+확장셋, `launch_stage2_expanded.sh`, `docs/stage2_expansion_runbook.md`. **[`HANDOFF.md`](HANDOFF.md) 전면 갱신**(계정 이식 sed·환경함정·실행절차). → 다른 계정이 clone→재현→본실행. → [풀확장](#0-풀확장-재설계-2026-07-2224-데이터-완료실행-대기)
-- **07-24** — **의료 데이터 추가 + 확장셋 재조립**. 의료 VQA 스크리닝(전부 실측): Kvasir(58K인데 고유이미지 671·degenerate)·SLAKE(이미지 450)·PathVQA(절반 개방형) 탈락, **PMC-VQA(329K MC·PubMed 광범위·B/C/A/D 균형) 채택**(`build_pmcvqa.py` — CSV+MC+zip 선택추출). reward 견고성 실측(0/12 손실 → 정규화 불필요). ThinkLite 드롭. **재조립 = DeepVision 40K+MMK12 15.2K+PMC-VQA 20K = 74,787**(일반53/math20/의료26), **DeepVision 구 22% 오염까지 최종 해소**(홀드아웃 해시 배제), 전 소스 dedup 누수 0. **GDPO 배선 수정**(런처가 검증된 `21_rlvr_grpo_adv` 경유하도록 — dynamic_sample 코어 누락 버그). `docs/stage2_data.md` 신설. → [상세](#0-풀확장-재설계-2026-07-2224-데이터-완료실행-대기)
+- **07-23** — **Stage-2 확장 세팅 완료·GitHub 공유**. `build_stage2_mix.py`(bytehash dedup, seed42) → train **128,349**/holdout **1,673**(신규 누수 0 검증). `20_rlvr_grpo` 기본값=v3 init+확장셋, `launch_stage2_expanded.sh`, `docs/stage2_expansion_runbook.md`. **[`HANDOFF.md`](HANDOFF.md) 전면 갱신**(계정 이식 sed·환경함정·실행절차). → 다른 계정이 clone→재현→본실행. → [풀확장](#0-풀확장-재설계-2026-07-2224-데이터--07-28-본실행-착수)
+- **07-24** — **의료 데이터 추가 + 확장셋 재조립**. 의료 VQA 스크리닝(전부 실측): Kvasir(58K인데 고유이미지 671·degenerate)·SLAKE(이미지 450)·PathVQA(절반 개방형) 탈락, **PMC-VQA(329K MC·PubMed 광범위·B/C/A/D 균형) 채택**(`build_pmcvqa.py` — CSV+MC+zip 선택추출). reward 견고성 실측(0/12 손실 → 정규화 불필요). ThinkLite 드롭. **재조립 = DeepVision 40K+MMK12 15.2K+PMC-VQA 20K = 74,787**(일반53/math20/의료26), **DeepVision 구 22% 오염까지 최종 해소**(홀드아웃 해시 배제), 전 소스 dedup 누수 0. **GDPO 배선 수정**(런처가 검증된 `21_rlvr_grpo_adv` 경유하도록 — dynamic_sample 코어 누락 버그). `docs/stage2_data.md` 신설. → [상세](#0-풀확장-재설계-2026-07-2224-데이터--07-28-본실행-착수)
 - **07-27~28** — **계정 이관 + 환경 복구 + Stage-2 본실행 착수**. ① **k252a02 이관**: `work/` 293G 직접전송(rsync), jsonl 42만곳·스크립트 95곳 경로 일괄치환(이미지 200/200 해석 검증). owner 전용 3파일(`guide.pdf`·`plan.hwp`·`.msc`)은 권한상 미전송. ② **apptainer 파손 발견**(`libsubid.so.3` 부재 + GLIBC_2.28 요구 vs 호스트 2.17; 로그인·계산 노드 공통, 7/21 까지는 정상) → **`ENV_MODE=loader` 우회 구현**: sandbox 안 glibc 2.35 로더로 sandbox python 직접 구동(`runc.sh` + `bin/python` shim). 함정 5개 해결(sys.executable·PYTHONHOME·LD_LIBRARY_PATH 분리·CUDA_HOME 실경로·Triton 용 gcc 10.2.0). ③ **배선 스모크 완주**: 1GPU(job 72844) 2 step → 8GPU(job 72832) 5 step, AccuracyMix 0.31~0.48·FormatThink 0.95~1.0·`frac_reward_zero_std` **0**·~331 s/it. ④ **1 epoch 체인 제출**(job 73312~73315). ⑤ `docs/rlvr_hparams_external.md` 신설(2026 리포트 대조: KL β·그룹크기·temp·에포크 관행).
 
 ### TODO

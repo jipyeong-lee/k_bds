@@ -19,7 +19,12 @@ __pycache__/
 *.pyc
 *.pyo
 
+# ── 에이전트 도구 로컬 설정 (사용자별, 공유 대상 아님) ──
+.claude/
+.omc/
+
 # ── 기타 ──
 .DS_Store
 core.*
 *.tmp
+*.bak

@@ -11,6 +11,16 @@
 #     - MID_CKPT 미지정 시 grpo_expanded_gdpo 의 최신 checkpoint 자동 선택 + 스냅샷
 #     - `singularity exec` 직접호출 → `run_serve`/`run_py` 로 교체. apptainer 파손(07-27~)
 #       환경에서 종전 코드는 반드시 실패했다. 상세 = docs/stage2_run73924_progress.md
+#     - EVAL_STAGES / TRAINED_TAG 추가 + 임시경로·결과파일을 잡별로 분리 → 병렬 제출 가능.
+#       추세 평가 예: 이미 측정한 base·init 은 건너뛰고 체크포인트만 여러 잡으로 동시에.
+#         for S in 400 500; do
+#           sbatch --partition=debug-1gpu \
+#             --export=ALL,EVAL_STAGES=trained,TRAINED_TAG=step$S,EVAL_N=300,\
+#         MID_CKPT=$PWD/work/checkpoints/_mideval_snap_step$S,\
+#         EVAL_DATA=work/data/stage2_expanded_holdout.jsonl,EVAL_PORT=$((8165+S/100)) \
+#             scripts/eval_midtrain.slurm
+#         done
+#       ⚠️ EVAL_N·EVAL_SEED 가 같아야 과거 실행과 동일 슬라이스 → 직접 비교 가능
 # =============================================================================
 #SBATCH --job-name=eval-mid
 #SBATCH --partition=1gpu
@@ -26,7 +36,14 @@ cd /home01/k252a02/kbds_project
 source scripts/00_common.sh
 PORT="${EVAL_PORT:-8165}"
 EVAL_N="${EVAL_N:-100}"
-RESULT=logs/eval_midtrain_results.jsonl
+#  평가할 대상 선택 — 이미 측정한 baseline 을 다시 돌리지 않기 위함.
+#    EVAL_STAGES=trained  →  trained 만 (init/base 는 기존 측정값 재사용)
+#  EVAL_N 과 EVAL_SEED 가 같으면 슬라이스가 동일하므로 과거 실행과 직접 비교된다.
+EVAL_STAGES="${EVAL_STAGES:-base,init,trained}"
+TRAINED_TAG="${TRAINED_TAG:-trained}"
+#  ⚠️ 잡별로 분리해야 병렬 제출이 안전하다. 종전에는 고정 경로 + rm -rf 라
+#     두 잡을 동시에 띄우면 서로의 병합본과 결과 파일을 파괴했다.
+RESULT="${EVAL_RESULT_FILE:-logs/eval_midtrain_results_${SLURM_JOB_ID:-manual}.jsonl}"
 : > "$RESULT"
 
 # ---- 0) 중간 체크포인트 스냅샷 + 병합 ---------------------------------------
@@ -37,9 +54,10 @@ CKPT="${MID_CKPT:-$(ls -d "$CKPT_DIR"/grpo_expanded_gdpo/*/checkpoint-* 2>/dev/n
 [ -n "${CKPT:-}" ] && [ -d "$CKPT" ] \
   || { echo "[mid] ❌ 평가할 체크포인트가 없다 (MID_CKPT 로 지정할 것)"; exit 1; }
 
-SNAP="$CKPT_DIR/_mideval_snapshot"
-MERGED="$CKPT_DIR/_midtrain_merged"
+SNAP="$CKPT_DIR/_mideval_snapshot_${SLURM_JOB_ID:-manual}"
+MERGED="$CKPT_DIR/_midtrain_merged_${SLURM_JOB_ID:-manual}"
 export NPROC_PER_NODE=1
+trap 'rm -rf "$SNAP" "$MERGED"' EXIT      # 중간 실패해도 임시본을 남기지 않는다
 rm -rf "$SNAP" "$MERGED"
 echo "[mid] snapshot $CKPT -> $SNAP"
 cp -a "$CKPT" "$SNAP" || { echo "[mid] ❌ 스냅샷 실패"; exit 1; }
@@ -54,11 +72,11 @@ run_eval() {  # $1=tag  $2=model
   run_serve "$model" --served-model-name evalmodel \
       --max-model-len 10240 --gpu-memory-utilization 0.85 --enforce-eager \
       --limit-mm-per-prompt '{"image": 1}' --host 0.0.0.0 --port "$PORT" \
-      > logs/eval_mid_serve_${tag}_${SLURM_JOB_ID}.log 2>&1 &
+      > logs/eval_mid_serve_${tag}_${SLURM_JOB_ID:-manual}.log 2>&1 &
   local srv=$! ready=0
   for i in $(seq 1 60); do
     curl -s "http://localhost:$PORT/v1/models" 2>/dev/null | grep -q evalmodel && { ready=1; echo "[$tag] READY (~$((i*10))s)"; break; }
-    kill -0 $srv 2>/dev/null || { echo "[$tag] ❌ server died"; tail -15 logs/eval_mid_serve_${tag}_${SLURM_JOB_ID}.log; break; }
+    kill -0 $srv 2>/dev/null || { echo "[$tag] ❌ server died"; tail -15 logs/eval_mid_serve_${tag}_${SLURM_JOB_ID:-manual}.log; break; }
     sleep 10
   done
   if [ "$ready" = "1" ]; then
@@ -83,11 +101,13 @@ run_eval() {  # $1=tag  $2=model
 }
 
 BASE_PATH=$(ls -d work/hf_cache/hub/models--Qwen--Qwen3.5-9B/snapshots/*/ 2>/dev/null | head -1)
-run_eval base    "$BASE_PATH"
-run_eval init    "${INIT_MODEL:-$CKPT_DIR/sft_mixed_merged}"
-run_eval trained "$MERGED"
+has_stage() { case ",$EVAL_STAGES," in *",$1,"*) return 0;; *) return 1;; esac; }
 
-echo ""; echo "=====================  중간 벤치마크 결과 (holdout, math/vl 층별)  ====================="
+echo "[mid] EVAL_STAGES=$EVAL_STAGES  EVAL_N=$EVAL_N  RESULT=$RESULT"
+has_stage base    && run_eval base           "$BASE_PATH"                            || true
+has_stage init    && run_eval init           "${INIT_MODEL:-$CKPT_DIR/sft_mixed_merged}" || true
+has_stage trained && run_eval "$TRAINED_TAG" "$MERGED"                               || true
+
+echo ""; echo "=====================  중간 벤치마크 결과 (holdout, 층별)  ====================="
 cat "$RESULT"
-rm -rf "$MERGED"   # 임시 병합본 정리
-echo "[mid] done"
+echo "[mid] done"   # 스냅샷·병합본은 EXIT trap 이 정리한다

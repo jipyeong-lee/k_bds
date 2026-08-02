@@ -10,8 +10,8 @@
 
 ## 현황 (2026-08-02)
 
-**지금 위치**: **Stage-2 풀확장 본실행 중** (k252a02 이관 완료, MAX_STEPS=2,337 체인 job **73924~73927**) — **630/2,337 step (27%)** 통과.
-**다음 임계경로**: **중간 체크포인트 홀드아웃 평가**(정확도 보상이 630 step 째 정지 — 계속/중단의 유일한 근거) → **Stage-3 본실행**(계획서 핵심 산출물, 미시작).
+**지금 위치**: **Stage-2 풀확장 본실행 중** (k252a02 이관 완료, MAX_STEPS=2,337 체인 job **73924~73927**) — **650/2,337 step (28%)** 통과.
+**다음 임계경로**: **중간 체크포인트 홀드아웃 평가**(정확도 보상이 650 step 째 정지 — 계속/중단의 유일한 근거) → **Stage-3 본실행**(계획서 핵심 산출물, 미시작).
 
 | 단계 | 상태 | 핵심 결과 |
 |---|---|---|
@@ -38,24 +38,24 @@
 
 | 항목 | 값 | 판정 |
 |---|---|---|
-| 진행 | **630 / 2,337 step (27.0%)** = 0.067 epoch | 정상 |
-| 경과 / 속도 | 2d 8h · **322 s/it** (step_time 161s + 오버헤드 50%) | ⚠️ 오버헤드 |
-| 잔여 추정 | **6d 9h** (현 속도 기준) · 완주 ≈ 08-09 | — |
+| 진행 | **650 / 2,337 step (27.8%)** = 0.070 epoch | 정상 |
+| 경과 / 속도 | 2d 10h · **322 s/it** (step_time 161s + 오버헤드 50%) | ⚠️ 오버헤드 |
+| 잔여 추정 | **6d 7h** (현 속도 기준) · 완주 ≈ 08-09 | — |
 | 안정성 | OOM · CUDA error · Traceback **0건** · mem 90.9 GiB | ✅ 무결 |
 
-**구간 대조 (1~100 step 평균 → 531~630 step 평균)**
+**구간 대조 (1~100 step 평균 → 551~650 step 평균)** — `scripts/plot_train_curves.py` 출력
 
 | 지표 | 초반 | 최근 | 변화 |
 |---|---:|---:|---:|
-| rewards/AccuracyMix | 0.4248 | 0.4278 | **+0.7%** 🚨 |
-| rewards/FormatThink | 0.9461 | 0.9258 | −2.1% (이미 천장) |
-| completions/mean_length | 1,127 | 1,463 | **+29.8%** ⚠️ |
-| completions/clipped_ratio | 4.9% | 7.3% | **+47.5%** ⚠️ |
-| kl | 0.0036 | 0.0258 | +612% (절대값은 작음) |
-| entropy/mean | 0.5377 | 0.5335 | −0.8% (붕괴 없음) |
+| rewards/AccuracyMix | 0.4248 | 0.4305 | **+1.3%** 🚨 |
+| rewards/FormatThink | 0.9461 | 0.9291 | −1.8% (이미 천장) |
+| completions/mean_length | 1,127 | 1,444 | **+28.1%** ⚠️ |
+| completions/clipped_ratio | 4.9% | 7.0% | **+41.4%** ⚠️ |
+| kl | 0.0036 | 0.0262 | +626% (절대값은 작음) |
+| entropy/mean | 0.5377 | 0.5280 | −1.8% (붕괴 없음) |
 
-> 🚨 **정확도 보상이 630 step 동안 정지**했다(+0.7%, step별 노이즈 σ≈0.50 안). 대신 출력 길이가 +29.8%, 클리핑이 +47.5% —
-> 정확도 이득 없이 길이만 늘어나는 **길이 인플레이션** 패턴이다. `All completions are overlong` 경고 **197회**(630 step 대비 31%, 해당 step 은 KL NaN).
+> 🚨 **정확도 보상이 650 step 동안 정지**했다(+1.3%, step별 노이즈 σ≈0.50 안). 대신 출력 길이가 +28.1%, 클리핑이 +41.4% —
+> 정확도 이득 없이 길이만 늘어나는 **길이 인플레이션** 패턴이다. `All completions are overlong` 경고 **203회**(650 step 대비 31%, 해당 step 은 KL NaN).
 > **계속/중단 판단은 중간 체크포인트 홀드아웃 평가 결과가 나온 뒤에** 한다 — 학습 reward 로는 판단 근거가 없다.
 
 **체인 소진 예측**: 73924 는 벽시계 한계(TimeLimit 2-22:00:00, 08-03 07:39 종료)에서 **~778 step** 도달 후 resume 인계.
@@ -138,6 +138,7 @@ scripts/
   launch_stage2_expanded.sh         Stage-2 표준 진입점(단발)
   launch_stage2_expanded_epoch.sh   Stage-2 스텝 체인(resume, MAX_STEPS=2,337 = 0.25 epoch)
   build_stage2_mix.py               확장셋 조립(bytehash dedup)
+  plot_train_curves.py              학습 로그 → 6패널 곡선 + 구간 대조표(체인 로그 병합 지원)
   30_medical_rl.slurm · launch_stage3.sh · judge_server.sh    Stage-3
   50_eval_v3.slurm · eval_v3_holdout.py                       평가
 configs/   accuracy.py(Stage-2 보상) · medical_reward.py(Stage-3 RaR)

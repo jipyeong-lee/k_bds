@@ -1,10 +1,16 @@
 #!/bin/bash
 # =============================================================================
 # eval_midtrain.slurm — Stage-2 중간 홀드아웃 벤치마크 (조기 판단용)
-#   dr_grpo 1 epoch 재학습이 길어(~10일) → 중간 체크포인트에서 홀드아웃 정확도가
-#   오르는지 조기 확인. base / init(RL 0%) / trained(중간 체크포인트) 3개를 층화
-#   홀드아웃에서 동일조건 채점(accuracy_mix, math/vl 층별 분리).
+#   본실행이 길어(~9일) → 중간 체크포인트에서 홀드아웃 정확도가 오르는지 조기 확인.
+#   base / init(RL 0%) / trained(중간 체크포인트) 3개를 층화 홀드아웃에서 동일조건
+#   채점(accuracy_mix, math/vl 층별 분리).
 #   핵심 질문: init 대비 trained 가 홀드아웃 Acc 를 올렸나?(=Stage-2 RL 효과 격리)
+#
+#   2026-08-02 갱신:
+#     - init 을 현재 런 기준 v3 `sft_mixed_merged` 로 교체(구 `sft_rft_coldstart_merged` 아님)
+#     - MID_CKPT 미지정 시 grpo_expanded_gdpo 의 최신 checkpoint 자동 선택 + 스냅샷
+#     - `singularity exec` 직접호출 → `run_serve`/`run_py` 로 교체. apptainer 파손(07-27~)
+#       환경에서 종전 코드는 반드시 실패했다. 상세 = docs/stage2_run73924_progress.md
 # =============================================================================
 #SBATCH --job-name=eval-mid
 #SBATCH --partition=1gpu
@@ -18,27 +24,34 @@
 set -u
 cd /home01/k252a02/kbds_project
 source scripts/00_common.sh
-SB="$CONTAINER_IMG"
 PORT="${EVAL_PORT:-8165}"
 EVAL_N="${EVAL_N:-100}"
 RESULT=logs/eval_midtrain_results.jsonl
 : > "$RESULT"
 
-# ---- 0) 중간 체크포인트 병합 (복사본에서, 학습의 checkpoint 롤링과 무관) ----
-CKPT="${MID_CKPT:-$CKPT_DIR/_mideval_ckpt_step800}"
+# ---- 0) 중간 체크포인트 스냅샷 + 병합 ---------------------------------------
+#  학습이 save_total_limit=5 로 checkpoint 를 롤링 삭제한다. 평가 도중 원본이 사라질 수
+#  있으므로 반드시 스냅샷을 떠서 그 복사본에서 병합한다.
+CKPT="${MID_CKPT:-$(ls -d "$CKPT_DIR"/grpo_expanded_gdpo/*/checkpoint-* 2>/dev/null \
+        | awk -F'checkpoint-' '{print $2"\t"$0}' | sort -n | tail -1 | cut -f2-)}"
+[ -n "${CKPT:-}" ] && [ -d "$CKPT" ] \
+  || { echo "[mid] ❌ 평가할 체크포인트가 없다 (MID_CKPT 로 지정할 것)"; exit 1; }
+
+SNAP="$CKPT_DIR/_mideval_snapshot"
 MERGED="$CKPT_DIR/_midtrain_merged"
 export NPROC_PER_NODE=1
-rm -rf "$MERGED"
-echo "[mid] merge $CKPT -> $MERGED"
-run_py swift export --adapters "$CKPT" --merge_lora true --output_dir "$MERGED" \
+rm -rf "$SNAP" "$MERGED"
+echo "[mid] snapshot $CKPT -> $SNAP"
+cp -a "$CKPT" "$SNAP" || { echo "[mid] ❌ 스냅샷 실패"; exit 1; }
+echo "[mid] merge $SNAP -> $MERGED"
+run_py swift export --adapters "$SNAP" --merge_lora true --output_dir "$MERGED" \
   || { echo "[mid] ❌ merge 실패"; exit 1; }
 
 # ---- 평가 함수 (40_eval_compare.slurm 과 동일 로직, 결과 파일만 별도) --------
 run_eval() {  # $1=tag  $2=model
   local tag="$1" model="$2"
   echo "=================  [$tag] $model  ================="
-  singularity exec --nv --env HF_HUB_OFFLINE=1 --env VLLM_USE_MODELSCOPE=False \
-    "$SB" vllm serve "$model" --served-model-name evalmodel \
+  run_serve "$model" --served-model-name evalmodel \
       --max-model-len 10240 --gpu-memory-utilization 0.85 --enforce-eager \
       --limit-mm-per-prompt '{"image": 1}' --host 0.0.0.0 --port "$PORT" \
       > logs/eval_mid_serve_${tag}_${SLURM_JOB_ID}.log 2>&1 &
@@ -49,19 +62,29 @@ run_eval() {  # $1=tag  $2=model
     sleep 10
   done
   if [ "$ready" = "1" ]; then
-    singularity exec --nv --env HF_HUB_OFFLINE=1 \
-      --env EVAL_BASE_URL=http://localhost:$PORT/v1 --env EVAL_MODEL=evalmodel \
-      --env EVAL_N=$EVAL_N --env EVAL_CONC="${EVAL_CONC:-16}" --env EVAL_TAG="$tag" \
-      --env EVAL_MAXTOK="${EVAL_MAXTOK:-2048}" --env SYSTEM_PROMPT="$SYSTEM_PROMPT" \
-      --env EVAL_RESULT="$RESULT" \
-      "$SB" python scripts/eval_compare.py
+    # loader 모드에선 호스트 env 가 그대로 보이므로 --env 플래그 대신 export 로 전달.
+    # SYSTEM_PROMPT·HF_HUB_OFFLINE 은 00_common.sh 가 이미 export 했다.
+    EVAL_BASE_URL="http://localhost:$PORT/v1" EVAL_MODEL=evalmodel \
+    EVAL_N="$EVAL_N" EVAL_CONC="${EVAL_CONC:-16}" EVAL_TAG="$tag" \
+    EVAL_MAXTOK="${EVAL_MAXTOK:-2048}" EVAL_RESULT="$RESULT" \
+      run_py python scripts/eval_compare.py
   fi
-  kill $srv 2>/dev/null; sleep 3; kill -9 $srv 2>/dev/null || true; sleep 5
+  # ⚠️ run_serve 는 셸 함수라 $! 는 서브셸 PID 다(runc.sh 가 exec 로 python 이 됨).
+  #    자손까지 정리하지 않으면 vLLM 이 살아남아 다음 tag 에서 포트가 충돌한다.
+  pkill -TERM -P "$srv" 2>/dev/null || true
+  kill -TERM "$srv" 2>/dev/null || true
+  sleep 5
+  pkill -f "vllm.entrypoints.cli.main serve" 2>/dev/null || true
+  sleep 5
+  for i in $(seq 1 12); do
+    curl -s "http://localhost:$PORT/v1/models" >/dev/null 2>&1 || break
+    echo "[$tag] 포트 $PORT 해제 대기…"; sleep 5
+  done
 }
 
 BASE_PATH=$(ls -d work/hf_cache/hub/models--Qwen--Qwen3.5-9B/snapshots/*/ 2>/dev/null | head -1)
 run_eval base    "$BASE_PATH"
-run_eval init    "$CKPT_DIR/sft_rft_coldstart_merged"
+run_eval init    "${INIT_MODEL:-$CKPT_DIR/sft_mixed_merged}"
 run_eval trained "$MERGED"
 
 echo ""; echo "=====================  중간 벤치마크 결과 (holdout, math/vl 층별)  ====================="

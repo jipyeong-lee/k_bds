@@ -70,6 +70,19 @@ run_py() {
   fi
 }
 
+# vLLM OpenAI 호환 서버 기동 래퍼.  사용:  run_serve "$MODEL" --port 8165 ... &
+#  🚨 평가 스크립트는 반드시 이것을 쓸 것. `singularity exec ... vllm serve` 를 직접 부르면
+#     ENV_MODE 분기를 우회해 apptainer 파손 환경(2026-07-27~)에서 100% 실패한다.
+#     (2026-08-02 발견: 평가 스크립트 9종이 전부 07-25자 = 파손 이전 작성이라 이 경로로 깨져 있었다.)
+#  진입점은 `vllm` 콘솔 스크립트와 동일한 vllm.entrypoints.cli.main:main → `vllm serve <model>` 과
+#  인자 처리가 같다. run_py 를 경유하므로 container/loader/conda 분기를 그대로 따른다.
+run_serve() {
+  local model="$1"; shift
+  export HF_HUB_OFFLINE="${HF_HUB_OFFLINE:-1}"
+  export VLLM_USE_MODELSCOPE="${VLLM_USE_MODELSCOPE:-False}"
+  run_py python -m vllm.entrypoints.cli.main serve "$model" "$@"
+}
+
 # ---- 분산 학습 공통 (단일 노드 8GPU 기준) ----------------------------------
 export NPROC_PER_NODE="${NPROC_PER_NODE:-8}"
 export NNODES="${NNODES:-1}"

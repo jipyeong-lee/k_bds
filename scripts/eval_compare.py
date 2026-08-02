@@ -102,6 +102,22 @@ async def main():
     if len(srcs) > 1:
         for k in sorted(srcs):
             print(f"          ▶ [{k:9}] accuracy={st.mean(srcs[k]):.4f}  (n={len(srcs[k])})")
+    # 문항별 점수 덤프 — 체크포인트 간 "짝지음(McNemar)" 비교의 전제조건.
+    # 집계값만 남기면 비짝지음 검정밖에 못 해 검출 하한이 8.0pp(n=300)로 뜬다.
+    # 같은 시드·같은 슬라이스라 item_id 로 조인하면 하한이 5.7pp(n=300)·2.8pp(n=1200)로 내려간다.
+    items_path = os.environ.get('EVAL_ITEMS')
+    if items_path:
+        with open(items_path, 'w') as f:
+            for r, s in zip(rows, scores):
+                f.write(json.dumps({
+                    'item_id': r.get('images', [None])[0] or r.get('id'),
+                    'tag': TAG,
+                    'source': r.get('_source', 'all'),
+                    'stratum': r.get('_stratum', 'all'),
+                    'score': s,
+                }) + '\n')
+        print(f"[eval:{TAG}] per-item scores → {items_path} ({len(rows)} rows)")
+
     # 결과 파일(머신리더블) append
     with open(os.environ.get('EVAL_RESULT', 'logs/eval_compare_results.jsonl'), 'a') as f:
         f.write(json.dumps({'tag': TAG, 'model': MODEL, 'n': len(rows),

@@ -85,6 +85,7 @@ run_eval() {  # $1=tag  $2=model
     EVAL_BASE_URL="http://localhost:$PORT/v1" EVAL_MODEL=evalmodel \
     EVAL_N="$EVAL_N" EVAL_CONC="${EVAL_CONC:-16}" EVAL_TAG="$tag" \
     EVAL_MAXTOK="${EVAL_MAXTOK:-2048}" EVAL_RESULT="$RESULT" \
+    EVAL_ITEMS="${EVAL_ITEMS_DIR:-logs}/eval_items_${tag}_${SLURM_JOB_ID:-manual}.jsonl" \
       run_py python scripts/eval_compare.py
   fi
   # ⚠️ run_serve 는 셸 함수라 $! 는 서브셸 PID 다(runc.sh 가 exec 로 python 이 됨).

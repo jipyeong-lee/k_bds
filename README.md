@@ -8,15 +8,15 @@
 
 ---
 
-## 현황 (2026-07-28)
+## 현황 (2026-08-02)
 
-**지금 위치**: **Stage-2 풀확장 본실행 중** (k252a02 이관 완료, 1 epoch=2,337 step 체인 job 73312~73315).
+**지금 위치**: **Stage-2 풀확장 본실행 중** (k252a02 이관 완료, 1 epoch=2,337 step 체인 job **73924~73927**) — **627/2,337 step (27%)** 통과.
 **다음 임계경로**: Stage-2 중간 체크포인트 평가 → 포화 시 조기중단 → **Stage-3 본실행**(계획서 핵심 산출물, 미시작).
 
 | 단계 | 상태 | 핵심 결과 |
 |---|---|---|
 | **① 콜드스타트 SFT** | ✅ 완료 | v3 가 **형식 천장 완파**: 생성 `format_think` v2 **0.185**→v3 **0.909**(5배), 홀드아웃 acc **0.295→0.348**(+18%). `sft_mixed_merged` = Stage-2 init → [상세](docs/stage1_coldstart.md) |
-| **② 범용 RLVR** | 🚀 **본실행 중** | 방법론 종결: plateau 진단 → **dr_grpo/GDPO 승자**(홀드아웃 0.380/0.390 ≫ GSPO 0.290). 확장셋 **74,787**(일반53/math20/의료26) → [실험](docs/stage2_experiments.md) · [데이터](docs/stage2_data.md) |
+| **② 범용 RLVR** | 🚀 **본실행 중 (27%)** | 방법론 종결: plateau 진단 → **dr_grpo/GDPO 승자**(홀드아웃 0.380/0.390 ≫ GSPO 0.290). 확장셋 **74,787**(일반53/math20/의료26) → [실험](docs/stage2_experiments.md) · [데이터](docs/stage2_data.md) · [실행현황](#stage-2-본실행-현황) |
 | **③ 의료 RL (RaR)** | ⏳ 배선완료·대기 | 루브릭·judge(27B)·e2e 스모크 PASS(유닛 29/29) → [상세](docs/stage3_and_eval.md) |
 | **④ 평가** | 🔄 기준선 확보 | HealthBench Hard(n=1000): base **0.229** / v2 콜드스타트 **0.224** — v3 미측정 → [상세](docs/stage3_and_eval.md) |
 
@@ -26,6 +26,26 @@
 > 🚨 **환경 (2026-07-27~)**: 클러스터 **apptainer 파손**(`libsubid.so.3` 부재 + GLIBC_2.28 요구 vs 호스트 2.17) → `singularity exec` 불가.
 > **이미지는 정상**이라 재빌드는 무의미(빌드도 불가). **우회 = `ENV_MODE=loader` 가 기본값**이라 기존 스크립트가 그대로 동작
 > (검증: 8GPU GRPO 완주, job 72832). apptainer 복구 시 `ENV_MODE=container` 로 원복. → [`HANDOFF.md`](HANDOFF.md) §3 · `runc.sh` 주석
+
+### Stage-2 본실행 현황
+
+**2026-08-02 18:07 KST 기준 · job 73924 (`gpu-8-002`) · 로그 `logs/grpo_adv_73924.log`**
+
+| 항목 | 값 |
+|---|---|
+| 진행 | **627 / 2,337 step (26.8%)** |
+| 경과 / 속도 | 2d 8h · **322 s/it** (step_time 188s + 오버헤드) |
+| 잔여 추정 | **6d 9h** (현 속도 기준) |
+| 안정성 | OOM · CUDA error · Traceback **0건** · mem 90.9 GiB |
+
+**지표 (step 627)** — reward **0.594**(std 0.486) · AccuracyMix **0.422** · FormatThink **0.938** · SoftOverlong −0.075 · KL **0.024** · entropy 0.422 · grad_norm 0.020 · lr 8.33e-06.
+최근 10 step 범위: reward 0.48~0.63 · acc 0.34~0.45 · fmt 0.86~0.97 · KL 0.021~0.028 — **KL 안정, 형식 보상 포화, 정확도 보상이 학습 여지**.
+
+**체인 소진 예측**: 73924 는 벽시계 한계(TimeLimit 2-22:00:00, 08-03 07:39 종료)에서 **~778 step** 도달 후 resume 인계.
+잔여 3잡이 각 ~782 step 을 담당해 **73926 중 2,337 step 도달** 예상 → **완주 ≈ 08-09**, 73927 은 여유분.
+
+> ⚠️ **길이 예산 점검 필요**: `All completions are overlong and truncated` 경고 **197회**(전체 step 의 약 31%) — 해당 step 의 KL 이 NaN 으로 빠진다.
+> 현재 `completions/mean_length` 1,489 · `max_length` 6,144 · `clipped_ratio` 0.0625. 학습 진행 자체에는 지장이 없으나 중간 평가 시 함께 재검토.
 
 ---
 

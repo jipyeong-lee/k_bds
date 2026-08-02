@@ -116,7 +116,7 @@ OUTPUT_DIR="${OUTPUT_DIR:-$CKPT_DIR/grpo_general_adv_$RECIPE}"
 RESUME_ARGS=""
 if [[ "${RESUME:-0}" == "1" ]]; then
   LATEST=$(ls -d "$OUTPUT_DIR"/*/checkpoint-* 2>/dev/null \
-    | awk -F'checkpoint-' '{print $2"\t"$0}' | sort -n | tail -1 | cut -f2-)
+    | awk -F'checkpoint-' '{print $2"\t"$0}' | sort -n | tail -1 | cut -f2-) || true
   if [[ -n "$LATEST" ]]; then
     RESUME_ARGS="--resume_from_checkpoint $LATEST"; echo "[grpo-adv] RESUME from: $LATEST"
   else

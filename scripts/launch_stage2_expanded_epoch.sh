@@ -5,9 +5,18 @@
 #  launch_stage2_expanded.sh 의 에포크 확장판. 검증된 21_rlvr_grpo_adv.slurm 을 제출하되
 #  RESUME=1 + MAX_STEPS 로 여러 잡을 afterany 체인으로 이어 붙여 walltime 한계를 넘긴다.
 #
-#  1 epoch = 74,787 / 32(step당 프롬프트: 1 × accum4 × 8gpu) ≈ 2,337 step
-#            ≈ 215h wall (331 s/it 실측, job 72832) ≈ 1,719 노드시간 (예산 5,000 의 34%)
-#  잡당 walltime 70h ≈ 760 step → 4 잡이면 충분(280h 용량). MAX_STEPS 도달 후 잡은 자동 no-op.
+#  ⚠️ 2026-08-02 정정 — 종전 공식 "74,787 / 32 ≈ 2,337 step = 1 epoch" 은 틀렸다.
+#     GRPO 에서 per_device_train_batch_size 는 프롬프트가 아니라 completion 을 센다.
+#       generation_batch_size = pdtbs(1) × world_size(8) × steps_per_generation(=accum 4) = 32 completions
+#       프롬프트/step        = 32 ÷ num_generations(4)                                    =  8 prompts
+#       1 epoch              = 74,787 ÷ 8                                                 = 9,348 step
+#     실측 확증: job 73924 step 627 에서 swift 가 epoch=0.06707 → 627×8/74,787 = 0.06706 일치.
+#  ⇒ MAX_STEPS=2337 은 1 epoch 이 아니라 **0.25 epoch**(확장셋의 25%만 노출).
+#     진짜 1 epoch(9,348 step)은 ≈837h · 6,694 노드시간 = 예산 5,000 의 134% 로 실행 불가.
+#     상세 = docs/stage2_run73924_progress.md §3
+#
+#  MAX_STEPS=2,337 (=0.25 epoch) ≈ 209h wall (322 s/it 실측, job 73924) ≈ 1,674 노드시간 (예산의 33%)
+#  잡당 walltime 70h ≈ 780 step → 4 잡이면 충분(280h 용량). MAX_STEPS 도달 후 잡은 자동 no-op.
 #
 #  ⚠️ LR 스케줄은 MAX_STEPS 기준으로 감쇠한다. 목표 스텝을 처음부터 지정해야 매끄럽다
 #     (600 으로 돌린 뒤 2337 로 늘리면 LR 이 0 까지 갔다가 다시 튀어 불연속).
@@ -21,7 +30,7 @@
 #       포화하면 조기중단**할 것. save_steps 50 이라 체크포인트는 촘촘히 남는다.
 #     상세 = docs/rlvr_hparams_external.md
 #
-#  사용:  bash scripts/launch_stage2_expanded_epoch.sh              # 1 epoch(2337) 체인 4잡
+#  사용:  bash scripts/launch_stage2_expanded_epoch.sh              # 2,337 step(0.25 epoch) 체인 4잡
 #         MAX_STEPS=1200 N_JOBS=2 bash scripts/launch_stage2_expanded_epoch.sh
 #  중단:  scancel <체인 잡 ID들>  (남은 체인 잡도 함께 취소해야 이어학습이 멈춘다)
 # =============================================================================
@@ -32,13 +41,13 @@ source scripts/00_common.sh
 INIT_MODEL="${INIT_MODEL:-$CKPT_DIR/sft_mixed_merged}"
 DATASET_FILE="${DATASET_FILE:-$DATA_DIR/stage2_expanded_train.jsonl}"
 OUTPUT_DIR="${OUTPUT_DIR:-$CKPT_DIR/grpo_expanded_gdpo}"
-MAX_STEPS="${MAX_STEPS:-2337}"        # 1 epoch
-N_JOBS="${N_JOBS:-4}"                 # 70h × 4 = 280h ≥ 215h 필요분
+MAX_STEPS="${MAX_STEPS:-2337}"        # 0.25 epoch (1 epoch = 9,348 step — 상단 정정 주석 참조)
+N_JOBS="${N_JOBS:-4}"                 # 70h × 4 = 280h ≥ 209h 필요분
 
 [ -f "$INIT_MODEL/config.json" ] || { echo "❌ INIT 병합본 없음: $INIT_MODEL"; exit 1; }
 [ -f "$DATASET_FILE" ] || { echo "❌ 확장셋 없음: $DATASET_FILE"; exit 1; }
 
-echo "[chain] GDPO 확장셋 이어학습 → MAX_STEPS=$MAX_STEPS (1 epoch≈2337), 체인 $N_JOBS 잡"
+echo "[chain] GDPO 확장셋 이어학습 → MAX_STEPS=$MAX_STEPS (1 epoch=9,348 step 중 일부), 체인 $N_JOBS 잡"
 echo "[chain] INIT=$INIT_MODEL"
 echo "[chain] DATA=$DATASET_FILE ($(wc -l <"$DATASET_FILE") 건)"
 echo "[chain] OUT =$OUTPUT_DIR"

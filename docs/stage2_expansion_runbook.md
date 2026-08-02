@@ -60,7 +60,7 @@ sbatch scripts/50_eval_v3.slurm                   # 병합(sft_mixed_merged) + �
 ## 5. Stage-2 확장 GRPO 실행
 ```bash
 SMOKE=1 bash scripts/launch_stage2_expanded.sh    # 배선 확인(max_steps 5) — 먼저 권장
-bash scripts/launch_stage2_expanded_epoch.sh      # 본실행: 1 epoch(2,337 step) 체인 4잡 ≈215h
+bash scripts/launch_stage2_expanded_epoch.sh      # 본실행: 2,337 step(=0.25 epoch) 체인 4잡 ≈209h
 #   단발(≤70h)만 원하면: MAX_STEPS=600 bash scripts/launch_stage2_expanded.sh
 # RECIPE=dr_grpo 로 dr_grpo 선택 가능. ⚠️ 체인 중단 시 4개 job 전부 scancel
 ```
@@ -68,6 +68,7 @@ bash scripts/launch_stage2_expanded_epoch.sh      # 본실행: 1 epoch(2,337 ste
 - **GDPO** = `--loss_type dr_grpo --scale_rewards gdpo` (보상별 advantage 개별정규화). A/B 검증(job 59191, 홀드아웃 0.390).
 - 보상: `accuracy_mix 1.0 + format_think 0.2 + soft_overlong 0.2` (configs/accuracy.py).
 - **하이퍼파라미터 외부 관행 대조·A/B knob** → [`rlvr_hparams_external.md`](rlvr_hparams_external.md). 기본값은 검증된 값(그룹 4·β 0.04·temp 0.9) 유지, `NUM_GEN=8`/`TEMPERATURE=1.0`/`BETA=0.01` 로 override 실험. **에포크는 늘리지 말 것**(≤1ep, 50스텝마다 홀드아웃, 포화 시 조기중단 — 다양성 붕괴 방지).
+- ⚠️ **2026-08-02 정정**: 2,337 step 은 1 epoch 이 아니라 **0.25 epoch**(1 epoch = 74,787 ÷ 8 = 9,348 step). 종전 공식이 `÷ num_generations` 를 빠뜨렸다. → [`stage2_run73924_progress.md`](stage2_run73924_progress.md) §3
 - 산출: `work/checkpoints/grpo_expanded_gdpo`.
 
 ## 6. 평가 (확장 홀드아웃)

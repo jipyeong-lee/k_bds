@@ -8,7 +8,7 @@
 
 ### 0) 풀확장 재설계 (2026-07-22~24 데이터 · 07-28 본실행 착수)
 
-**동기**: v3 콜드스타트 A/B 에서 **math 가 v2 와 동률(0.3245)** — vl 은 올렸으나 수치계산은 못 올림. 게다가 프로젝트 목표는 **의료**인데 Stage-2 가 일반 전용이었음. → **DeepVision 단일 → math(MMK12) + 의료(PMC-VQA) 추가**. (예산: 2026-07-27 **k252a02 로 이관 완료** — 신규 5,000 노드시간에서 1 epoch≈1,719(34%) 집행, 나머지는 Stage-3 유보.)
+**동기**: v3 콜드스타트 A/B 에서 **math 가 v2 와 동률(0.3245)** — vl 은 올렸으나 수치계산은 못 올림. 게다가 프로젝트 목표는 **의료**인데 Stage-2 가 일반 전용이었음. → **DeepVision 단일 → math(MMK12) + 의료(PMC-VQA) 추가**. (예산: 2026-07-27 **k252a02 로 이관 완료** — 신규 5,000 노드시간에서 2,337 step ≈1,674~1,719(33~34%) 집행, 나머지는 Stage-3 유보.)
 
 **확장셋 (의료 27% 확정, 2026-07-24 재조립):**
 
@@ -22,10 +22,12 @@
 - **데이터 = "받아서 실측"으로 선별**: Kvasir(58K인데 고유이미지 671·degenerate)·SLAKE(이미지 450)·ThinkLite(노이즈)는 실측 후 탈락. **PMC-VQA만 대형·다양·검증가능 의료**(329K MC·PubMed 광범위). 상세 → [`docs/stage2_data.md`](stage2_data.md).
 - **오염 최종 해소**: 전 소스 **이미지 바이트해시 dedup**. 이번 재조립에서 **DeepVision 구 22% 오염까지 제거**(홀드아웃 이미지해시를 train 서브샘플서 배제) → 전 소스 홀드아웃 1,772건 누수 0 검증.
 - **init = v3** `sft_mixed_merged` · **레시피 = GDPO**(`21_rlvr_grpo_adv` 경유, dynamic_sample 코어 포함). 실행 → [`docs/stage2_expansion_runbook.md`](stage2_expansion_runbook.md).
-- **하이퍼파라미터 외부 관행 대조** → [`docs/rlvr_hparams_external.md`](rlvr_hparams_external.md): 2026 리포트 기준 KL β·그룹크기·temp·에포크 관행과 대조. 코어(손실·advantage·필터)는 관행 정합, 벌어진 4곳(β 0.04·그룹 4·배치 32·temp 0.9)은 자원 제약. **에포크는 ≤1·조기중단이 정설**. A/B knob: `NUM_GEN=8`/`TEMPERATURE=1.0`/`BETA=0.01`(기본=검증값).
+- **하이퍼파라미터 외부 관행 대조** → [`docs/rlvr_hparams_external.md`](rlvr_hparams_external.md): 2026 리포트 기준 KL β·그룹크기·temp·에포크 관행과 대조. 코어(손실·advantage·필터)는 관행 정합, 벌어진 4곳(β 0.04·그룹 4·배치 32·temp 0.9)은 자원 제약. **에포크는 ≤1·조기중단이 정설**. 기본값은 검증값 `NUM_GEN=4`·`TEMPERATURE=0.9`·`BETA=0.04` 유지, A/B override 후보가 `NUM_GEN=8`/`TEMPERATURE=1.0`/`BETA=0.01`.
 - 스크립트: `build_pmcvqa.py`·`13_build_stage2_expanded.slurm`(변환) · `build_stage2_mix.py`(조립·`DV_CAP`/`PMC_CAP` 비율조정) · `launch_stage2_expanded.sh`(GDPO 제출).
-- 🚀 **본실행 진행중(2026-07-28~)**: 배선 스모크 완주(1GPU job 72844 · 8GPU job 72832, 5/5 step, `frac_reward_zero_std` 0) → **1 epoch(2,337 step) 체인 제출**(`scripts/launch_stage2_expanded_epoch.sh`, job 73312~73315, afterany 4잡, ~215h).
-  - **학습량 결정**: 구 데이터셋에선 step600 포화였으나 **확장셋은 MMK12·PMC-VQA 가 새로 들어가 포화점이 다를 수 있어** 1 epoch 으로 확장. `MAX_STEPS` 를 처음부터 목표치로 지정해야 LR 이 매끄럽게 감쇠(600→2337 로 늘리면 불연속).
+- 🚀 **본실행 진행중(2026-07-28~)**: 배선 스모크 완주(1GPU job 72844 · 8GPU job 72832, 5/5 step, `frac_reward_zero_std` 0) → **2,337 step 체인 제출**(`scripts/launch_stage2_expanded_epoch.sh`, afterany 4잡, ~209h). 재제출 후 현재 체인은 **job 73924~73927**(73312~73315 는 구 체인).
+  - **학습량 결정**: 구 데이터셋에선 step600 포화였으나 **확장셋은 MMK12·PMC-VQA 가 새로 들어가 포화점이 다를 수 있어** 학습량을 늘렸다. `MAX_STEPS` 를 처음부터 목표치로 지정해야 LR 이 매끄럽게 감쇠(600→2337 로 늘리면 불연속).
+  - ⚠️ **2026-08-02 정정**: 이 2,337 step 을 "1 epoch" 으로 적어 왔으나 실제로는 **0.25 epoch** 이다(1 epoch = 74,787 ÷ 8 = 9,348 step). 확장셋의 약 75%는 미노출로 남는다. → [`stage2_run73924_progress.md`](stage2_run73924_progress.md) §3
+  - 📊 **중간 점검(step 630)**: 인프라 무결(오류 0건)이나 **AccuracyMix 가 630 step 동안 +0.7% 로 정지**, 대신 completion 길이 +29.8%·클리핑 +47.5%. → [`stage2_run73924_progress.md`](stage2_run73924_progress.md)
   - ⚠️ **조기중단 원칙**: 외부 문헌의 diversity collapse 경고(후반 구간은 Pass@1 이득 없이 high-k Pass@k 감소)에 따라 **중간 체크포인트(save_steps 50)를 소스별(`_source`) 홀드아웃으로 평가하고 포화 시 중단**. → [`docs/rlvr_hparams_external.md`](rlvr_hparams_external.md)
 
 ### 1) baseline → Acc plateau 진단 (job 57249, step 1000 완주)

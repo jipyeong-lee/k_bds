@@ -112,7 +112,9 @@ OUTPUT_DIR="${OUTPUT_DIR:-$CKPT_DIR/grpo_general_adv_$RECIPE}"
 
 # ---- resume / max_steps (1-epoch 이어학습 체인용) --------------------------
 #  RESUME=1 → OUTPUT_DIR 하위 모든 버전에서 최신 checkpoint-N 자동 resume.
-#  MAX_STEPS=<n> → 그 step 에서 정지(예 1 epoch=3235). 체인 잡들이 max_steps 도달 시 자동 no-op.
+#  MAX_STEPS=<n> → 그 step 에서 정지. 체인 잡들이 max_steps 도달 시 자동 no-op.
+#    ⚠️ step 은 epoch 이 아니다: 프롬프트/step = pdtbs×world×accum ÷ num_generations = 8.
+#       확장셋(74,787) 기준 1 epoch = 9,348 step. 상세 = docs/stage2_run73924_progress.md §3
 RESUME_ARGS=""
 if [[ "${RESUME:-0}" == "1" ]]; then
   LATEST=$(ls -d "$OUTPUT_DIR"/*/checkpoint-* 2>/dev/null \

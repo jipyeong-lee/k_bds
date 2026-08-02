@@ -10,8 +10,8 @@
 
 ## 현황 (2026-08-02)
 
-**지금 위치**: **Stage-2 풀확장 본실행 중** (k252a02 이관 완료, 1 epoch=2,337 step 체인 job **73924~73927**) — **627/2,337 step (27%)** 통과.
-**다음 임계경로**: Stage-2 중간 체크포인트 평가 → 포화 시 조기중단 → **Stage-3 본실행**(계획서 핵심 산출물, 미시작).
+**지금 위치**: **Stage-2 풀확장 본실행 중** (k252a02 이관 완료, MAX_STEPS=2,337 체인 job **73924~73927**) — **630/2,337 step (27%)** 통과.
+**다음 임계경로**: **중간 체크포인트 홀드아웃 평가**(정확도 보상이 630 step 째 정지 — 계속/중단의 유일한 근거) → **Stage-3 본실행**(계획서 핵심 산출물, 미시작).
 
 | 단계 | 상태 | 핵심 결과 |
 |---|---|---|
@@ -20,8 +20,13 @@
 | **③ 의료 RL (RaR)** | ⏳ 배선완료·대기 | 루브릭·judge(27B)·e2e 스모크 PASS(유닛 29/29) → [상세](docs/stage3_and_eval.md) |
 | **④ 평가** | 🔄 기준선 확보 | HealthBench Hard(n=1000): base **0.229** / v2 콜드스타트 **0.224** — v3 미측정 → [상세](docs/stage3_and_eval.md) |
 
-> ⚠️ **예산**: 신규 계정 5,000 노드시간 중 **Stage-2 1 epoch ≈ 1,719(34%)** 집행, 나머지 66%는 **Stage-3·평가용 유보**
-> *(2 epoch 은 69% 라 Stage-3 예산을 위협해 미채택)*. 구 계정 k252a01 은 83% 소진 후 이관.
+> ⚠️ **예산**: 신규 계정 5,000 노드시간 중 **Stage-2 본실행 ≈ 1,674(33%)** 집행, 나머지 67%는 **Stage-3·평가용 유보**. 구 계정 k252a01 은 83% 소진 후 이관.
+>
+> 🚨 **2026-08-02 정정 — "1 epoch" 표기 오류**: MAX_STEPS=2,337 을 1 epoch 으로 적어 왔으나 실제로는 **0.25 epoch** 이다.
+> GRPO 에서 `per_device_train_batch_size` 는 프롬프트가 아니라 completion 을 세므로 **프롬프트/step = 32 ÷ num_generations(4) = 8**,
+> **1 epoch = 74,787 ÷ 8 = 9,348 step**(로그의 `epoch=0.067` 이 이를 확증). 확장셋의 **약 75%는 미노출**로 남으며,
+> 진짜 1 epoch 은 ≈6,694 노드시간 = **예산의 134%** 로 실행 불가. 집행 비용 자체는 step 기준이라 계획대로다.
+> → [중간 점검 보고서](docs/stage2_run73924_progress.md) §3
 
 > 🚨 **환경 (2026-07-27~)**: 클러스터 **apptainer 파손**(`libsubid.so.3` 부재 + GLIBC_2.28 요구 vs 호스트 2.17) → `singularity exec` 불가.
 > **이미지는 정상**이라 재빌드는 무의미(빌드도 불가). **우회 = `ENV_MODE=loader` 가 기본값**이라 기존 스크립트가 그대로 동작
@@ -31,21 +36,34 @@
 
 **2026-08-02 18:07 KST 기준 · job 73924 (`gpu-8-002`) · 로그 `logs/grpo_adv_73924.log`**
 
-| 항목 | 값 |
-|---|---|
-| 진행 | **627 / 2,337 step (26.8%)** |
-| 경과 / 속도 | 2d 8h · **322 s/it** (step_time 188s + 오버헤드) |
-| 잔여 추정 | **6d 9h** (현 속도 기준) |
-| 안정성 | OOM · CUDA error · Traceback **0건** · mem 90.9 GiB |
+| 항목 | 값 | 판정 |
+|---|---|---|
+| 진행 | **630 / 2,337 step (27.0%)** = 0.067 epoch | 정상 |
+| 경과 / 속도 | 2d 8h · **322 s/it** (step_time 161s + 오버헤드 50%) | ⚠️ 오버헤드 |
+| 잔여 추정 | **6d 9h** (현 속도 기준) · 완주 ≈ 08-09 | — |
+| 안정성 | OOM · CUDA error · Traceback **0건** · mem 90.9 GiB | ✅ 무결 |
 
-**지표 (step 627)** — reward **0.594**(std 0.486) · AccuracyMix **0.422** · FormatThink **0.938** · SoftOverlong −0.075 · KL **0.024** · entropy 0.422 · grad_norm 0.020 · lr 8.33e-06.
-최근 10 step 범위: reward 0.48~0.63 · acc 0.34~0.45 · fmt 0.86~0.97 · KL 0.021~0.028 — **KL 안정, 형식 보상 포화, 정확도 보상이 학습 여지**.
+**구간 대조 (1~100 step 평균 → 531~630 step 평균)**
+
+| 지표 | 초반 | 최근 | 변화 |
+|---|---:|---:|---:|
+| rewards/AccuracyMix | 0.4248 | 0.4278 | **+0.7%** 🚨 |
+| rewards/FormatThink | 0.9461 | 0.9258 | −2.1% (이미 천장) |
+| completions/mean_length | 1,127 | 1,463 | **+29.8%** ⚠️ |
+| completions/clipped_ratio | 4.9% | 7.3% | **+47.5%** ⚠️ |
+| kl | 0.0036 | 0.0258 | +612% (절대값은 작음) |
+| entropy/mean | 0.5377 | 0.5335 | −0.8% (붕괴 없음) |
+
+> 🚨 **정확도 보상이 630 step 동안 정지**했다(+0.7%, step별 노이즈 σ≈0.50 안). 대신 출력 길이가 +29.8%, 클리핑이 +47.5% —
+> 정확도 이득 없이 길이만 늘어나는 **길이 인플레이션** 패턴이다. `All completions are overlong` 경고 **197회**(630 step 대비 31%, 해당 step 은 KL NaN).
+> **계속/중단 판단은 중간 체크포인트 홀드아웃 평가 결과가 나온 뒤에** 한다 — 학습 reward 로는 판단 근거가 없다.
 
 **체인 소진 예측**: 73924 는 벽시계 한계(TimeLimit 2-22:00:00, 08-03 07:39 종료)에서 **~778 step** 도달 후 resume 인계.
 잔여 3잡이 각 ~782 step 을 담당해 **73926 중 2,337 step 도달** 예상 → **완주 ≈ 08-09**, 73927 은 여유분.
 
-> ⚠️ **길이 예산 점검 필요**: `All completions are overlong and truncated` 경고 **197회**(전체 step 의 약 31%) — 해당 step 의 KL 이 NaN 으로 빠진다.
-> 현재 `completions/mean_length` 1,489 · `max_length` 6,144 · `clipped_ratio` 0.0625. 학습 진행 자체에는 지장이 없으나 중간 평가 시 함께 재검토.
+📊 **학습 곡선·전체 분석 → [`docs/stage2_run73924_progress.md`](docs/stage2_run73924_progress.md)**
+
+![Stage-2 확장셋 GDPO 학습 곡선](docs/assets/stage2_expanded_73924_curves.png)
 
 ---
 
@@ -68,8 +86,9 @@
 ```bash
 # Stage-2 풀확장 (현재 진행중인 경로)
 SMOKE=1 bash scripts/launch_stage2_expanded.sh    # 배선 스모크(max_steps 5) — 먼저 권장
-bash scripts/launch_stage2_expanded_epoch.sh      # 1 epoch(2,337 step) 체인 4잡, ~215h
-#   A/B: RECIPE=dr_grpo · NUM_GEN=8 · TEMPERATURE=1.0 · BETA=0.01 (기본값=검증값)
+bash scripts/launch_stage2_expanded_epoch.sh      # 2,337 step(=0.25 epoch) 체인 4잡, ~209h
+#   기본값(=검증값, 그대로 둘 것): RECIPE=dr_grpo · NUM_GEN=4 · TEMPERATURE=0.9 · BETA=0.04
+#   A/B override 후보:            NUM_GEN=8 · TEMPERATURE=1.0 · BETA=0.01  ← 바꾸면 과거 A/B 와 clean 비교가 깨짐
 
 # 단계별 단독 제출 (의존성 체이닝)
 JID1=$(sbatch --parsable scripts/10_sft.slurm)                                   # Stage-1
@@ -83,6 +102,7 @@ squeue -u $USER ; tail -f logs/grpo_adv_*.log
 - 재현 절차 상세 → [`docs/stage2_expansion_runbook.md`](docs/stage2_expansion_runbook.md)
 - ⚠️ 체인 중단 시 **4개 job 전부 `scancel`** (하나만 취소하면 다음 잡이 이어받음)
 - ⚠️ 학습량은 **에포크로 늘리지 말고 홀드아웃 포화로 조기중단** → [`docs/rlvr_hparams_external.md`](docs/rlvr_hparams_external.md)
+- ⚠️ `MAX_STEPS` 는 **step 단위**로만 해석할 것. 1 epoch = 9,348 step 이며 예산상 도달 불가 → [정정 근거](docs/stage2_run73924_progress.md#3-epoch-커버리지--계획-전제가-4배-틀렸다)
 
 ---
 
@@ -93,6 +113,7 @@ squeue -u $USER ; tail -f logs/grpo_adv_*.log
 | [`HANDOFF.md`](HANDOFF.md) | **인수인계 단일 문서** — 계정 이식·환경 함정·실행 절차 |
 | [`docs/stage1_coldstart.md`](docs/stage1_coldstart.md) | Stage-1 상세 — v2 형식 천장 진단, v3 설계·학습곡선·홀드아웃 평가, ablation |
 | [`docs/stage2_experiments.md`](docs/stage2_experiments.md) | Stage-2 실험 — plateau 진단, GRPO 계열 5종 clean A/B, 벤치마크 |
+| [`docs/stage2_run73924_progress.md`](docs/stage2_run73924_progress.md) | **본실행 중간 점검(step 630)** — 학습 곡선 6패널, 정확도 정지·길이 인플레이션 진단, epoch 커버리지 정정 |
 | [`docs/stage2_data.md`](docs/stage2_data.md) | Stage-2 데이터 — 소스 스크리닝(실측)·혼합비율·빌드 파이프라인 |
 | [`docs/stage2_expansion_runbook.md`](docs/stage2_expansion_runbook.md) | Stage-2 풀확장 재현 0~6단계 |
 | [`docs/rlvr_hparams_external.md`](docs/rlvr_hparams_external.md) | RLVR 하이퍼파라미터 — 2026 리포트 외부 관행 대조·에포크 정책 |
@@ -115,7 +136,7 @@ scripts/
   20_rlvr_grpo.slurm                Stage-2 GRPO (기본=v3 init + 확장셋)
   21_rlvr_grpo_adv.slurm            Stage-2 검증된 레시피(dr_grpo/GDPO · dynamic_sample)
   launch_stage2_expanded.sh         Stage-2 표준 진입점(단발)
-  launch_stage2_expanded_epoch.sh   Stage-2 에포크 체인(resume, 1 epoch)
+  launch_stage2_expanded_epoch.sh   Stage-2 스텝 체인(resume, MAX_STEPS=2,337 = 0.25 epoch)
   build_stage2_mix.py               확장셋 조립(bytehash dedup)
   30_medical_rl.slurm · launch_stage3.sh · judge_server.sh    Stage-3
   50_eval_v3.slurm · eval_v3_holdout.py                       평가

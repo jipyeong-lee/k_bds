@@ -1,11 +1,14 @@
 #!/bin/bash
 # =============================================================================
-# launch_stage2_epoch.sh — dr_grpo Stage-2 를 1 epoch 까지 resume 체인 학습.
-#   현재 step~650(TIMEOUT 중단) → MAX_STEPS(=1 epoch) 까지 이어학습.
-#   1 epoch = 103,503 / 32(step당 프롬프트) ≈ 3,235 step. 시간제한(70h≈680 step)을 넘으므로
+# launch_stage2_epoch.sh — dr_grpo Stage-2 (구 DeepVision 단독셋) resume 체인 학습.
+#   현재 step~650(TIMEOUT 중단) → MAX_STEPS 까지 이어학습.
+#   ⚠️ 2026-08-02 정정: "1 epoch = 103,503 / 32 ≈ 3,235 step" 은 틀렸다. 32 는 프롬프트가 아니라
+#      completion 수이며 ÷ num_generations(4) 가 빠졌다. 프롬프트/step = 8 → 1 epoch = 12,938 step.
+#      즉 MAX_STEPS=3,235 는 1 epoch 이 아니라 **0.25 epoch**. 상세 = docs/stage2_run73924_progress.md §3
+#   시간제한(70h≈680 step)을 넘으므로
 #   afterany 의존 체인으로 N개 잡 제출: 각 잡이 최신 checkpoint 에서 resume,
 #   MAX_STEPS 도달 시 이후 잡들은 자동 no-op(빠른 종료).
-# 사용:  bash scripts/launch_stage2_epoch.sh        # 기본 1 epoch
+# 사용:  bash scripts/launch_stage2_epoch.sh        # 기본 3,235 step (=0.25 epoch)
 #        MAX_STEPS=2000 N_JOBS=3 bash scripts/launch_stage2_epoch.sh
 # =============================================================================
 set -euo pipefail

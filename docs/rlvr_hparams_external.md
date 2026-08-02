@@ -45,8 +45,11 @@ RLVR은 SFT와 달리 **에포크를 많이 돌리면 안 된다.** 프로젝트
 - **프런티어 리포트는 에포크로 세지 않는다**: Magistral·MiniMax-M1은 대형 배치 + 신선한 롤아웃 +
   **길이 점증**(16k→24k→32k)으로 **스텝 단위**로 돌리고 평가곡선으로 멈춘다.
 
-**환산(이 프로젝트)**: 확장셋 74,787 ÷ 32 = **1 epoch ≈ 2,337 step**.
-step600 = 19,200 prompt ≈ **0.26 epoch** → 1에포크도 못 돌고 이미 포화.
+**환산(이 프로젝트)** — *2026-08-02 정정*: GRPO 의 `per_device_train_batch_size` 는 프롬프트가 아니라 completion 을 센다.
+`generation_batch_size = 1 × 8gpu × accum4 = 32 completions` → `프롬프트/step = 32 ÷ num_generations(4) = 8`.
+따라서 확장셋 74,787 ÷ 8 = **1 epoch = 9,348 step** (종전 표기 2,337 은 ÷ num_generations 누락).
+step600 = 4,800 prompt ≈ **0.064 epoch**, 계획한 2,337 step 도 **0.25 epoch** 에 그친다 → 포화는 에포크가 아니라 **스텝 수준에서** 온 것.
+실측 확증·영향 = [`stage2_run73924_progress.md`](stage2_run73924_progress.md) §3.
 
 **결론**: 에포크 상한을 늘리지 말 것. **≤1에포크, 50스텝마다 홀드아웃 평가, 포화 시 조기중단**이 정답.
 

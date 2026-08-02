@@ -27,7 +27,8 @@
 - 🚀 **본실행 진행중(2026-07-28~)**: 배선 스모크 완주(1GPU job 72844 · 8GPU job 72832, 5/5 step, `frac_reward_zero_std` 0) → **2,337 step 체인 제출**(`scripts/launch_stage2_expanded_epoch.sh`, afterany 4잡, ~209h). 재제출 후 현재 체인은 **job 73924~73927**(73312~73315 는 구 체인).
   - **학습량 결정**: 구 데이터셋에선 step600 포화였으나 **확장셋은 MMK12·PMC-VQA 가 새로 들어가 포화점이 다를 수 있어** 학습량을 늘렸다. `MAX_STEPS` 를 처음부터 목표치로 지정해야 LR 이 매끄럽게 감쇠(600→2337 로 늘리면 불연속).
   - ⚠️ **2026-08-02 정정**: 이 2,337 step 을 "1 epoch" 으로 적어 왔으나 실제로는 **0.25 epoch** 이다(1 epoch = 74,787 ÷ 8 = 9,348 step). 확장셋의 약 75%는 미노출로 남는다. → [`stage2_run73924_progress.md`](stage2_run73924_progress.md) §3
-  - 📊 **중간 점검(step 630)**: 인프라 무결(오류 0건)이나 **AccuracyMix 가 630 step 동안 +0.7% 로 정지**, 대신 completion 길이 +29.8%·클리핑 +47.5%. → [`stage2_run73924_progress.md`](stage2_run73924_progress.md)
+  - 📊 **중간 점검(step 650)**: 인프라 무결(오류 0건)이나 **AccuracyMix 가 650 step 동안 +1.3% 로 정지**, 대신 completion 길이 +28.1%·클리핑 +41.4%.
+  - ❓ **중간 홀드아웃 평가(job 74060, n=300 층화)**: base 0.2500 → init 0.4533 → trained(step600) **0.4867**. init→trained **+3.34pp p=0.412 로 유의하지 않음** — 계속/중단 **판정 불가**, 추세(init/400/500/600, n≈590) 재측정 필요. 의료 pmcvqa 0.57→0.53 이 유일한 하락. → [`stage2_run73924_progress.md`](stage2_run73924_progress.md) §6
   - ⚠️ **조기중단 원칙**: 외부 문헌의 diversity collapse 경고(후반 구간은 Pass@1 이득 없이 high-k Pass@k 감소)에 따라 **중간 체크포인트(save_steps 50)를 소스별(`_source`) 홀드아웃으로 평가하고 포화 시 중단**. → [`docs/rlvr_hparams_external.md`](rlvr_hparams_external.md)
 
 ### 1) baseline → Acc plateau 진단 (job 57249, step 1000 완주)

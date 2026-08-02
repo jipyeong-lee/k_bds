@@ -17,14 +17,34 @@ TAG = os.environ.get('EVAL_TAG', '?')
 SYSTEM = os.environ['SYSTEM_PROMPT']
 MODEL = os.environ['EVAL_MODEL']
 
-# 평가셋 = 진짜 홀드아웃(학습 trainonly 에서 제외된 deepvision_holdout.jsonl). base/trained 동일 슬라이스.
+# 평가셋 = 진짜 홀드아웃(학습 trainonly 에서 제외). base/trained 동일 슬라이스.
 EVAL_DATA = os.environ.get('EVAL_DATA', 'work/data/deepvision_holdout.jsonl')
-rows = []
-for l in open(EVAL_DATA):
-    rows.append(json.loads(l))
-    if len(rows) >= N:
-        break
-print(f"[eval:{TAG}] model={MODEL} N={len(rows)} conc={CONC}")
+all_rows = [json.loads(l) for l in open(EVAL_DATA)]
+
+# ⚠️ 2026-08-02: 종전에는 앞에서 N 줄을 잘랐다. 확장 홀드아웃(stage2_expanded_holdout.jsonl)은
+#    deepvision(972) → mmk12(400) → pmcvqa(400) 순으로 정렬돼 있어 N≤972 면 전부 deepvision 이
+#    뽑혀 math·의료 효과가 아예 측정되지 않았다. → _source 별 균등 층화 추출로 교체.
+#    시드 고정이라 base/init/trained 가 동일 슬라이스를 본다(비교 가능성 보존).
+groups = {}
+for r in all_rows:
+    groups.setdefault(r.get('_source', 'all'), []).append(r)
+
+if len(groups) <= 1:
+    rows = all_rows[:N]                      # 구 홀드아웃(_source 없음) — 종전 동작 유지
+else:
+    import random
+    rng = random.Random(int(os.environ.get('EVAL_SEED', '20260802')))
+    per = max(1, N // len(groups))
+    rows = []
+    for k in sorted(groups):
+        g = groups[k][:]
+        rng.shuffle(g)
+        rows.extend(g[:per])
+
+src_n = {}
+for r in rows:
+    src_n[r.get('_source', 'all')] = src_n.get(r.get('_source', 'all'), 0) + 1
+print(f"[eval:{TAG}] model={MODEL} N={len(rows)} conc={CONC} sources={src_n}")
 
 cli = AsyncOpenAI(base_url=os.environ['EVAL_BASE_URL'], api_key='EMPTY')
 sem = asyncio.Semaphore(CONC)
@@ -73,12 +93,20 @@ async def main():
         strata.setdefault(k, []).append(s)
     per_stratum = {k: round(st.mean(v), 4) for k, v in strata.items()}
     for k in sorted(strata):
-        print(f"          └ [{k:5}] accuracy={st.mean(strata[k]):.4f}  (n={len(strata[k])})")
+        print(f"          └ [{k:9}] accuracy={st.mean(strata[k]):.4f}  (n={len(strata[k])})")
+    # 소스별 분리 보고 — 확장셋의 핵심 질문(math=mmk12 / 의료=pmcvqa 가 올랐나)
+    srcs = {}
+    for r, s in zip(rows, scores):
+        srcs.setdefault(r.get('_source', 'all'), []).append(s)
+    per_source = {k: round(st.mean(v), 4) for k, v in srcs.items()}
+    if len(srcs) > 1:
+        for k in sorted(srcs):
+            print(f"          ▶ [{k:9}] accuracy={st.mean(srcs[k]):.4f}  (n={len(srcs[k])})")
     # 결과 파일(머신리더블) append
     with open(os.environ.get('EVAL_RESULT', 'logs/eval_compare_results.jsonl'), 'a') as f:
         f.write(json.dumps({'tag': TAG, 'model': MODEL, 'n': len(rows),
                             'accuracy': round(acc, 4), 'format': round(fmt, 3),
                             'mean_chars': round(mlen, 0), 'errors': errs,
-                            'per_stratum': per_stratum}) + '\n')
+                            'per_stratum': per_stratum, 'per_source': per_source}) + '\n')
 
 asyncio.run(main())

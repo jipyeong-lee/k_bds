@@ -11,7 +11,7 @@
 ## 현황 (2026-08-02)
 
 **지금 위치**: **Stage-2 풀확장 본실행 중** (k252a02 이관 완료, MAX_STEPS=2,337 체인 job **73924~73927**) — **650/2,337 step (28%)** 통과.
-**다음 임계경로**: **추세 평가**(init/400/500/600, n≈590) — step 600 단독 측정은 +3.34pp·p=0.412 로 판정 불가 → **Stage-3 본실행**(계획서 핵심 산출물, 미시작).
+**다음 임계경로**: 홀드아웃이 **step 400 에서 포화** 확인 → **Stage-2 조기중단 판단** → **Stage-3 본실행**(계획서 핵심 산출물, 미시작 — 의료를 올리도록 설계된 유일한 단계).
 
 | 단계 | 상태 | 핵심 결과 |
 |---|---|---|
@@ -61,16 +61,19 @@
 **체인 소진 예측**: 73924 는 벽시계 한계(TimeLimit 2-22:00:00, 08-03 07:39 종료)에서 **~778 step** 도달 후 resume 인계.
 잔여 3잡이 각 ~782 step 을 담당해 **73926 중 2,337 step 도달** 예상 → **완주 ≈ 08-09**, 73927 은 여유분.
 
-**중간 홀드아웃 평가 (job 74060, n=300 층화)** — 확장 홀드아웃, greedy, 동일 슬라이스
+**중간 홀드아웃 추세 (job 74060·74062·74063, n=300 층화)** — 확장 홀드아웃, greedy, 전 모델 동일 슬라이스
 
-| | base | init (RL 0%) | trained (step 600) |
-|---|---:|---:|---:|
-| accuracy | 0.2500 | **0.4533** | **0.4867** |
-| deepvision / mmk12 / **pmcvqa** | 0.12 / 0.31 / 0.32 | 0.39 / 0.40 / **0.57** | 0.45 / 0.48 / **0.53** |
+| | base | **init**(RL 0%) | step 400 | step 500 | step 600 |
+|---|---:|---:|---:|---:|---:|
+| **전체** | 0.2500 | **0.4533** | **0.4900** | 0.4800 | 0.4867 |
+| deepvision / mmk12 / **pmcvqa** | 0.12 / 0.31 / 0.32 | 0.39 / 0.40 / **0.57** | 0.43 / 0.48 / 0.56 | 0.37 / 0.50 / 0.57 | 0.45 / 0.48 / **0.53** |
 
-> ❓ **판정 불가**: init → trained **+3.34pp** (95% CI [−4.64, +11.32], **p=0.412**) — 0과 구분되지 않는다.
-> 대조적으로 base → init 은 +20.33pp(p<0.001)로 명확히 유의하므로 평가 설계 자체는 실효 효과를 잡아낸다.
-> n=300 은 8pp 이상만 검출 가능 → **추세 평가(init/400/500/600, n≈590) 필요**. 의료(pmcvqa)가 유일한 하락 방향인 점도 추적 대상.
+![Stage-2 홀드아웃 정확도 추세](docs/assets/stage2_holdout_trend.png)
+
+> 🚨 **step 400 에서 포화**: init → 400 은 +3.67pp 이지만 **400·500·600 은 폭 1.0pp** 로 서로 구분되지 않는다(n=300 오차 ±5.7pp).
+> **400 → 600 의 200 step 은 143 노드시간을 쓰고 −0.33pp.** 잔여 1,682 step ≈ 1,200 노드시간의 근거가 없다.
+> 목표 도메인인 **의료(pmcvqa)는 전 구간 상승 없음**(0.57→0.56→0.57→0.53) — 반면 math 는 0.40→0.48~0.50 으로 뚜렷.
+> 대조적으로 base → init 은 **+20.33pp, p<0.001** 로 명확히 유의 → 평가 설계 자체는 실효 효과를 잡아낸다.
 > ⚠️ 과거 수치(v3 0.348 등)는 **구 홀드아웃** 기준이라 가로 비교 금지.
 
 📊 **학습 곡선·전체 분석 → [`docs/stage2_run73924_progress.md`](docs/stage2_run73924_progress.md)**
@@ -125,7 +128,8 @@ squeue -u $USER ; tail -f logs/grpo_adv_*.log
 | [`HANDOFF.md`](HANDOFF.md) | **인수인계 단일 문서** — 계정 이식·환경 함정·실행 절차 |
 | [`docs/stage1_coldstart.md`](docs/stage1_coldstart.md) | Stage-1 상세 — v2 형식 천장 진단, v3 설계·학습곡선·홀드아웃 평가, ablation |
 | [`docs/stage2_experiments.md`](docs/stage2_experiments.md) | Stage-2 실험 — plateau 진단, GRPO 계열 5종 clean A/B, 벤치마크 |
-| [`docs/stage2_run73924_progress.md`](docs/stage2_run73924_progress.md) | **본실행 중간 점검(step 630)** — 학습 곡선 6패널, 정확도 정지·길이 인플레이션 진단, epoch 커버리지 정정 |
+| [`docs/stage2_overview_for_slides.md`](docs/stage2_overview_for_slides.md) | 📊 **발표용 자립 요약** — 방법론 계보·데이터셋 선별·학습 세팅·진행 경과·홀드아웃 추세를 한 문서로 (절=슬라이드 1장) |
+| [`docs/stage2_run73924_progress.md`](docs/stage2_run73924_progress.md) | **본실행 중간 점검(step 650)** — 학습 곡선 6패널, 정확도 정지·길이 인플레이션 진단, epoch 커버리지 정정, 홀드아웃 추세 |
 | [`docs/stage2_data.md`](docs/stage2_data.md) | Stage-2 데이터 — 소스 스크리닝(실측)·혼합비율·빌드 파이프라인 |
 | [`docs/stage2_expansion_runbook.md`](docs/stage2_expansion_runbook.md) | Stage-2 풀확장 재현 0~6단계 |
 | [`docs/rlvr_hparams_external.md`](docs/rlvr_hparams_external.md) | RLVR 하이퍼파라미터 — 2026 리포트 외부 관행 대조·에포크 정책 |
@@ -151,6 +155,8 @@ scripts/
   launch_stage2_expanded_epoch.sh   Stage-2 스텝 체인(resume, MAX_STEPS=2,337 = 0.25 epoch)
   build_stage2_mix.py               확장셋 조립(bytehash dedup)
   plot_train_curves.py              학습 로그 → 6패널 곡선 + 구간 대조표(체인 로그 병합 지원)
+  plot_eval_trend.py                평가 결과 jsonl → step별 홀드아웃 정확도 추세(95% CI)
+  eval_midtrain.slurm               중간 홀드아웃 평가(EVAL_STAGES 로 대상 선택, 병렬 제출 가능)
   30_medical_rl.slurm · launch_stage3.sh · judge_server.sh    Stage-3
   50_eval_v3.slurm · eval_v3_holdout.py                       평가
 configs/   accuracy.py(Stage-2 보상) · medical_reward.py(Stage-3 RaR)

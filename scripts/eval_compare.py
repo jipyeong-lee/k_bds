@@ -11,7 +11,11 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'configs'))
 import accuracy as A  # accuracy_mix scorer  # noqa: E402
 from openai import AsyncOpenAI  # noqa: E402
 
-N = int(os.environ.get('EVAL_N', '150'))
+#  EVAL_N=all(또는 0) → 홀드아웃 전량. 균등 층화로는 소스별 최소치(400)에 막혀
+#  1,600 이 상한이라, 전체 1,772 를 쓰려면 층화를 우회해야 한다.
+_n = os.environ.get('EVAL_N', '150').strip().lower()
+USE_ALL = _n in ('all', '0', '-1')
+N = 0 if USE_ALL else int(_n)
 CONC = int(os.environ.get('EVAL_CONC', '8'))
 TAG = os.environ.get('EVAL_TAG', '?')
 SYSTEM = os.environ['SYSTEM_PROMPT']
@@ -29,7 +33,12 @@ groups = {}
 for r in all_rows:
     groups.setdefault(r.get('_source', 'all'), []).append(r)
 
-if len(groups) <= 1:
+if USE_ALL:
+    # ⚠️ 소스 구성이 균등(1/1/1)이 아니라 실제 분포(deepvision 55% / math 23% / 의료 23%)가 된다.
+    #    따라서 전체 accuracy 는 과거 n=300 층화 측정값과 **직접 비교 불가**다(가중치가 다르다).
+    #    같은 EVAL_N 끼리만 비교할 것. 소스별 수치는 가중치와 무관하므로 언제나 비교 가능.
+    rows = all_rows
+elif len(groups) <= 1:
     rows = all_rows[:N]                      # 구 홀드아웃(_source 없음) — 종전 동작 유지
 else:
     import random

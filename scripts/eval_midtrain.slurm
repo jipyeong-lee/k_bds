@@ -35,7 +35,17 @@ set -u
 cd /home01/k252a02/kbds_project
 source scripts/00_common.sh
 PORT="${EVAL_PORT:-8165}"
-EVAL_N="${EVAL_N:-100}"
+#  EVAL_N=all → 홀드아웃 전량(1,772 = deepvision 972 / mmk12 400 / pmcvqa 400).
+#    숫자를 주면 _source 균등 층화 추출이고, 소스별 상한(400) 때문에 1,600 이 최대다.
+#    ⚠️ 전량과 층화 표본은 소스 가중치가 다르므로 전체 accuracy 를 서로 비교하면 안 된다.
+EVAL_N="${EVAL_N:-all}"
+#  ⚠️ 기본값을 반드시 박아둘 것. 종전에는 미지정 시 eval_compare.py 가 구 홀드아웃
+#     (deepvision_holdout.jsonl, 972건, _source 없음)으로 조용히 떨어졌다. 에러 없이
+#     그럴듯한 수치가 나와서 알아채기 어렵다 — 실제로 주석에만 있고 배선은 없었다.
+EVAL_DATA="${EVAL_DATA:-work/data/stage2_expanded_holdout.jsonl}"
+export EVAL_DATA
+[ -f "$EVAL_DATA" ] || { echo "[mid] ❌ 평가셋 없음: $EVAL_DATA"; exit 1; }
+echo "[mid] EVAL_DATA=$EVAL_DATA ($(wc -l < "$EVAL_DATA") 건)  EVAL_N=$EVAL_N"
 #  평가할 대상 선택 — 이미 측정한 baseline 을 다시 돌리지 않기 위함.
 #    EVAL_STAGES=trained  →  trained 만 (init/base 는 기존 측정값 재사용)
 #  EVAL_N 과 EVAL_SEED 가 같으면 슬라이스가 동일하므로 과거 실행과 직접 비교된다.

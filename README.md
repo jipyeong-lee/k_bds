@@ -8,20 +8,23 @@
 
 ---
 
-## 현황 (2026-08-02)
+## 현황 (2026-08-03)
 
-**지금 위치**: **Stage-2 풀확장 본실행 중** (k252a02 이관 완료, MAX_STEPS=2,337 체인 job **73924~73927**) — **650/2,337 step (28%)** 통과.
+**지금 위치**: **Stage-2 풀확장 본실행 중** (k252a02 이관 완료, MAX_STEPS=2,337 체인 job **73924~73927**) — **800/2,337 step (34%)** 통과.
 **다음 임계경로**: **평가 검정력 보강**(n=300→1,200 + 짝지음, 검출 하한 8.0pp→2.8pp, ≈2~3 노드시간) → **step 1200 에서 사전기준 판정**(계속/중단) → **Stage-3 본실행**(계획서 핵심 산출물, 미시작 — 의료를 올리도록 설계된 유일한 단계).
-**현재 중단 판단은 보류** — step 400 이후 상승이 검출되지 않았으나, 그것이 실제 포화인지 n=300 의 분해능 부족인지 구분되지 않는다.
+**현재 중단 판단은 보류** — step 400 이후 상승이 검출되지 않았으나, 그것이 실제 포화인지 분해능 부족인지 구분되지 않는다.
+홀드아웃(n=300)은 검출 하한이 8.0pp 라 관측 폭 1.0pp 를 못 가르고, 학습 로그(24,000 문항)로 메우려 했으나 거기서도
+기울기의 95% 구간이 **±14pp** 였다. **판별 가능한 측정을 먼저 만들고 나서 결정한다.**
 
 | 단계 | 상태 | 핵심 결과 |
 |---|---|---|
 | **① 콜드스타트 SFT** | ✅ 완료 | v3 가 **형식 천장 완파**: 생성 `format_think` v2 **0.185**→v3 **0.909**(5배), 홀드아웃 acc **0.295→0.348**(+18%). `sft_mixed_merged` = Stage-2 init → [상세](docs/stage1_coldstart.md) |
-| **② 범용 RLVR** | 🚀 **본실행 중 (28%)** · ❓중간평가 판정불가 | 확장셋 **74,787**(일반53/math20/의료26), init=v3·GDPO. **step 600 홀드아웃 = init 대비 +3.34pp(p=0.412)** → 추세 재측정 필요 → [중간점검](docs/stage2_run73924_progress.md) · [실험](docs/stage2_experiments.md) · [데이터](docs/stage2_data.md) · [실행현황](#stage-2-본실행-현황) |
+| **② 범용 RLVR** | 🚀 **본실행 중 (34%)** · ❓중간평가 판정불가 | 확장셋 **74,787**(일반53/math20/의료26), init=v3·GDPO. **step 600 홀드아웃 = init 대비 +3.34pp(p=0.412)** → 추세 재측정 필요 → [중간점검](docs/stage2_run73924_progress.md) · [실험](docs/stage2_experiments.md) · [데이터](docs/stage2_data.md) · [실행현황](#stage-2-본실행-현황) |
 | **③ 의료 RL (RaR)** | ⏳ 배선완료·대기 | 루브릭·judge(27B)·e2e 스모크 PASS(유닛 29/29) → [상세](docs/stage3_and_eval.md) |
 | **④ 평가** | 🔄 기준선 확보 | HealthBench Hard(n=1000): base **0.229** / v2 콜드스타트 **0.224** — v3 미측정 → [상세](docs/stage3_and_eval.md) |
 
-> ⚠️ **예산**: 신규 계정 5,000 노드시간 중 **Stage-2 본실행 ≈ 1,674(33%)** 집행, 나머지 67%는 **Stage-3·평가용 유보**. 구 계정 k252a01 은 83% 소진 후 이관.
+> ⚠️ **예산**: 신규 계정 5,000 노드시간 중 **Stage-2 본실행 ≈ 1,674(33%)** 집행 예정, 나머지 67%는 **Stage-3·평가용 유보**. 구 계정 k252a01 은 83% 소진 후 이관.
+> (1,674 은 초기 322 s/it 기준의 보수적 상한이다. 현재 294 s/it 이 유지되면 **≈1,530(31%)** 로 내려간다.)
 >
 > 🚨 **2026-08-02 정정 — "1 epoch" 표기 오류**: MAX_STEPS=2,337 을 1 epoch 으로 적어 왔으나 실제로는 **0.25 epoch** 이다.
 > GRPO 에서 `per_device_train_batch_size` 는 프롬프트가 아니라 completion 을 세므로 **프롬프트/step = 32 ÷ num_generations(4) = 8**,
@@ -35,35 +38,41 @@
 
 ### Stage-2 본실행 현황
 
-**2026-08-03 09:00 KST 기준 · job 73925 (`gpu-8-002`) · 로그 `logs/grpo_adv_73925.log`**
+**2026-08-03 11:00 KST 기준 · job 73925 (`gpu-8-002`) · 로그 `logs/grpo_adv_73925.log`**
 
 | 항목 | 값 | 판정 |
 |---|---|---|
-| 진행 | **762 / 2,337 step (32.6%)** = 0.082 epoch | 정상 |
+| 진행 | **800 / 2,337 step (34.2%)** = 0.086 epoch | 정상 |
 | 체인 | 73924 종료(TimeLimit, step 787) → **73925 가 checkpoint-750 에서 재개** · 73926/27 대기 | ✅ 인계 정상 |
-| 속도 | **145 s/it** (최근 60 step 중앙값). 길이가 줄어 400~699 구간의 168 s/it 보다 빨라졌다 | ✅ |
-| 잔여 추정 | 완주 ≈ 08-09 · **판정 시점(step 1200)까지 약 18h** | — |
+| 속도 | **294 s/it** (벽시계, `train_speed`) — 73924 의 318.5 보다 개선 | ⚠️ 오버헤드 |
+| 잔여 추정 | 완주 ≈ **08-08~09** · **판정 시점(step 1200)까지 약 33h** | — |
 | 안정성 | OOM · CUDA error · Traceback **0건** | ✅ 무결 |
 
+> ⚠️ **속도는 두 종류가 있고 섞으면 안 된다.** `step_time` 은 **147 s/it** 이지만 이건 학습 스텝만이다.
+> vLLM 롤아웃 생성·sleep/wake·재샘플링·체크포인트가 그 밖에 있어 **벽시계는 294 s/it** — 약 2배다.
+> 일정·예산 계산에는 반드시 **`train_speed` 쪽**을 쓸 것(§4 의 "오버헤드 50%" 가 이 차이다).
+>
 > ⚠️ 재개 때마다 출력 디렉터리가 새로 생긴다 — 73924 `v0-20260731-094532`, 73925 **`v1-20260803-074645`**.
 > 앞으로의 체크포인트는 v1 아래다. TimeLimit 컷은 마지막 저장(750) 이후 **37 step 을 버린다**(save_steps=50 구조상 정상).
 
-**구간 대조 (1~100 step 평균 → 701~800 step 평균)** — `scripts/plot_train_curves.py` 출력
+**구간 대조 (1~100 step 평균 → 최근 100 step 평균)** — `scripts/plot_train_curves.py` 출력 그대로
 
 | 지표 | 초반 | 최근 | 변화 |
 |---|---:|---:|---:|
-| rewards/AccuracyMix | 0.4248 | 0.4533 | **+6.7%** |
-| rewards/FormatThink | 0.9461 | 0.9600 | +1.5% |
-| completions/mean_length | 1,127 | 1,163 | +3.2% (400~499 정점 1,660 에서 되돌아옴) |
-| completions/clipped_ratio | 4.9% | 3.7% | **−25.4%** |
+| rewards/AccuracyMix | 0.4248 | 0.4495 | **+5.8%** |
+| rewards/FormatThink | 0.9461 | 0.9583 | +1.3% |
+| completions/mean_length | 1,127 | 1,176 | +4.3% (401~500 정점 1,660 에서 되돌아옴) |
+| completions/clipped_ratio | 4.9% | 3.9% | **−21.8%** |
 | kl | 0.0036 | 0.0313 | +765% (절대값은 작음) |
-| entropy/mean | 0.5377 | 0.5311 | −1.2% (붕괴 없음) |
+| entropy/mean | 0.5377 | 0.5227 | −2.8% (붕괴 없음) |
+| frac_reward_zero_std | 0.0044 | 0.0156 | +257% (절대값은 작음) |
 
 > ✅ **길이 인플레이션은 지나갔다.** 200~500 구간에서 길이 1,127→1,660자·클리핑 4.9→9.8%·형식준수 0.947→0.899 로 악화됐다가
 > 700 step 대에 전부 되돌아왔다. **step 400/500/600 홀드아웃 평가는 하필 이 저점에서 찍힌 것**이다.
 >
-> 🔍 **최근 AccuracyMix 상승(+6.7%)의 대부분은 실력이 아니라 길이 구성이다.** 장문 completion 은 정답률이 훨씬 낮은데
-> (39.4% vs 44.6%) 그 비중이 16.8% → 11.9% 로 줄면서 평균이 저절로 올랐다. 장문 제외 기준으로 남는 것은 +0.8pp(t=0.64, 미검출).
+> 🔍 **최근 AccuracyMix 상승(+5.8%)의 대부분은 실력이 아니라 길이 구성이다.** 장문(SoftOverlong≠0) completion 은
+> 정답률이 **15.1%** 로 비장문 **44.2%** 의 3분의 1이다(deepvision, −29.1pp). 그 비중이 16.8% → 11.9% 로 줄면
+> 실력이 그대로여도 평균은 오른다. 장문 제외 기준으로 남는 상승은 **+0.8pp**(t=0.64, 미검출).
 >
 > ❌ **학습 로그로 "앞으로 오를까"를 답하려 했으나 실패했다.** `completions.jsonl` 24,000 문항(홀드아웃의 80배)으로도
 > step 301~750 기울기는 deepvision **−0.05pp/100step, 95% 구간 −14.4 ~ +12.9pp** — 세 소스 모두 0 을 크게 포함한다.
@@ -72,8 +81,8 @@
 
 ![소스별 학습 정확도 추세](docs/assets/stage2_source_trend.png)
 
-**체인 소진 예측**: 73924 는 벽시계 한계(TimeLimit 2-22:00:00, 08-03 07:39 종료)에서 **~778 step** 도달 후 resume 인계.
-잔여 3잡이 각 ~782 step 을 담당해 **73926 중 2,337 step 도달** 예상 → **완주 ≈ 08-09**, 73927 은 여유분.
+**체인 소진 예측**: 73924 는 벽시계 한계(TimeLimit 2-22:00:00, 08-03 07:40 종료)에서 **787 step** 도달 후 resume 인계(실측).
+잡당 70h ÷ 294 s/it ≈ **857 step** 이므로 73925 가 ~1,607, **73926 중 2,337 step 도달** 예상 → **완주 ≈ 08-08~09**, 73927 은 여유분.
 
 **중간 홀드아웃 추세 (job 74060·74062·74063, n=300 층화)** — 확장 홀드아웃, greedy, 전 모델 동일 슬라이스
 
@@ -147,7 +156,7 @@ squeue -u $USER ; tail -f logs/grpo_adv_*.log
 | [`docs/stage1_coldstart.md`](docs/stage1_coldstart.md) | Stage-1 상세 — v2 형식 천장 진단, v3 설계·학습곡선·홀드아웃 평가, ablation |
 | [`docs/stage2_experiments.md`](docs/stage2_experiments.md) | Stage-2 실험 — plateau 진단, GRPO 계열 5종 clean A/B, 벤치마크 |
 | [`docs/stage2_overview_for_slides.md`](docs/stage2_overview_for_slides.md) | 📊 **발표용 자립 요약** — 방법론 계보·데이터셋 선별·학습 세팅·진행 경과·홀드아웃 추세를 한 문서로 (절=슬라이드 1장) |
-| [`docs/stage2_run73924_progress.md`](docs/stage2_run73924_progress.md) | **본실행 중간 점검(step 650)** — 학습 곡선 6패널, 정확도 정지·길이 인플레이션 진단, epoch 커버리지 정정, 홀드아웃 추세 |
+| [`docs/stage2_run73924_progress.md`](docs/stage2_run73924_progress.md) | **본실행 중간 점검** — 학습 곡선 6패널, 길이 인플레이션 진단, epoch 커버리지 정정, 홀드아웃 추세, **검정력 분석과 step 1200 사전 중단기준**(§6~7) |
 | [`docs/stage2_data.md`](docs/stage2_data.md) | Stage-2 데이터 — 소스 스크리닝(실측)·혼합비율·빌드 파이프라인 |
 | [`docs/stage2_expansion_runbook.md`](docs/stage2_expansion_runbook.md) | Stage-2 풀확장 재현 0~6단계 |
 | [`docs/rlvr_hparams_external.md`](docs/rlvr_hparams_external.md) | RLVR 하이퍼파라미터 — 2026 리포트 외부 관행 대조·에포크 정책 |
@@ -174,7 +183,9 @@ scripts/
   build_stage2_mix.py               확장셋 조립(bytehash dedup)
   plot_train_curves.py              학습 로그 → 6패널 곡선 + 구간 대조표(체인 로그 병합 지원)
   plot_eval_trend.py                평가 결과 jsonl → step별 홀드아웃 정확도 추세(95% CI)
+  train_source_trend.py             completions.jsonl → 소스별 정확도 추세 + 길이 구성효과 분리(--until 로 구간 고정)
   eval_midtrain.slurm               중간 홀드아웃 평가(EVAL_STAGES 로 대상 선택, 병렬 제출 가능)
+  eval_paired.py                    두 체크포인트의 문항별 점수 조인 → McNemar + 실측 검출 하한
   30_medical_rl.slurm · launch_stage3.sh · judge_server.sh    Stage-3
   50_eval_v3.slurm · eval_v3_holdout.py                       평가
 configs/   accuracy.py(Stage-2 보상) · medical_reward.py(Stage-3 RaR)

@@ -656,11 +656,30 @@ step 900 이 step 1000(25.56%)보다도 **낮다**. 이후 부분 회복이 있�
 `mean_chars` 는 **2,264 로 정상**이다 — 순수한 형식 붕괴이고 길이 폭발은 아직 없다.
 step 1000 에 가서야 `mean_chars` 7,893 으로 뛴다(토큰 퇴화). §8-b 와 정확히 일치한다.
 
-**손상이 소스별로 극단적으로 다르다.** step 900 기준 의료 −47.0pp / deepvision −26.2pp / 수학 −6.3pp.
-채점 방식 때문이다 — 의료는 `<answer>A</answer>` 가 있어야 letter 를 뽑으므로 **letter 층이 0.5835 → 0.1047**,
+**손상이 소스별로 극단적으로 다르다.** **850 → 900 짝지음**으로 의료 **−47.50pp** /
+deepvision **−30.04pp** / 수학 **−7.50pp** 다(전부 p<0.001).
+채점 방식 때문이다 — 의료는 `<answer>A</answer>` 가 있어야 letter 를 뽑으므로 **letter 층이 0.5810 → 0.1047**,
 vl 층은 **0.0096** 까지 간다. 수학은 본문 어디서든 숫자를 잡아내 형식 붕괴에 덜 민감하고,
 실제로 **step 900 의 수학은 init 과 구분되지 않는다**(0.500 vs 0.4825, p=0.51).
-즉 이 −26pp 는 능력 상실보다 **형식 상실**에 가깝다. 실사용에서는 구분이 무의미하다.
+즉 이 −30pp 는 능력 상실보다 **형식 상실**에 가깝다. 실사용에서는 구분이 무의미하다.
+
+> ⚠️ **초판(2026-08-04)의 "의료 −47.0 / deepvision −26.2 / 수학 −6.3" 은 틀렸다.** 어느 지점을
+> 기준으로 뺀 값인지 재현되지 않는다(850·700·init 어느 것과도 안 맞는다). 위 값은 문항별 파일에서
+> 850 → 900 을 직접 짝지어 다시 계산한 것이다 — 절대 낙폭과 짝지음 Δ 가 일치한다(같은 문항 집합이므로).
+
+**형식은 세 소스에서 균일하게 깨졌다.** 취약성 프로브(greedy)의 step 900 형식 실패율은
+deepvision 96.7% / mmk12 92.1% / pmcvqa 83.3% 로 **차이가 작다**. 그런데 정확도는
+50.00 / 16.36 / 10.50 으로 갈린다. **손상은 균일하고, 채점기가 그걸 통과시키느냐가 소스별로 다르다.**
+step 900 에서 형식이 온전한 문항은 1,772 중 **99 건**(format 0.056)뿐인데 정답은 **401 건**이다 —
+최소 **302 건(17.0pp)이 `<answer>` 태그 없이 정답 처리**됐다. §8-i ② 의 보상 구멍이
+홀드아웃에서 정량적으로 드러난 자리다.
+
+![Stage-2 홀드아웃 형식·길이·층별 종합](assets/stage2_holdout_format_length.png)
+
+> 🚨 위 그림 ①의 두 형식 곡선은 **수준 비교 불가**다. 지표 정의(느슨한 `<answer>` 존재 여부 vs
+> 엄격한 `FormatThink`), temperature(0.0 vs 0.9), **토큰 상한(2,048 vs 6,144)** 이 모두 다르다.
+> 갈라지는 **시점**만 읽을 것. 특히 홀드아웃 `format` 하락(0.947 → 0.89 대)은 별개 현상이 아니라
+> **길이 인플레이션의 그림자**다 — RL 이 출력을 +17% 늘려놨는데 홀드아웃은 2,048 토큰에서 자른다.
 
 ### 8-g. 그래서 step 850 이 최고점이다 — 그리고 §6-d 의 "미검출"이 뒤집힌다
 
@@ -958,7 +977,13 @@ RL 은 이 스타일을 **억제하고 있었다**(18.3% → 5.8%). 붕괴는 �
 #    ⚠️ --until 을 반드시 줄 것. 안 주면 학습이 진행되는 동안 문서의 수치와 어긋난다.
 ./bin/python scripts/train_source_trend.py --until 750 -o docs/assets/stage2_source_trend.png
 
-# ③ 수치만 (호스트 python3 로도 동작 — matplotlib 불필요)
+# ③ 홀드아웃 형식·길이·층별 종합 4패널 (§8-f)
+#    입력: logs/eval_midtrain_results*.jsonl(집계) · logs/eval_items_*.jsonl(문항별)
+#          logs/train_metrics.csv(학습측) · logs/probe_fragility_results.jsonl(프로브)
+#    호스트 python3 로 동작(표준 라이브러리 + matplotlib).
+python3 scripts/plot_holdout_format_length.py
+
+# ④ 수치만 (호스트 python3 로도 동작 — matplotlib 불필요)
 python3 scripts/plot_train_curves.py logs/grpo_adv_739*.log --no-plot --csv logs/train_metrics.csv
 python3 scripts/train_source_trend.py --until 750
 ```

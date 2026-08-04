@@ -31,6 +31,7 @@ STEPS="${STEPS:-700 850}"
 PORT="${EVAL_PORT:-8231}"
 RESULT="${PROBE_RESULT:-logs/probe_fragility_results.jsonl}"
 GM="$CKPT_DIR/_frag_merged_${SLURM_JOB_ID}"
+FAILED=""
 
 export PROBE_RESULT="$RESULT"
 export PROBE_TEMPS="${PROBE_TEMPS:-0.0,0.9,1.2,1.5}"
@@ -42,6 +43,33 @@ export PROBE_DATA="${PROBE_DATA:-work/data/stage2_expanded_train.jsonl}"
 echo "[frag] job=$SLURM_JOB_ID node=$(hostname) steps='$STEPS'"
 echo "[frag] temps=$PROBE_TEMPS  ns=$PROBE_NS  maxtok=$PROBE_MAXTOK"
 nvidia-smi --query-gpu=name,memory.total --format=csv,noheader
+
+# vLLM 서버 정리. 🚨 `kill $srv` 만으로는 부족하다 — vLLM 은 엔진코어를 별도 프로세스로
+#   띄우므로 부모만 죽으면 GPU 에 33GB 가 그대로 남고, 다음 체크포인트 merge 가
+#   40GB 카드에서 OOM 난다(job 74329/74331 이 이걸로 첫 체크포인트만 하고 끝났다).
+#   GPU 를 실제로 쓰고 있는 PID 를 nvidia-smi 로 찾아 죽이고, 메모리가 빠질 때까지 기다린다.
+free_gpu() {
+  local pid="${1:-}" used
+  [ -n "$pid" ] && { kill "$pid" 2>/dev/null; sleep 5; kill -9 "$pid" 2>/dev/null; }
+  for round in 1 2 3; do
+    used=$(nvidia-smi --query-gpu=memory.used --format=csv,noheader,nounits 2>/dev/null | head -1)
+    [ "${used:-0}" -lt 2000 ] && break
+    for p in $(nvidia-smi --query-compute-apps=pid --format=csv,noheader 2>/dev/null); do
+      echo "[frag] GPU 점유 잔존 pid=$p → kill"; kill -9 "$p" 2>/dev/null
+    done
+    # cgroup 격리 등으로 nvidia-smi 가 PID 를 못 주는 경우의 폴백. 이 노드는 이 잡이
+    # 독점하므로 내 계정의 vllm 프로세스만 정확히 겨냥하면 안전하다.
+    pkill -9 -u "$(id -u)" -f 'vllm.entrypoints' 2>/dev/null
+    pkill -9 -u "$(id -u)" -f 'VLLM::' 2>/dev/null
+    sleep 10
+  done
+  for i in $(seq 1 30); do
+    used=$(nvidia-smi --query-gpu=memory.used --format=csv,noheader,nounits 2>/dev/null | head -1)
+    [ "${used:-0}" -lt 2000 ] && break
+    sleep 5
+  done
+  echo "[frag] GPU 여유 확인: used=${used}MiB"
+}
 
 # 학습 체크포인트 경로 해석. 라이브 디렉토리 우선, 없으면 롤오프 전에 떠 둔 스냅샷.
 resolve_ckpt() {
@@ -57,11 +85,13 @@ for STEP in $STEPS; do
   if [ -z "$CKPT" ]; then echo "[frag] ❌ step $STEP 체크포인트 없음 — 건너뜀"; continue; fi
   echo ""; echo "=================  step $STEP  ($CKPT)  ================="
 
+  free_gpu ""                 # 직전 체크포인트의 서버 잔재 정리 (첫 회차는 no-op)
   rm -rf "$GM"
   run_py swift export --adapters "$CKPT" --merge_lora true --output_dir "$GM" \
     > "logs/probe_frag_merge_${SLURM_JOB_ID}_${STEP}.log" 2>&1
   if [ ! -f "$GM/config.json" ]; then
-    echo "[frag] ❌ step $STEP merge 실패"; tail -20 "logs/probe_frag_merge_${SLURM_JOB_ID}_${STEP}.log"; continue
+    echo "[frag] ❌ step $STEP merge 실패"; tail -20 "logs/probe_frag_merge_${SLURM_JOB_ID}_${STEP}.log"
+    FAILED="${FAILED} $STEP"; continue
   fi
   echo "[frag] merged → $GM"
 
@@ -86,12 +116,15 @@ for STEP in $STEPS; do
     export PROBE_TAG="step$STEP"
     export PROBE_OUT="logs/probe_frag_samples_step${STEP}.jsonl"
     run_py python scripts/probe_format_fragility.py
+  else
+    FAILED="${FAILED} $STEP"
   fi
 
-  kill $srv 2>/dev/null; sleep 5; kill -9 $srv 2>/dev/null || true
+  free_gpu "$srv"
   rm -rf "$GM"
 done
 
 echo ""; echo "=====  형식 취약성 스윕 결과  ====="
 cat "$RESULT" 2>/dev/null
-echo "[frag] done"
+[ -n "${FAILED// /}" ] && echo "[frag] ⚠️ 실패한 step:${FAILED}"
+echo "[frag] done (steps='$STEPS')"

@@ -125,7 +125,7 @@ def summarize(rows, n=100):
     return out
 
 
-def plot(rows, out_path, window, max_steps):
+def plot(rows, out_path, window, max_steps, status=""):
     import numpy as np
     import matplotlib
     matplotlib.use("Agg")
@@ -185,19 +185,37 @@ def plot(rows, out_path, window, max_steps):
         ax.plot(step, y, color=color, lw=0.8, alpha=0.16, zorder=2)
         sm = roll(y)
         ax.plot(step, sm, color=color, lw=2.0, label=label, zorder=3, solid_capstyle="round")
-        ax.text(step[-1] * 1.015, sm[-1], fmt.format(sm[-1]), color=color,
-                fontsize=9, fontweight="600", va="center", zorder=4)
-        return sm
+        return ax.text(step[-1] * 1.015, sm[-1], fmt.format(sm[-1]), color=color,
+                       fontsize=9, fontweight="600", va="center", zorder=4)
+
+    def spread(ax, texts, pad_px=13):
+        """끝점 라벨이 겹치면 세로로 밀어낸다.
+
+        보상 패널은 계열 4개의 종점이 붙을 수 있다(붕괴 후 0.31/0.29/0.26 처럼).
+        데이터 단위로 밀면 패널마다 스케일이 달라 튜닝이 안 되므로 화면 픽셀로 민다.
+        """
+        if len(texts) < 2:
+            return
+        ax.figure.canvas.draw()                       # 좌표 확정
+        T, Ti = ax.transData.transform, ax.transData.inverted().transform
+        items = sorted(texts, key=lambda t: t.get_position()[1])
+        ys = [T((0, t.get_position()[1]))[1] for t in items]
+        want = list(ys)
+        for i in range(1, len(want)):
+            want[i] = max(want[i], want[i - 1] + pad_px)
+        shift = (sum(ys) - sum(want)) / len(ys)       # 밀어낸 뒤 원래 중심으로 되돌린다
+        for t, y in zip(items, want):
+            t.set_position((t.get_position()[0], Ti((0, y + shift))[1]))
 
     fig, ax = plt.subplots(3, 2, figsize=(13.2, 11.6))
     fig.subplots_adjust(hspace=0.52, wspace=0.20, top=0.885, bottom=0.062,
                         left=0.062, right=0.985)
 
     a = ax[0][0]; frame(a, L["rewards"], L["rewards_sub"])
-    series(a, "reward", BLUE, L["total"])
-    series(a, "rewards/FormatThink/mean", AQUA, "FormatThink")
-    series(a, "rewards/AccuracyMix/mean", ORANGE, "AccuracyMix")
-    series(a, "rewards/SoftOverlong/mean", YELLOW, "SoftOverlong")
+    spread(a, [series(a, "reward", BLUE, L["total"]),
+               series(a, "rewards/FormatThink/mean", AQUA, "FormatThink"),
+               series(a, "rewards/AccuracyMix/mean", ORANGE, "AccuracyMix"),
+               series(a, "rewards/SoftOverlong/mean", YELLOW, "SoftOverlong")])
     a.axhline(0, color=BASE, lw=0.8, zorder=1)
     leg = a.legend(loc="lower left", fontsize=8.5, ncol=2, labelcolor=INK2,
                    handlelength=1.6, columnspacing=1.4, frameon=True,
@@ -233,11 +251,12 @@ def plot(rows, out_path, window, max_steps):
 
     last = int(step[-1])
     pct = f" ({last / max_steps * 100:.1f}%)" if max_steps else ""
+    head = f"step {last:,} / {max_steps:,}{pct}" if max_steps else f"step {last:,}"
+    if status:
+        head += f" · {status}"
     fig.suptitle(L["title"], x=0.062, y=0.965, ha="left", color=INK,
                  fontsize=17, fontweight="700")
-    fig.text(0.062, 0.928,
-             f"step {last:,} / {max_steps:,}{pct}" if max_steps else f"step {last:,}",
-             ha="left", color=INK2, fontsize=10.5)
+    fig.text(0.062, 0.928, head, ha="left", color=INK2, fontsize=10.5)
     fig.text(0.985, 0.928, L["note"].format(w=window), ha="right", color=MUTED, fontsize=9)
 
     Path(out_path).parent.mkdir(parents=True, exist_ok=True)
@@ -253,6 +272,7 @@ def main():
     ap.add_argument("--csv", help="step별 전체 지표를 CSV 로도 저장")
     ap.add_argument("-w", "--window", type=int, default=25, help="이동평균 창 (기본 25)")
     ap.add_argument("--max-steps", type=int, default=0, help="제목의 진행률 분모 (0=생략)")
+    ap.add_argument("--status", default="", help="부제에 덧붙일 상태 문구 (예: 취소·붕괴)")
     ap.add_argument("--no-plot", action="store_true", help="CSV·요약만 (matplotlib 불필요)")
     args = ap.parse_args()
 
@@ -269,7 +289,7 @@ def main():
         print(f"[csv] saved: {args.csv}")
     summarize(rows)
     if not args.no_plot:
-        plot(rows, args.out, args.window, args.max_steps)
+        plot(rows, args.out, args.window, args.max_steps, args.status)
 
 
 if __name__ == "__main__":

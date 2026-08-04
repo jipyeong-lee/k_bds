@@ -84,6 +84,7 @@ def main():
     ap.add_argument("--gate-base", default="step400",
                     help="사전등록 게이트의 기준 tag (기본 step400)")
     ap.add_argument("--title", default="")
+    ap.add_argument("--note", default="", help="캡션 끝에 덧붙일 문구 (예: 붕괴·취소 사실)")
     args = ap.parse_args()
 
     runs = {}
@@ -229,11 +230,13 @@ def main():
             # 기준 이전 점을 뺐으므로 x 범위도 좁힌다 — 안 그러면 왼쪽 절반이 빈다.
             ax.set_xticks(xs)
             ax.set_xlim(min(xs) - pad * 0.75, max(xs) + pad * 0.55)
-            # 판정선 라벨은 왼쪽(기준점 부근)에. 오른쪽은 오차막대가 지나간다.
-            for v, lab, c in ((GATE_GO, T["go"], AQUA), (GATE_STOP, T["stop"], RED)):
+            # 판정선(+3 / −1)은 4pp 밖에 안 떨어져 있다. 붕괴 지점이 들어와 y 범위가
+            # 수십 pp 로 벌어지면 두 라벨이 같은 높이에 겹치므로 좌우로 갈라 놓는다.
+            for v, lab, c, x, ha in ((GATE_GO, T["go"], AQUA, 0.008, "left"),
+                                     (GATE_STOP, T["stop"], RED, 0.992, "right")):
                 ax.axhline(v, color=c, lw=1.1, ls=(0, (5, 3)), zorder=2)
-                ax.text(0.008, v, f" {lab}", color=c, fontsize=8.5, va="bottom",
-                        ha="left", zorder=6, transform=ax.get_yaxis_transform())
+                ax.text(x, v, f" {lab} ", color=c, fontsize=8.5, va="bottom",
+                        ha=ha, zorder=6, transform=ax.get_yaxis_transform())
             ax.margins(y=0.24)
 
     delta_panel(axM, "init", T["t2"])
@@ -251,12 +254,13 @@ def main():
     fig.suptitle(args.title or ("Stage-2 홀드아웃 전량 평가" if ko
                                 else "Stage-2 full holdout evaluation"),
                  x=0.052, y=0.968, ha="left", color=INK, fontsize=16, fontweight="700")
-    fig.text(0.052, 0.897,
-             (f"동일 {n_all:,}문항·greedy·같은 프롬프트 · init = RL 0% · "
-              "점별 CI 는 겹쳐도 짝지음 Δ 는 갈릴 수 있다(오른쪽 두 패널이 판정축)" if ko else
-              f"same {n_all:,} items, greedy · init = RL 0% · "
-              "overlapping point CIs do not imply no difference — see paired panels"),
-             ha="left", color=INK2, fontsize=9.5)
+    cap = (f"동일 {n_all:,}문항·greedy·같은 프롬프트 · init = RL 0% · "
+           "점별 CI 는 겹쳐도 짝지음 Δ 는 갈릴 수 있다(오른쪽 두 패널이 판정축)" if ko else
+           f"same {n_all:,} items, greedy · init = RL 0% · "
+           "overlapping point CIs do not imply no difference — see paired panels")
+    if args.note:
+        cap += " · " + args.note
+    fig.text(0.052, 0.897, cap, ha="left", color=INK2, fontsize=9.5)
 
     Path(args.out).parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(args.out, dpi=190)

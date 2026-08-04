@@ -167,6 +167,21 @@ def main():
         ax.set_xticks(steps)
         ax.set_xlim(min(steps) - pad * 0.55, max(steps) + pad)
         ax.tick_params(axis="y", length=0)
+        tilt_if_crowded(ax)
+
+    def tilt_if_crowded(ax, min_px=30):
+        """눈금이 붙으면 기울인다. 평가 지점 간격이 균등하지 않아(50~400 step)
+        850·900 처럼 인접한 쌍이 생기면 라벨이 겹친다."""
+        xs = sorted(ax.get_xticks())
+        if len(xs) < 2:
+            return
+        T_ = ax.transData.transform
+        gaps = [T_((xs[i + 1], 0))[0] - T_((xs[i], 0))[0] for i in range(len(xs) - 1)]
+        if min(gaps) < min_px:
+            for lab in ax.get_xticklabels():
+                lab.set_rotation(45)
+                lab.set_ha("right")
+                lab.set_rotation_mode("anchor")
 
     # ── 좌: 정확도 궤적 ───────────────────────────────────────────────────
     frame(axL, T["t1"], T["s1"], T["y1"])

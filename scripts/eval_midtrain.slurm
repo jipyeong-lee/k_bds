@@ -56,24 +56,33 @@ TRAINED_TAG="${TRAINED_TAG:-trained}"
 RESULT="${EVAL_RESULT_FILE:-logs/eval_midtrain_results_${SLURM_JOB_ID:-manual}.jsonl}"
 : > "$RESULT"
 
-# ---- 0) 중간 체크포인트 스냅샷 + 병합 ---------------------------------------
-#  학습이 save_total_limit=5 로 checkpoint 를 롤링 삭제한다. 평가 도중 원본이 사라질 수
-#  있으므로 반드시 스냅샷을 떠서 그 복사본에서 병합한다.
-CKPT="${MID_CKPT:-$(ls -d "$CKPT_DIR"/grpo_expanded_gdpo/*/checkpoint-* 2>/dev/null \
-        | awk -F'checkpoint-' '{print $2"\t"$0}' | sort -n | tail -1 | cut -f2-)}"
-[ -n "${CKPT:-}" ] && [ -d "$CKPT" ] \
-  || { echo "[mid] ❌ 평가할 체크포인트가 없다 (MID_CKPT 로 지정할 것)"; exit 1; }
-
 SNAP="$CKPT_DIR/_mideval_snapshot_${SLURM_JOB_ID:-manual}"
 MERGED="$CKPT_DIR/_midtrain_merged_${SLURM_JOB_ID:-manual}"
 export NPROC_PER_NODE=1
 trap 'rm -rf "$SNAP" "$MERGED"' EXIT      # 중간 실패해도 임시본을 남기지 않는다
-rm -rf "$SNAP" "$MERGED"
-echo "[mid] snapshot $CKPT -> $SNAP"
-cp -a "$CKPT" "$SNAP" || { echo "[mid] ❌ 스냅샷 실패"; exit 1; }
-echo "[mid] merge $SNAP -> $MERGED"
-run_py swift export --adapters "$SNAP" --merge_lora true --output_dir "$MERGED" \
-  || { echo "[mid] ❌ merge 실패"; exit 1; }
+
+has_stage() { case ",$EVAL_STAGES," in *",$1,"*) return 0;; *) return 1;; esac; }
+
+# ---- 0) 중간 체크포인트 스냅샷 + 병합 (trained 단계에만 필요) ----------------
+#  학습이 save_total_limit=5 로 checkpoint 를 롤링 삭제한다. 평가 도중 원본이 사라질 수
+#  있으므로 반드시 스냅샷을 떠서 그 복사본에서 병합한다.
+#  ⚠️ base/init 만 평가할 때는 건너뛴다. 종전에는 무조건 실행돼서, MID_CKPT 미지정 시
+#     **학습 중인 디렉터리에서 최신 checkpoint 를 자동 선택**해 복사·병합했다.
+#     쓰지도 않을 5분짜리 병합인 데다, 기록 중인 체크포인트를 집을 위험이 있었다.
+if has_stage trained; then
+  CKPT="${MID_CKPT:-$(ls -d "$CKPT_DIR"/grpo_expanded_gdpo/*/checkpoint-* 2>/dev/null \
+          | awk -F'checkpoint-' '{print $2"\t"$0}' | sort -n | tail -1 | cut -f2-)}"
+  [ -n "${CKPT:-}" ] && [ -d "$CKPT" ] \
+    || { echo "[mid] ❌ 평가할 체크포인트가 없다 (MID_CKPT 로 지정할 것)"; exit 1; }
+  rm -rf "$SNAP" "$MERGED"
+  echo "[mid] snapshot $CKPT -> $SNAP"
+  cp -a "$CKPT" "$SNAP" || { echo "[mid] ❌ 스냅샷 실패"; exit 1; }
+  echo "[mid] merge $SNAP -> $MERGED"
+  run_py swift export --adapters "$SNAP" --merge_lora true --output_dir "$MERGED" \
+    || { echo "[mid] ❌ merge 실패"; exit 1; }
+else
+  echo "[mid] EVAL_STAGES=$EVAL_STAGES — trained 없음, 체크포인트 스냅샷·병합 건너뜀"
+fi
 
 # ---- 평가 함수 (40_eval_compare.slurm 과 동일 로직, 결과 파일만 별도) --------
 run_eval() {  # $1=tag  $2=model
@@ -112,7 +121,6 @@ run_eval() {  # $1=tag  $2=model
 }
 
 BASE_PATH=$(ls -d work/hf_cache/hub/models--Qwen--Qwen3.5-9B/snapshots/*/ 2>/dev/null | head -1)
-has_stage() { case ",$EVAL_STAGES," in *",$1,"*) return 0;; *) return 1;; esac; }
 
 echo "[mid] EVAL_STAGES=$EVAL_STAGES  EVAL_N=$EVAL_N  RESULT=$RESULT"
 has_stage base    && run_eval base           "$BASE_PATH"                            || true

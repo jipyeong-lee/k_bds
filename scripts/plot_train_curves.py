@@ -43,7 +43,7 @@ SUMMARY_KEYS = [
 KO = {
     "title": "Stage-2 확장셋 GDPO 학습 곡선", "rewards": "보상 구성",
     "rewards_sub": "reward 총합과 3개 구성요소 · 가중치 1.0 / 0.2 / 0.2",
-    "kl": "KL 발산", "kl_sub": "참조 정책 대비",
+    "kl": "KL 발산 · grad_norm", "kl_sub": "둘 다 형식 붕괴보다 ~50 step 먼저 상승 (붕괴 선행지표)",
     "ent": "정책 엔트로피", "ent_sub": "굵은 선 = mean · 음영 = 배치 내 min–max",
     "len": "Completion 길이", "len_sub": "음영 = 배치 내 min–max · 파선 = max_completion_length",
     "clip": "Overlong 클리핑 비율", "clip_sub": "최대 길이에서 잘린 completion 비중",
@@ -51,11 +51,12 @@ KO = {
     "total": "reward (총합)", "x": "global step", "tokens": "tokens", "sec": "초",
     "note": "옅은 선 = 원본 · 굵은 선 = {w}-step 이동평균 · 우측 수치 = 이동평균 종점",
     "mean_of": "구간 평균 {v}",
+    "ev_best": "850 최고 ckpt", "ev_break": "899–904 형식 붕괴", "ev_len": "905 길이 폭주",
 }
 EN = {
     "title": "Stage-2 expanded GDPO training curves", "rewards": "Reward components",
     "rewards_sub": "total reward and 3 components · weights 1.0 / 0.2 / 0.2",
-    "kl": "KL divergence", "kl_sub": "vs reference policy",
+    "kl": "KL divergence · grad_norm", "kl_sub": "both rise ~50 steps before format collapse (leading indicators)",
     "ent": "Policy entropy", "ent_sub": "bold = mean · band = per-batch min-max",
     "len": "Completion length", "len_sub": "band = per-batch min-max · dashed = max_completion_length",
     "clip": "Overlong clip ratio", "clip_sub": "share of completions truncated at max length",
@@ -63,6 +64,7 @@ EN = {
     "total": "reward (total)", "x": "global step", "tokens": "tokens", "sec": "sec",
     "note": "light = raw · bold = {w}-step moving average · right label = MA endpoint",
     "mean_of": "window mean {v}",
+    "ev_best": "850 best ckpt", "ev_break": "899-904 format collapse", "ev_len": "905 length runaway",
 }
 
 
@@ -125,7 +127,7 @@ def summarize(rows, n=100):
     return out
 
 
-def plot(rows, out_path, window, max_steps, status=""):
+def plot(rows, out_path, window, max_steps, status="", draw_events=True):
     import numpy as np
     import matplotlib
     matplotlib.use("Agg")
@@ -188,6 +190,26 @@ def plot(rows, out_path, window, max_steps, status=""):
         return ax.text(step[-1] * 1.015, sm[-1], fmt.format(sm[-1]), color=color,
                        fontsize=9, fontweight="600", va="center", zorder=4)
 
+    # 붕괴 사후분석(docs/stage2_run73924_postmortem.md)에서 확정된 사건 위치.
+    #  형식 붕괴(899~904)와 길이 폭주(905~)는 별개 사건이고 순서가 있다 — 같은 선으로 묶지 말 것.
+    #  899 와 905 는 6 step 차라 라벨이 겹친다 → 높이를 계단식으로 어긋내고 전부 왼쪽으로 뽑는다.
+    EVENTS = [(850, L["ev_best"], AQUA, 0.97),
+              (899, L["ev_break"], ORANGE, 0.88),
+              (905, L["ev_len"], YELLOW, 0.79)]
+
+    def events(ax, label=False):
+        """사건 위치에 세로 마커. label=True 인 패널에만 글자를 얹는다(6패널 반복 방지)."""
+        if not draw_events:
+            return
+        for x, txt, c, ly in EVENTS:
+            if not (step.min() <= x <= step.max()):
+                continue
+            ax.axvline(x, color=c, lw=1.0, ls=(0, (3, 3)), alpha=0.85, zorder=1.5)
+            if label:
+                ax.text(x - (step.max() - step.min()) * 0.012, ly, txt,
+                        transform=ax.get_xaxis_transform(), color=c, fontsize=8.5,
+                        fontweight="600", ha="right", va="center", zorder=6)
+
     def spread(ax, texts, pad_px=13):
         """끝점 라벨이 겹치면 세로로 밀어낸다.
 
@@ -208,8 +230,9 @@ def plot(rows, out_path, window, max_steps, status=""):
             t.set_position((t.get_position()[0], Ti((0, y + shift))[1]))
 
     fig, ax = plt.subplots(3, 2, figsize=(13.2, 11.6))
+    #  right 는 0.94 까지만 — KL 패널의 twinx(grad_norm) 눈금·축라벨이 그 바깥에 그려진다.
     fig.subplots_adjust(hspace=0.52, wspace=0.20, top=0.885, bottom=0.062,
-                        left=0.062, right=0.985)
+                        left=0.062, right=0.940)
 
     a = ax[0][0]; frame(a, L["rewards"], L["rewards_sub"])
     spread(a, [series(a, "reward", BLUE, L["total"]),
@@ -222,12 +245,40 @@ def plot(rows, out_path, window, max_steps, status=""):
                    facecolor=SURFACE, edgecolor="none", framealpha=0.92)
     leg.set_zorder(5)
 
-    a = ax[0][1]; frame(a, L["kl"], L["kl_sub"]); series(a, "kl", BLUE, "kl", "{:.4f}")
+    events(a)
+
+    #  KL 과 grad_norm 은 단위가 달라 축을 나눈다. 둘의 "동시 상승"이 이 패널의 요점이므로
+    #  같은 패널에 겹쳐 그리는 편이 두 패널로 나누는 것보다 읽기 쉽다.
+    #  두 축 모두 로그 — kl 은 0.0004~1.1, grad_norm 은 0.009~10.0 으로 3 decade 를 넘는다.
+    #  선형축이면 말기 스파이크(grad_norm 10.02 @ step 938)에 눌려 정작 중요한
+    #  step 850~900 구간의 2~3배 상승이 0 근처에 붙어 보이지 않는다.
+    a = ax[0][1]; frame(a, L["kl"], L["kl_sub"])
+    series(a, "kl", BLUE, "kl", "{:.4f}")
+    a.set_yscale("log")
+    a2 = a.twinx()
+    a2.set_yscale("log")
+    a2.set_xlim(a.get_xlim())
+    for s in ("top", "left"):
+        a2.spines[s].set_visible(False)
+    a2.spines["right"].set_color(BASE)
+    a2.tick_params(colors=MUTED, labelsize=9)
+    yg = arr("grad_norm")
+    a2.plot(step, yg, color=ORANGE, lw=0.8, alpha=0.16, zorder=2)
+    a2.plot(step, roll(yg), color=ORANGE, lw=2.0, zorder=3, solid_capstyle="round")
+    a2.set_ylabel("grad_norm", color=ORANGE, fontsize=9)
+    a.plot([], [], color=ORANGE, lw=2.0, label="grad_norm")     # 범례용 프록시
+    a.legend(loc="upper left", fontsize=8.5, labelcolor=INK2, handlelength=1.6,
+             frameon=True, facecolor=SURFACE, edgecolor="none", framealpha=0.92)
+    a.set_zorder(a2.get_zorder() + 1); a.patch.set_visible(False)
+    #  사건 라벨은 이 패널에만 얹는다 — 붕괴 시점(x≈0.75) 위쪽이 6패널 중 유일하게 비어 있다.
+    events(a, label=True)
 
     a = ax[1][0]; frame(a, L["ent"], L["ent_sub"])
     a.fill_between(step, roll(arr("entropy/min")), roll(arr("entropy/max")),
                    color=BLUE, alpha=0.11, lw=0, zorder=1)
     series(a, "entropy/mean", BLUE, "entropy")
+
+    events(a)
 
     a = ax[1][1]; frame(a, L["len"], L["len_sub"], L["tokens"])
     a.fill_between(step, roll(arr("completions/min_length")), roll(arr("completions/max_length")),
@@ -239,11 +290,15 @@ def plot(rows, out_path, window, max_steps, status=""):
     series(a, "completions/mean_length", BLUE, "mean_length", "{:,.0f}")
     a.yaxis.set_major_formatter(FuncFormatter(lambda v, _: f"{v:,.0f}"))
 
+    events(a)
+
     a = ax[2][0]; frame(a, L["clip"], L["clip_sub"])
     series(a, "completions/clipped_ratio", ORANGE, "clipped_ratio")
     a.yaxis.set_major_formatter(FuncFormatter(lambda v, _: f"{v * 100:.0f}%"))
     a.text(0.5, 0.93, L["mean_of"].format(v=f"{np.nanmean(arr('completions/clipped_ratio')) * 100:.1f}%"),
            transform=a.transAxes, color=INK2, fontsize=9, ha="center")
+
+    events(a)
 
     a = ax[2][1]; frame(a, L["time"], L["time_sub"], L["sec"])
     series(a, "step_time", BLUE, "step_time", "{:,.0f}s")
@@ -274,6 +329,8 @@ def main():
     ap.add_argument("--max-steps", type=int, default=0, help="제목의 진행률 분모 (0=생략)")
     ap.add_argument("--status", default="", help="부제에 덧붙일 상태 문구 (예: 취소·붕괴)")
     ap.add_argument("--no-plot", action="store_true", help="CSV·요약만 (matplotlib 불필요)")
+    ap.add_argument("--no-events", action="store_true",
+                    help="붕괴 사건 마커(850·899·905) 숨김 — 73924/73925 이외 런에 쓸 것")
     args = ap.parse_args()
 
     rows = parse_logs(args.logs)
@@ -289,7 +346,8 @@ def main():
         print(f"[csv] saved: {args.csv}")
     summarize(rows)
     if not args.no_plot:
-        plot(rows, args.out, args.window, args.max_steps, args.status)
+        plot(rows, args.out, args.window, args.max_steps, args.status,
+             draw_events=not args.no_events)
 
 
 if __name__ == "__main__":

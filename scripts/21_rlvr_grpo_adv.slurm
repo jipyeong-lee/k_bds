@@ -115,8 +115,22 @@ OUTPUT_DIR="${OUTPUT_DIR:-$CKPT_DIR/grpo_general_adv_$RECIPE}"
 #  MAX_STEPS=<n> → 그 step 에서 정지. 체인 잡들이 max_steps 도달 시 자동 no-op.
 #    ⚠️ step 은 epoch 이 아니다: 프롬프트/step = pdtbs×world×accum ÷ num_generations = 8.
 #       확장셋(74,787) 기준 1 epoch = 9,348 step. 상세 = docs/stage2_run73924_progress.md §3
+#  RESUME_CKPT=<경로> → 그 체크포인트에서 명시적으로 재개(RESUME=1 자동탐색보다 우선).
+#    재현 실험용. 반드시 **새 OUTPUT_DIR** 과 함께 쓸 것 — 원본 디렉터리에 그대로 재개하면
+#    save_total_limit=5 때문에 새 저장이 원본 checkpoint-800/850 을 밀어낸다.
+#    (73924 에서 최고 체크포인트 850 이 step 1100 저장에 삭제될 예정이었다 — §1-4)
 RESUME_ARGS=""
-if [[ "${RESUME:-0}" == "1" ]]; then
+if [[ -n "${RESUME_CKPT:-}" ]]; then
+  [[ -f "$RESUME_CKPT/trainer_state.json" ]] || { echo "❌ RESUME_CKPT 아님: $RESUME_CKPT"; exit 1; }
+  SRC_RUN=$(dirname "$(dirname "$RESUME_CKPT")")
+  if [[ "$(cd "$OUTPUT_DIR" 2>/dev/null && pwd)" == "$(cd "$SRC_RUN" && pwd)" ]]; then
+    echo "❌ OUTPUT_DIR 이 원본과 같다 — 새 저장이 원본 체크포인트를 삭제한다."
+    echo "   OUTPUT_DIR 을 별도 경로로 지정할 것: $OUTPUT_DIR"
+    exit 1
+  fi
+  RESUME_ARGS="--resume_from_checkpoint $RESUME_CKPT"
+  echo "[grpo-adv] RESUME_CKPT(명시): $RESUME_CKPT  →  새 OUTPUT_DIR=$OUTPUT_DIR"
+elif [[ "${RESUME:-0}" == "1" ]]; then
   LATEST=$(ls -d "$OUTPUT_DIR"/*/checkpoint-* 2>/dev/null \
     | awk -F'checkpoint-' '{print $2"\t"$0}' | sort -n | tail -1 | cut -f2-) || true
   if [[ -n "$LATEST" ]]; then
@@ -126,6 +140,26 @@ if [[ "${RESUME:-0}" == "1" ]]; then
   fi
 fi
 [[ -n "${MAX_STEPS:-}" ]] && RESUME_ARGS="$RESUME_ARGS --max_steps $MAX_STEPS" && echo "[grpo-adv] MAX_STEPS=$MAX_STEPS"
+
+# ---- 형식 붕괴 감시자 (WATCHDOG=1) ----------------------------------------
+#  73924 는 step ~900 붕괴 후 13h35m 을 더 돌았다(109 GPU-h 낭비). 감시 장치가 없었다.
+#  임계값은 73924/73925 로그 재생 스윕으로 고정했다 — scripts/watch_format_collapse.py 주석 참조.
+#  STOP_STEP 을 주면 그 step 에서도 정상 종료한다(재현 실험의 상한).
+#  ⚠️ 호스트 python3 로 띄운다 — 표준 라이브러리만 쓰므로 컨테이너/로더 진입이 필요 없고,
+#     학습이 GPU 를 다 쓰는 동안에도 독립적으로 돈다.
+WATCH_PID=""
+if [[ "${WATCHDOG:-0}" == "1" ]]; then
+  WLOG="$PROJ_DIR/logs/grpo_adv_${SLURM_JOB_ID}.log"
+  WVERDICT="$PROJ_DIR/logs/verdict_${SLURM_JOB_ID}.json"
+  python3 "$PROJ_DIR/scripts/watch_format_collapse.py" \
+    --log "$WLOG" --verdict "$WVERDICT" --job-id "$SLURM_JOB_ID" \
+    ${STOP_STEP:+--stop-step "$STOP_STEP"} \
+    ${KL_BASELINE_VALUE:+--kl-baseline-value "$KL_BASELINE_VALUE"} \
+    --poll "${WATCH_POLL:-120}" &
+  WATCH_PID=$!
+  echo "[grpo-adv] WATCHDOG pid=$WATCH_PID → $WVERDICT (stop_step=${STOP_STEP:-없음})"
+  trap '[[ -n "$WATCH_PID" ]] && kill "$WATCH_PID" 2>/dev/null || true' EXIT
+fi
 
 run_py swift rlhf \
   --rlhf_type grpo \
@@ -167,6 +201,7 @@ run_py swift rlhf \
   --logging_steps 1 \
   --output_dir "$OUTPUT_DIR" \
   --report_to tensorboard \
+  ${SEED:+--seed $SEED} \
   $RESUME_ARGS \
   $EXTRA_ARGS
 

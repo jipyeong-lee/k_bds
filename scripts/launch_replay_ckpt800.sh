@@ -31,7 +31,7 @@
 #              만들어진다 → 재개 순간 LR 이 7.38e-6 에서 2.50e-6 으로 점프한다. 의도된 것이다
 #              ("처음부터 1200 으로 계획했다면" 의 반사실이 아니라 근사임을 유념).
 #
-#   seed    --seed 1234 만 변경 → 데이터 순서·샘플링 교란.
+#   seed    SEED=1234 만 변경 → 데이터 순서·샘플링 교란.
 #           ▸ 묻는 것: 특정 데이터 구간이 방아쇠인가
 #
 #   none    scale_rewards=none 만 변경.
@@ -73,22 +73,25 @@ echo
 for arm in $ARMS; do
   # arm 별 변경점만 정의 — 나머지는 21 의 기본값(=원본과 동일)을 그대로 탄다.
   case "$arm" in
-    replay) SR=gdpo; MS=2337; EX="" ;;
-    lr)     SR=gdpo; MS=1200; EX="" ;;
-    seed)   SR=gdpo; MS=2337; EX="--seed 1234" ;;
-    none)   SR=none; MS=2337; EX="" ;;
+    replay) SR=gdpo; MS=2337; SD="" ;;
+    lr)     SR=gdpo; MS=1200; SD="" ;;
+    seed)   SR=gdpo; MS=2337; SD=1234 ;;
+    none)   SR=none; MS=2337; SD="" ;;
     *) echo "❌ 알 수 없는 arm: $arm (replay|lr|seed|none)"; exit 1 ;;
   esac
 
   OUT="$CKPT_DIR/replay_ck800_${arm}_${STAMP}"      # ← 원본과 분리. 21 이 동일경로면 거부한다.
 
-  #  --export 는 쉼표로 쪼개진다 → 값에 쉼표가 들어가면 안 된다. EXTRA_ARGS 는 공백만 쓴다.
+  #  --export 값에 **쉼표도 공백도 넣지 않는다.** SLURM 은 쉼표로 쪼개고, 공백은 버전에 따라
+  #  깨진다. 그래서 seed 를 EXTRA_ARGS="--seed 1234" 로 넘기지 않고 SEED=1234 전용 변수로 뺐다
+  #  (21 쪽에서 ${SEED:+--seed $SEED} 로 조립). 빈 값이면 인자 자체가 안 붙는다.
   #  KL_BASELINE_VALUE: 재개라 앞 150 step 이력이 없다 → 원본의 step 700~849 평탄값을 준다.
   SUBMIT=(sbatch --job-name="rp-$arm" --time="$WALLTIME"
-    --export=ALL,RECIPE=dr_grpo,SCALE_REWARDS="$SR",MAX_STEPS="$MS",RESUME_CKPT="$SRC_CKPT",OUTPUT_DIR="$OUT",INIT_MODEL="$INIT_MODEL",DATASET_FILE="$DATASET_FILE",WATCHDOG=1,STOP_STEP="$STOP_STEP",KL_BASELINE_VALUE=0.031,EXTRA_ARGS="$EX"
+    --export=ALL,RECIPE=dr_grpo,SCALE_REWARDS="$SR",MAX_STEPS="$MS",RESUME_CKPT="$SRC_CKPT",OUTPUT_DIR="$OUT",INIT_MODEL="$INIT_MODEL",DATASET_FILE="$DATASET_FILE",WATCHDOG=1,STOP_STEP="$STOP_STEP",KL_BASELINE_VALUE=0.031,SEED="$SD"
     "$PROJ_DIR/scripts/21_rlvr_grpo_adv.slurm")
 
-  printf '[replay] %-7s scale_rewards=%-5s max_steps=%-5s %s\n' "$arm" "$SR" "$MS" "${EX:-—}"
+  printf '[replay] %-7s scale_rewards=%-5s max_steps=%-5s seed=%s\n' \
+         "$arm" "$SR" "$MS" "${SD:-기본(42)}"
   echo   "         out= $OUT"
   if [[ "${DRY:-0}" == "1" ]]; then
     echo "         (DRY) ${SUBMIT[*]}"

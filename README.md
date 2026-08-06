@@ -8,10 +8,10 @@
 
 ---
 
-## 현황 (2026-08-04)
+## 현황 (2026-08-06)
 
-**지금 위치**: 🚨 **Stage-2 본실행 붕괴로 중단** — step ~900 에서 출력 형식이 무너져 08-04 10:14 에 체인(73925~73927)을 취소했다(step 1,046 정지).
-**다음 임계경로**: **파라미터 수정 후 재시작**(근인 규명 완료, 아래) → **Stage-3 본실행**(계획서 핵심 산출물, 미시작 — 의료를 올리도록 설계된 유일한 단계).
+**지금 위치**: 🚨 **Stage-2 본실행 붕괴로 중단** — step ~900 에서 출력 형식이 무너져 08-04 10:14 에 체인(73925~73927)을 취소했다(step 1,047 정지).
+**다음 임계경로**: **개시 원인 재현 실험**(스크립트 준비 완료, 미제출) → **재시작** → **Stage-3 본실행**(계획서 핵심 산출물, 미시작 — 의료를 올리도록 설계된 유일한 단계).
 
 **살릴 것과 버릴 것이 분명히 갈린다.**
 
@@ -19,16 +19,26 @@
   **붕괴 직전까지 정상적으로 개선되고 있었다.** 체크포인트는 스냅샷으로 확보했다.
 - ✅ **"step 400 이후 정체"는 오독이었다** — 300 step 간격(400→700)에서는 +1.35pp 로 미검출이지만
   **450 step 간격(400→850)에서는 +2.48pp, p=0.020 으로 검출된다.** 정체가 아니라 분해능 부족이었다.
-- 🚨 **실패한 것은 학습이 아니라 안정성이다.** 유력한 근인은 **`overlong_filter=True`** —
-  잘린 completion 을 **손실에서도 KL 에서도 제외**해, 길이가 폭주해도 참조 정책으로 끌어당기는 힘이 안 걸린다.
-  절단률이 4% → 38% 로 오르며 배치의 1/3 이 앵커에서 면제됐다. → [§8-d](docs/stage2_run73924_progress.md)
+- 🚨 **실패한 것은 학습이 아니라 안정성이다.** 3단계 사슬 — **① 형식 붕괴(step 899~904) → ② 길이 폭주(905~) → ③ 회복 실패**.
+  ①의 **개시 원인은 아직 미규명**이고, 이것이 유일하게 남은 미해결 항목이다.
+- ✅ **감시 장치 구현·검증 완료** — [`scripts/watch_format_collapse.py`](scripts/watch_format_collapse.py).
+  과거 로그 재생 결과 **step 901 발화 · 1,047 step 전 구간 오경보 0회 · 실제 발견보다 146 step(13.5h) 빠름.**
+  73924 는 붕괴 후 13h35m(**109 GPU-h**)을 더 돌았다 — 볼 장치가 없었기 때문이다.
 - 🚨 **의료(pmcvqa)는 여섯 지점 모두 무변화** — init 대비 +0.25 / −0.75 / −0.25 / +1.25 / +0.75pp, 전부 p>0.5.
   붕괴와 무관하게 성립하는 결론이고, **Stage-3 의 존재 이유를 굳힌다.**
+
+> 🚨 **2026-08-06 — 이 문서에 있던 붕괴 원인 서술 3건을 정정했다.** ms-swift 소스를 직접 판독한 결과다.
+> ① ~~"유력한 근인 = `overlong_filter`"~~ → **인과가 반대**였다. 형식이 먼저 무너지고 길이는 **10 step 뒤**에 따라온다.
+>   `overlong_filter` 는 붕괴를 **일으킨** 것이 아니라 **회복을 막은** 3단계 요인이다.
+> ② ~~"GDPO 가 형식 복원력을 2.3배 증폭"~~ → **철회.** 실제 재가중은 **±15%** 로 무시할 수준. GDPO 는 대체로 무죄다.
+> ③ ~~"`max_grad_norm` 은 grad_norm 최대 0.17 이라 한 번도 작동 안 함"~~ → **전 구간 최대는 10.02(step 938)**,
+>   클리핑은 **3회 발동**했다(붕괴 이후). 개시 인과는 바뀌지 않는다.
+> → 근거·계산 전량 = [사후분석 rev.2](docs/stage2_run73924_postmortem.md)
 
 | 단계 | 상태 | 핵심 결과 |
 |---|---|---|
 | **① 콜드스타트 SFT** | ✅ 완료 | v3 가 **형식 천장 완파**: 생성 `format_think` v2 **0.185**→v3 **0.909**(5배), 홀드아웃 acc **0.295→0.348**(+18%). `sft_mixed_merged` = Stage-2 init → [상세](docs/stage1_coldstart.md) |
-| **② 범용 RLVR** | 🚨 **붕괴로 중단 (step 1,046)** · ✅step 850 최고점 확보 | 확장셋 **74,787**(일반53/math20/의료26), init=v3·GDPO. 전량 1,772 짝지음: **init→850 +8.18pp(p<0.0001)**, **400→850 +2.48pp(p=0.020)**. step ~900 형식 붕괴 → **파라미터 수정 후 재시작 필요** → [붕괴 분석 §8](docs/stage2_run73924_progress.md) · [실험](docs/stage2_experiments.md) · [데이터](docs/stage2_data.md) · [실행현황](#stage-2-본실행-현황) |
+| **② 범용 RLVR** | 🚨 **붕괴로 중단 (step 1,047)** · ✅step 850 최고점 확보 | 확장셋 **74,787**(일반53/math20/의료26), init=v3·GDPO. 전량 1,772 짝지음: **init→850 +8.18pp(p<0.0001)**, **400→850 +2.48pp(p=0.020)**. step ~900 형식 붕괴 → **개시 원인 재현 실험 후 재시작** → [🚨사후분석](docs/stage2_run73924_postmortem.md) · [붕괴 진단 §8](docs/stage2_run73924_progress.md) · [실험](docs/stage2_experiments.md) · [데이터](docs/stage2_data.md) · [실행현황](#stage-2-본실행-현황) |
 | **③ 의료 RL (RaR)** | ⏳ 배선완료·대기 | 루브릭·judge(27B)·e2e 스모크 PASS(유닛 29/29) → [상세](docs/stage3_and_eval.md) |
 | **④ 평가** | 🔄 기준선 확보 | HealthBench Hard(n=1000): base **0.229** / v2 콜드스타트 **0.224** — v3 미측정 → [상세](docs/stage3_and_eval.md) |
 
@@ -51,7 +61,7 @@
 
 | 항목 | 값 | 판정 |
 |---|---|---|
-| 진행 | **1,046 / 2,337 step (44.8%) 에서 취소** = 0.112 epoch | 🚨 **붕괴** |
+| 진행 | **1,047 / 2,337 step (44.8%) 에서 취소** = 0.112 epoch | 🚨 **붕괴** |
 | 체인 | 73924(TimeLimit, step 787) → 73925 재개 → **73925·73926·73927 전부 CANCELLED** | 취소 완료 |
 | 속도 | **~296 s/it** (벽시계, `train_speed`) — 73924 의 318.5 보다 개선 | ✅ |
 | 안정성 | OOM · CUDA error · Traceback **0건** — 인프라는 끝까지 무결했다 | ✅ |
@@ -59,7 +69,7 @@
 
 ![Stage-2 학습 곡선](docs/assets/stage2_expanded_73924_curves.png)
 
-> 🚨 **붕괴는 두 단계였다.**
+> 🚨 **붕괴는 세 단계였다.** (2026-08-06 정정 — 초판은 2단계로 적었고 ②③의 인과가 반대였다)
 > **① step ~900 — 형식만 무너진다.** 이 시점 롤아웃은 여전히 정상 추론을 한다.
 > 다만 `</think><answer>14</answer>` 대신 `Answer: 14` 로 끝낸다. 정확도 보상이 `<answer>` 태그로
 > 답을 뽑으므로, 태그를 잃으면 **정확도까지 0** 이 된다(Format=0 롤아웃의 정확도 0.02~0.26 vs 0.46~0.50).
@@ -67,17 +77,23 @@
 > 지배됨 → 업데이트 확대(grad_norm 5배·KL 3배) → 더 이탈 → 절벽. 넘어간 뒤엔 90%가 0점이라
 > `reward_std` 가 0.074 로 주저앉아 **되돌아올 힘이 없다.**
 >
-> **② step ~1000 이후 — 토큰 퇴화.** `AAAA…` 4만 자, `<think>` 태그 1,497회 같은 출력이 나온다.
-> **추론이 길어서 잘린 게 아니라 추론이 없다** — 토큰 상한을 늘려도 소용없다.
+> **② step 905~ — 길이 폭주.** `<answer>` 종료 태그를 잃자 생성이 **stop 조건을 잃고** 상한까지 달린다.
+> 길이 1,376 → 3,010 토큰, 절단률 8% → 35%.
+> ⚠️ **길이는 원인이 아니라 결과다.** 형식 붕괴(899~904) 시점의 길이·절단률은 완전히 정상이었고
+> (629~1,465 토큰, clip 0.016~0.078), 폭주는 **10 step 뒤**에 시작한다. 초판은 이 순서를 반대로 적었다.
 >
-> 🚨 **유력한 근인: `overlong_filter=True`.** ms-swift 는 잘린 completion 을 `completion_mask` 에서
-> 제외하는데, 그 마스크가 **KL 계산에도 그대로 쓰인다.** 즉 길이가 폭주해 잘리기 시작하면 그 샘플은
-> **손실 그래디언트도 KL 앵커도 받지 않는다.** 절단률 4%→38% 구간에서 배치의 1/3 이 면제된 셈이다.
-> (코드 판독 기반 추론 — 재시작 전 검증 필요)
+> **③ step ~1000 이후 — 회복 실패·토큰 퇴화.** `AAAA…` 4만 자, `<think>` 태그 1,497회 같은 출력이 나온다.
+> **추론이 길어서 잘린 게 아니라 추론이 없다** — 토큰 상한을 늘려도 소용없다.
+> 여기서 **`overlong_filter=True`** 가 작동한다 — ms-swift 는 잘린 completion 을 `completion_mask` 에서
+> 빼는데 그 마스크가 **KL 계산에도 그대로 쓰인다**(`grpo_trainer.py:1132`, KL 은 1140행).
+> 절단이 늘수록 손실·KL 앵커 양쪽에서 면제되는 샘플이 늘어 **되돌아올 힘이 사라진다.**
+> 부작용으로 **KL 계측 자체가 둔해진다** — step 910~949 의 KL 하락(0.081→0.068)은 개선이 아니라 계측 실패다.
 >
 > **기각된 가설**: `num_generations=4` 부족(→ `frac_reward_zero_std` 평균 **0.0106**, 그룹은 건강했다) ·
 > 형식 보상 가중치 부족(→ 반대로 정확도가 형식에 **결합**돼 있었다) · lr 급변(→ cosine 매끄럽게 감쇠) ·
-> `max_grad_norm` 미설정(→ 1.0 이나 실제 grad_norm 최대 0.17 로 **한 번도 작동 안 함**).
+> 그래디언트 폭발(→ 개시 구간 step 899~904 의 grad_norm 0.027~0.175 로 정상. 단 **전 구간 최대는 10.02 @ step 938**
+> 이라 클리핑은 붕괴 **이후** 3회 발동했다 — 초판의 "최대 0.17, 한 번도 작동 안 함"은 **틀렸다**) ·
+> **`scale_rewards=gdpo`**(→ 소스 판독 결과 형식 재가중이 **±15%** 뿐. `none` 이어도 같은 병리가 나온다).
 
 > ⚠️ **속도는 두 종류가 있고 섞으면 안 된다.** `step_time` 은 **147 s/it** 이지만 이건 학습 스텝만이다.
 > vLLM 롤아웃 생성·sleep/wake·재샘플링·체크포인트가 그 밖에 있어 **벽시계는 294 s/it** — 약 2배다.
@@ -88,7 +104,7 @@
 
 **구간 대조 (1~100 step 평균 → 최근 100 step 평균)** — `scripts/plot_train_curves.py` 출력 그대로
 
-⚠️ **"최근 100 step"은 붕괴 구간(947~1,046)이다.** 정상 구간과의 대조가 아니라 **붕괴의 크기**를 보는 표다.
+⚠️ **"최근 100 step"은 붕괴 구간(948~1,047)이다.** 정상 구간과의 대조가 아니라 **붕괴의 크기**를 보는 표다.
 
 | 지표 | 초반 | 최근(붕괴 후) | 변화 |
 |---|---:|---:|---:|
@@ -110,8 +126,9 @@
 > 정답률이 **15.1%** 로 비장문 **44.2%** 의 3분의 1이다(deepvision, −29.1pp). 그 비중이 줄면 실력이 그대로여도 평균은 오른다.
 > → [보고서 §6-c](docs/stage2_run73924_progress.md) · 재현 `python3 scripts/train_source_trend.py --until 750`
 >
-> 🚨 **그리고 이 길이 문제가 결국 붕괴의 통로가 됐다.** 절단률이 오르자 `overlong_filter` 가
-> 그 샘플들을 손실·KL 에서 빼버렸고, 앵커가 빠진 자리에서 정책이 무너졌다.
+> ⚠️ **다만 이 길이 문제가 붕괴의 **방아쇠**는 아니었다** (2026-08-06 정정).
+> 초판은 "절단률이 오르자 앵커가 빠져 정책이 무너졌다"고 적었으나, 실측 순서는 반대다 —
+> 형식이 먼저 무너지고 길이가 따라 폭주했다. `overlong_filter` 는 그 뒤 **회복을 막는** 쪽으로 작동했다.
 
 ![소스별 학습 정확도 추세](docs/assets/stage2_source_trend.png)
 
@@ -160,8 +177,20 @@
 > ⚠️ 과거 수치(v3 0.348 등)는 **구 홀드아웃** 기준이라 가로 비교 금지.
 
 📊 **학습 곡선·전체 분석 → [`docs/stage2_run73924_progress.md`](docs/stage2_run73924_progress.md)**
+🚨 **붕괴 원인·정정 이력 → [`docs/stage2_run73924_postmortem.md`](docs/stage2_run73924_postmortem.md)** (학습 곡선은 위 §Stage-2 본실행 현황에 있다)
 
-![Stage-2 확장셋 GDPO 학습 곡선](docs/assets/stage2_expanded_73924_curves.png)
+### 재시작 전 체크리스트 — 공짜인 것부터
+
+| 조치 | 근거 | 비용 |
+|---|---|---|
+| `MAX_STEPS` **2337 → 1200** (LR 지평 정정) | step 900 의 LR 68% → 30% | 0 |
+| ✅ **`WATCHDOG=1`** 형식 감시 조기중단 | 구현·검증 완료 (step 901 발화, 오경보 0) | 0 |
+| `scale_rewards` **gdpo → none** | A/B 동률이라 무손실. ⚠️ 붕괴 원인이 아니므로 **개선 기대 금지** | 0 |
+| 최고점 체크포인트 **즉시 별도 스냅샷** | 이번엔 4.9h 차이로 살았다 | 0 |
+| `_strip_answer` 태그 없으면 **빈 문자열** | 훈련셋 43% 의 형식 무관심을 0% 로 | 1줄 |
+
+**재시작점은 step 700 권고** — 850 은 경보가 울렸을 851 바로 직전이라 여유가 없다.
+전체 10개 항목·근거 → [사후분석 §6](docs/stage2_run73924_postmortem.md)
 
 ---
 
@@ -194,8 +223,19 @@ JID2=$(sbatch --parsable --dependency=afterok:$JID1 scripts/20_rlvr_grpo.slurm) 
 JID3=$(sbatch --parsable --dependency=afterok:$JID2 scripts/30_medical_rl.slurm) # Stage-3
 sbatch          --dependency=afterok:$JID3 scripts/40_eval.slurm                 # 평가
 
+# 붕괴 개시 원인 재현 실험 (checkpoint-800 에서 재개, arm 당 ≈7.6 노드시간)
+DRY=1 bash scripts/launch_replay_ckpt800.sh        # 제출 전 확인 — 먼저 이것부터
+bash scripts/launch_replay_ckpt800.sh              # arm replay 하나
+ARMS="replay lr" bash scripts/launch_replay_ckpt800.sh
+#   판독: COLLAPSE @ ~900 재현됨 → arm lr 로 / 딴 곳 → 상태 의존 / DONE → 저확률 사건, N=2 확인
+
+# 형식 붕괴 감시자 — 임계값 검증(GPU 불필요, 과거 로그로 "언제 울렸을지" 계산)
+python3 scripts/watch_format_collapse.py --simulate \
+  --log logs/grpo_adv_73924.log logs/grpo_adv_73925.log --verdict /dev/stdout
+
 # 모니터
 squeue -u $USER ; tail -f logs/grpo_adv_*.log
+cat logs/verdict_<JID>.json        # 감시자 판정(WATCHDOG=1 로 돌린 잡)
 ```
 - 재현 절차 상세 → [`docs/stage2_expansion_runbook.md`](docs/stage2_expansion_runbook.md)
 - ⚠️ 체인 중단 시 **4개 job 전부 `scancel`** (하나만 취소하면 다음 잡이 이어받음)
@@ -213,7 +253,7 @@ squeue -u $USER ; tail -f logs/grpo_adv_*.log
 | [`docs/stage2_experiments.md`](docs/stage2_experiments.md) | Stage-2 실험 — plateau 진단, GRPO 계열 5종 clean A/B, 벤치마크 |
 | [`docs/stage2_overview_for_slides.md`](docs/stage2_overview_for_slides.md) | 📊 **발표용 자립 요약** — 방법론 계보·데이터셋 선별·학습 세팅·진행 경과·홀드아웃 추세를 한 문서로 (절=슬라이드 1장) |
 | [`docs/stage2_run73924_progress.md`](docs/stage2_run73924_progress.md) | **본실행 중간 점검** — 학습 곡선 6패널, 길이 인플레이션 진단, epoch 커버리지 정정, 홀드아웃 추세, **검정력 분석과 step 1200 사전 중단기준**(§6~7), **붕괴 진단**(§8) |
-| [`docs/stage2_run73924_postmortem.md`](docs/stage2_run73924_postmortem.md) | 🚨 **붕괴 사후분석 보고서** — 발견 경위 시간선, **실제 투입 데이터·실행 파라미터 전량 점검**(로그 검증), 모델·하이퍼파라미터·데이터 3축 원인 식별, 기존 문서 정정 4건, 재시작 권고 |
+| [`docs/stage2_run73924_postmortem.md`](docs/stage2_run73924_postmortem.md) | 🚨 **붕괴 사후분석 보고서 (rev.2)** — 발견 경위 시간선, **실제 투입 데이터·실행 파라미터 전량 점검**(로그 검증), 모델·하이퍼파라미터·데이터 3축 원인 식별, 재시작 권고.<br>**rev.2(08-06)**: ms-swift 소스 판독 → **GDPO 무죄 판정**(재가중 ±15%), **인과 순서 정정**(길이는 결과), **감시 임계값 실측 확정**, KL 은 선행지표로 못 씀 |
 | [`docs/stage2_data.md`](docs/stage2_data.md) | Stage-2 데이터 — 소스 스크리닝(실측)·혼합비율·빌드 파이프라인 |
 | [`docs/stage2_expansion_runbook.md`](docs/stage2_expansion_runbook.md) | Stage-2 풀확장 재현 0~6단계 |
 | [`docs/rlvr_hparams_external.md`](docs/rlvr_hparams_external.md) | RLVR 하이퍼파라미터 — 2026 리포트 외부 관행 대조·에포크 정책 |
@@ -235,10 +275,14 @@ scripts/
   10_sft.slurm                      Stage-1 v3 SFT
   20_rlvr_grpo.slurm                Stage-2 GRPO (기본=v3 init + 확장셋)
   21_rlvr_grpo_adv.slurm            Stage-2 검증된 레시피(dr_grpo/GDPO · dynamic_sample)
+                                    RESUME_CKPT=<경로> 명시적 재개 · WATCHDOG=1 감시자 · SEED=<n>
   launch_stage2_expanded.sh         Stage-2 표준 진입점(단발)
   launch_stage2_expanded_epoch.sh   Stage-2 스텝 체인(resume, MAX_STEPS=2,337 = 0.25 epoch)
+  watch_format_collapse.py          🚨 형식 붕괴 감시 → scancel. --simulate 로 과거 로그 재생(GPU 불필요)
+  launch_replay_ckpt800.sh          🔬 붕괴 개시 원인 재현 실험 — arm replay|lr|seed|none
   build_stage2_mix.py               확장셋 조립(bytehash dedup)
   plot_train_curves.py              학습 로그 → 6패널 곡선 + 구간 대조표(체인 로그 병합 지원)
+                                    KL 패널에 grad_norm 병기(양축 로그) · 붕괴 사건 마커(--no-events 로 해제)
   plot_eval_trend.py                집계 jsonl → step별 추세(구 n=300 층화 전용. 소스별 n 을 n/3 로 가정한다)
   plot_holdout_paired.py            문항별 jsonl → 궤적 + 짝지음 Δ 3패널. 전량(972/400/400)에서는 이쪽을 쓸 것
   train_source_trend.py             completions.jsonl → 소스별 정확도 추세 + 길이 구성효과 분리(--until 로 구간 고정)

@@ -52,6 +52,54 @@ INIT_MODEL="${INIT_MODEL:-$CKPT_DIR/sft_rft_coldstart_merged}"
 DATASET_FILE="${DATASET_FILE:-$DATA_DIR/deepvision103k_train.jsonl}"
 EXTRA_ARGS="${EXTRA_ARGS:-}"
 
+# ---- 도메인 전문가 프리셋 (DOMAIN=deepvision|mmk12|pmcvqa) ------------------
+#  DeepSeek-V4 구조: 도메인별 전문가를 따로 키우고 나중에 통합한다.
+#  → docs/deepseek_v4_pipeline_adoption.md
+#  데이터는 scripts/split_stage2_by_source.py 산출물.
+#
+#  ⚠️ **도메인별로 다른 값을 주는 게 이 구조의 핵심 이득이다.** 혼합 학습에서는 불가능했다.
+#     SOFT_MAX  = 길이 예산. 의료는 객관식 letter 1자라 6144 가 과하다. 수학은 긴 CoT 가 필요.
+#     NUM_GEN   = 그룹 크기. 붕괴 전 정확도 균일률 실측 = deepvision 13.5 / mmk12 25.0 / pmcvqa 3.7%.
+#                 → 원래는 mmk12 만 올릴 근거였으나 전 도메인 8 로 통일(운영 단순화).
+#
+#  🚨 **num_generations 는 계산이 아니라 데이터 노출을 깎는다.** 배치는 32 completion 고정이므로
+#     프롬프트/step = 32 ÷ num_generations 다. n=4 → 8, n=8 → 4, n=16 → 2.
+#     1,000 step 기준 pmcvqa 노출: n=4 0.41 epoch(혼합의 4.5배) / n=8 0.20(2.2배) / n=16 0.10(1.1배).
+#     **n=16 이면 도메인 분리의 이득이 통째로 사라진다.** 같은 노출을 유지하려면 계산이 2·4배 들고
+#     잔여 예산(4,126 GPU-h)에 안 들어간다. → **8 을 상한으로 본다.**
+if [[ -n "${DOMAIN:-}" ]]; then
+#  길이 예산은 붕괴 전(751-898) 소스별 실측에 맞췄다. 문자수(≈2.54 자/토큰):
+#      소스          평균    중앙    p95     최대    → 추정 토큰 p95 / 최대
+#      deepvision   3,919  2,183  14,161  21,964      5,575 / 8,647 (6144 에서 잘림)
+#      mmk12        3,458  2,105  12,980  19,749      5,110 / 7,775 (잘림)
+#      pmcvqa       1,749  1,722   2,224   3,662        875 / 1,441 ← **6144 근처도 안 간다**
+#  → pmcvqa 만 3072 로 내린다. 관측 최대의 2배라 안전하고, vLLM KV 예산이 절반이라 롤아웃이 빨라진다.
+#  soft_cache 는 1/3 비율 유지 → 벌점 시작점 = soft_max − soft_cache.
+#     deepvision·mmk12 4096 (p95 5,575 아래라 정상 구간엔 거의 안 걸림)
+#     pmcvqa           2048 (p95 875 의 2.3배)
+  case "$DOMAIN" in
+    deepvision) SOFT_MAX_D=6144; SOFT_CACHE_D=2048 ;;   # 시각논리 — 현행 유지(6144 에서 잘림 발생)
+    mmk12)      SOFT_MAX_D=6144; SOFT_CACHE_D=2048 ;;   # 수학 — 긴 CoT 필요, 줄이지 않는다
+    pmcvqa)     SOFT_MAX_D=3072; SOFT_CACHE_D=1024 ;;   # 의료 객관식 — 실측 최대 1,441 토큰
+    *) echo "[grpo-adv] ❌ 알 수 없는 DOMAIN: $DOMAIN (deepvision|mmk12|pmcvqa)"; exit 1 ;;
+  esac
+  DATASET_FILE="${DATASET_FILE_OVERRIDE:-$DATA_DIR/domains/stage2_${DOMAIN}.jsonl}"
+  [[ -f "$DATASET_FILE" ]] || {
+    echo "[grpo-adv] ❌ 도메인 데이터 없음: $DATASET_FILE"
+    echo "           먼저: python3 scripts/split_stage2_by_source.py"; exit 1; }
+  MAX_COMPLETION="${MAX_COMPLETION:-$SOFT_MAX_D}"
+  SOFT_MAX="${SOFT_MAX:-$SOFT_MAX_D}"
+  SOFT_CACHE="${SOFT_CACHE:-$SOFT_CACHE_D}"
+  NUM_GEN="${NUM_GEN:-8}"
+  NDATA=$(wc -l <"$DATASET_FILE")
+  PPS=$((32 / NUM_GEN))
+  echo "[grpo-adv] DOMAIN=$DOMAIN  data=$(basename "$DATASET_FILE") ($NDATA 건)"
+  echo "[grpo-adv]   soft_max=$SOFT_MAX  soft_cache=$SOFT_CACHE (벌점 시작 $((SOFT_MAX - SOFT_CACHE)))"
+  echo "[grpo-adv]   num_gen=$NUM_GEN → 프롬프트/step=$PPS · 1 epoch=$((NDATA / PPS)) step"
+fi
+SOFT_MAX="${SOFT_MAX:-${MAX_COMPLETION:-6144}}"
+SOFT_CACHE="${SOFT_CACHE:-2048}"
+
 # ---- LoRA (baseline 과 동일: no-NVLink → DDP 통신최소) ----------------------
 LORA_RANK="${LORA_RANK:-16}"
 LORA_ALPHA="${LORA_ALPHA:-32}"
@@ -71,7 +119,10 @@ TEMPERATURE="${TEMPERATURE:-0.9}"
 RECIPE="${RECIPE:-dapo}"
 # 공통 코어: dynamic_sample + overlong_filter (plateau 직격)
 DS_RESAMPLE="${MAX_RESAMPLE:-3}"
-CORE_ARGS="--dynamic_sample true --max_resample_times $DS_RESAMPLE --overlong_filter true"
+#  overlong_filter 는 recipe=stable 에서 false 다 — 잘린 샘플을 completion_mask 에서 빼는데
+#  그 마스크가 KL 계산에도 쓰여(grpo_trainer.py:1132 → 1140) 회복을 막고 KL 계측까지 오염시킨다.
+#  → 사후분석 §4-4
+CORE_ARGS="--dynamic_sample true --max_resample_times $DS_RESAMPLE --overlong_filter ${OVERLONG_FILTER:-true}"
 
 case "$RECIPE" in
   dapo)
@@ -99,8 +150,27 @@ case "$RECIPE" in
       --epsilon ${EPS:-0.2} \
       --scale_rewards ${SCALE_REWARDS:-none}"
     ;;
+  stable)
+    # 2026 재설계 recipe — 붕괴 재발 억제. dr_grpo 를 토대로 세 가지를 바꾼다.
+    #   ① overlong_filter=false : 회복 차단 요인 제거 (사후분석 §4-4, 자체 실측)
+    #   ② scale_rewards=none    : std 정규화 생략. EXAONE 4.5 가 "안정성 보존" 이유로 명시
+    #   ③ log_rollout_offpolicy_metrics : 학습–추론 확률 불일치 **계측만** 켠다.
+    #      IcePop 은 확률차 5% 초과 시 학습 실패라고 보고한다(GRPO 는 180~200 step 붕괴).
+    #      우리 vLLM colocate 구성도 같은 계열 노출인데 **한 번도 잰 적이 없다.**
+    #      ⚠️ 보정(rollout_importance_sampling_mode)은 켜지 않는다 — 먼저 재고, 임계를
+    #         넘는 게 확인되면 그때 token_mask 로 켠다. 같이 켜면 무엇 덕분인지 모른다.
+    #   loss_type 은 dr_grpo 유지(길이정규화 편향 제거). sapo 는 grpo 계열 시퀀스 정규화를
+    #   쓰므로 그 편향이 되돌아와 보류했다 → docs/stage2_redesign_2026.md §3-I
+    OVERLONG_FILTER=false
+    CORE_ARGS="--dynamic_sample true --max_resample_times $DS_RESAMPLE --overlong_filter false"
+    RECIPE_ARGS="--loss_type dr_grpo \
+      --importance_sampling_level token \
+      --epsilon ${EPS:-0.2} \
+      --scale_rewards ${SCALE_REWARDS:-none} \
+      --log_rollout_offpolicy_metrics true"
+    ;;
   *)
-    echo "[grpo-adv] 알 수 없는 RECIPE=$RECIPE (dapo|gspo|dr_grpo)"; exit 1;;
+    echo "[grpo-adv] 알 수 없는 RECIPE=$RECIPE (dapo|gspo|dr_grpo|stable)"; exit 1;;
 esac
 
 echo "[grpo-adv] RECIPE=$RECIPE  INIT_MODEL=$INIT_MODEL"
@@ -169,12 +239,13 @@ run_py swift rlhf \
   --dataset "$DATASET_FILE" \
   --tuner_type lora \
   --lora_rank "$LORA_RANK" --lora_alpha "$LORA_ALPHA" --target_modules all-linear \
+  --lora_dropout "${LORA_DROPOUT:-0}" \
   --torch_dtype bfloat16 \
   --external_plugins "$PROJ_DIR/configs/accuracy.py" \
   --reward_funcs accuracy_mix format_think soft_overlong \
   --reward_weights 1.0 0.2 0.2 \
-  --soft_max_length "${MAX_COMPLETION:-6144}" \
-  --soft_cache_length 2048 \
+  --soft_max_length "$SOFT_MAX" \
+  --soft_cache_length "$SOFT_CACHE" \
   $CORE_ARGS \
   $RECIPE_ARGS \
   --enable_thinking true \

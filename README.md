@@ -8,10 +8,15 @@
 
 ---
 
-## 현황 (2026-08-06)
+## 현황 (2026-08-13)
 
-**지금 위치**: 🚨 **Stage-2 본실행 붕괴로 중단** — step ~900 에서 출력 형식이 무너져 08-04 10:14 에 체인(73925~73927)을 취소했다(step 1,047 정지).
-**다음 임계경로**: **개시 원인 재현 실험**(스크립트 준비 완료, 미제출) → **재시작** → **Stage-3 본실행**(계획서 핵심 산출물, 미시작 — 의료를 올리도록 설계된 유일한 단계).
+**지금 위치**: **Stage-2 재설계 완료 · 도메인 전문가 3종 큐 대기 중**.
+붕괴 재현은 **포기**했다(28/28 동일 조건 재현 실패 = 상태 의존 저확률 사건). 대신 **붕괴가 증폭된 경로를 끊는 쪽**으로 방향을 틀었고,
+DeepSeek-V4 구조를 따라 **혼합 학습 → 도메인별 전문가 3분할**로 재설계했다.
+**다음 임계경로**: 전문가 3종 본실행(8gpu 큐 대기, 최단 시작 **08-17**) → 어댑터 통합 → **Stage-3 본실행**(계획서 핵심 산출물, 미시작).
+
+> 🔎 **2026-08-13 — 1 GPU 배선 검증 PASS (job 75334).** 8gpu 3노드가 전부 5일짜리 잡에 물려 최단 시작이 4일 뒤라,
+> 유휴 `debug-1gpu`(A100-40GB)에서 축소 조건으로 먼저 배선만 검증했다. **3/3 step 완주, 오류 0.** → [상세](#1-gpu-배선-검증-2026-08-13--job-75334)
 
 **살릴 것과 버릴 것이 분명히 갈린다.**
 
@@ -38,7 +43,7 @@
 | 단계 | 상태 | 핵심 결과 |
 |---|---|---|
 | **① 콜드스타트 SFT** | ✅ 완료 | v3 가 **형식 천장 완파**: 생성 `format_think` v2 **0.185**→v3 **0.909**(5배), 홀드아웃 acc **0.295→0.348**(+18%). `sft_mixed_merged` = Stage-2 init → [상세](docs/stage1_coldstart.md) |
-| **② 범용 RLVR** | 🚨 **붕괴로 중단 (step 1,047)** · ✅step 850 최고점 확보 | 확장셋 **74,787**(일반53/math20/의료26), init=v3·GDPO. 전량 1,772 짝지음: **init→850 +8.18pp(p<0.0001)**, **400→850 +2.48pp(p=0.020)**. step ~900 형식 붕괴 → **개시 원인 재현 실험 후 재시작** → [🚨사후분석](docs/stage2_run73924_postmortem.md) · [붕괴 진단 §8](docs/stage2_run73924_progress.md) · [실험](docs/stage2_experiments.md) · [데이터](docs/stage2_data.md) · [실행현황](#stage-2-본실행-현황) |
+| **② 범용 RLVR** | 🔄 **재설계 완료 · 전문가 3종 큐 대기** · ✅step 850 최고점 확보 | 구 혼합 74,787 로 step 850 에서 **init 대비 +8.18pp(p<0.0001)** 까지 갔으나 ~900 형식 붕괴. 재현 실패(28/28) → **도메인 3분할 재설계**로 전환, 배선 검증 PASS(job 75334) → [🆕재설계](docs/stage2_redesign_2026.md) · [🆕V4채택](docs/deepseek_v4_pipeline_adoption.md) · [🆕서베이](docs/rlvr_survey_2026.md) · [🚨사후분석](docs/stage2_run73924_postmortem.md) · [실행현황](#stage-2-본실행-현황) |
 | **③ 의료 RL (RaR)** | ⏳ 배선완료·대기 | 루브릭·judge(27B)·e2e 스모크 PASS(유닛 29/29) → [상세](docs/stage3_and_eval.md) |
 | **④ 평가** | 🔄 기준선 확보 | HealthBench Hard(n=1000): base **0.229** / v2 콜드스타트 **0.224** — v3 미측정 → [상세](docs/stage3_and_eval.md) |
 
@@ -179,6 +184,62 @@
 📊 **학습 곡선·전체 분석 → [`docs/stage2_run73924_progress.md`](docs/stage2_run73924_progress.md)**
 🚨 **붕괴 원인·정정 이력 → [`docs/stage2_run73924_postmortem.md`](docs/stage2_run73924_postmortem.md)** (학습 곡선은 위 §Stage-2 본실행 현황에 있다)
 
+### Stage-2 재설계 (2026-08-13) — 도메인 전문가 3분할
+
+혼합 학습을 접고 **소스별로 전문가를 따로 키운 뒤 통합**한다. 근거·설계 전량 →
+[서베이](docs/rlvr_survey_2026.md) · [재설계](docs/stage2_redesign_2026.md) · [DeepSeek-V4 채택](docs/deepseek_v4_pipeline_adoption.md)
+
+```
+sft_mixed_merged ─┬→ [E1] deepvision 40,000    시각논리   soft_max 6144
+                  ├→ [E2] mmk12      15,204    수학       soft_max 6144
+                  └→ [E3] pmcvqa     19,583    의료       soft_max 3072  →(뒤에) medix RaR
+```
+
+| 바꾼 것 | 내용 | 왜 |
+|---|---|---|
+| **도메인 3분할** | `split_stage2_by_source.py` — 이미지 경로 기준, 미분류 시 즉시 실패 | 혼합에서는 도메인별 길이·그룹 예산을 다르게 줄 수 없었다 |
+| **정확도/형식 분리** | `<answer>` 태그 없을 때 추론 꼬리에서 letter 복구 | 정확도가 형식에 물려 있어 붕괴가 자기증폭했다 |
+| **단계형 FormatThink** | 이진 → `</think>` 까지 냈으면 **0.5** 부분점수 | 붕괴 개시 절벽 **−0.324 → −0.204 (37.1% 완화)**, 정상 구간은 +0.0041 만 이동 |
+| **recipe=stable** | `dr_grpo` + `overlong_filter=false` + `scale_rewards=none` + **불일치 계측 on** | `overlong_filter` 는 붕괴를 막지 못하고 **회복을 막았다** |
+| **num_generations 4→8** | 전 도메인 8 | 붕괴 개시 시점 정확도 균일률 13.8%→54.2%. **단, 8 이 상한** — 배치가 completion 고정이라 그 이상은 데이터 노출을 깎는다 |
+| **lora_dropout=0** | 명시 | RL 로그확률 계산 중에도 dropout 이 살아 있어 π_rollout ≠ π_train 을 스스로 만들고 있었다 |
+
+⚠️ **붕괴 재현은 중단했다.** 28/28 동일 조건에서 재현되지 않았고 선행 KL 램프도 없다 → 결정론적 원인이 아니다.
+원인 규명 대신 **증폭 경로 차단**에 예산을 쓴다. 잔여 예산 4,126 GPU-h 중 전문가 3종 = 2,640 (64%).
+
+#### 1 GPU 배선 검증 (2026-08-13 · job 75334)
+
+`debug-1gpu` A100-**40GB** 유휴 노드에서 pmcvqa 3 step. 9B + vLLM colocate 는 40GB 에 그냥 안 들어가므로
+`OFFLOAD=1`(롤아웃 중 학습가중치·옵티마 CPU) + `SLEEP_LEVEL=2`(학습 중 vLLM 가중치까지 해제)로 두 사본이 동시에 안 올라가게 했다.
+
+| 검증 항목 | 결과 |
+|---|---|
+| `DOMAIN=pmcvqa` 프리셋 | ✅ `soft_max=3072 soft_cache=1024` · 데이터 19,583건 로딩 |
+| `recipe=stable` 인자 | ✅ 전부 통과 (`--log_rollout_offpolicy_metrics true` 포함) |
+| **`rollout_correction/*` 계측** | ✅ **13개 지표가 실제로 찍힌다** — 이 프로젝트에서 학습–추론 불일치를 잰 것은 처음이다 |
+| 단계형 `FormatThink` | ✅ 3 step 내내 **1.0** — 정상 롤아웃은 부분점수로 깎이지 않는다 |
+| `AccuracyMix` | ✅ 1.0 → 0.875 → 0.5625 (값을 내고 변동한다) |
+| LoRA + `--lora_dropout 0` | ✅ 9,453.1M 중 **43.3M 학습(0.458%)** |
+| 완주 | ✅ **3/3 step · OOM·Traceback 0 · GPU 21.6/40.9GB** |
+
+**측정된 학습–추론 불일치** (이 프로젝트 최초 계측):
+
+| 지표 | step1 | step2 | step3 |
+|---|---|---|---|
+| `rollout_correction/ppl_ratio` | 1.108 | 1.151 | 1.116 |
+| `rollout_correction/chi2_token` | 0.0073 | 0.0346 | 0.0089 |
+| `rollout_correction/k3_kl` | 0.0342 | 0.0450 | 0.0359 |
+
+🚨 **이 수치를 본실행 판정에 그대로 쓰면 안 된다.** 조건이 셋 다르다 — `SLEEP_LEVEL=2`(매 step 가중치 전체 재동기),
+`MAX_PIXELS` 1/4 축소, `world=1`(DDP 없음). **8 GPU 에서 다시 재야 한다.**
+IcePop 이 보고한 "5% 초과 시 학습 실패"는 토큰별 확률 차이 기준이라 `chi2_token`(0.7~3.5%)이 대응축이고, 임계 아래다.
+
+**읽지 않기로 한 것**: step time(offload 때문에 8 GPU 로 환산 불가) · 보상 값의 크기(1 프롬프트/step 이라 통계가 아니다).
+**검증 못 한 것**: `SoftOverlong` 의 벌점 경로 — 속도용으로 `MAX_COMPLETION=1024` 로 줄였는데 벌점 시작점이 2048 이라 **항상 0** 이었다.
+
+부수 발견 — `completions/mean_length` **331~368 토큰, clipped_ratio 0**. pmcvqa 는 추정 p95(875)보다도 훨씬 짧다.
+다만 `MAX_PIXELS` 축소가 응답 길이에 영향을 줬을 수 있고 프롬프트가 3개뿐이라, **예산 재조정 근거로는 아직 약하다.**
+
 ### 재시작 전 체크리스트 — 공짜인 것부터
 
 | 조치 | 근거 | 비용 |
@@ -211,11 +272,18 @@
 ## 빠른 실행
 
 ```bash
-# Stage-2 풀확장 (현재 진행중인 경로)
-SMOKE=1 bash scripts/launch_stage2_expanded.sh    # 배선 스모크(max_steps 5) — 먼저 권장
+# ── Stage-2 도메인 전문가 3종 (2026-08-13 재설계 · 현재 경로) ────────────────
+python3 scripts/split_stage2_by_source.py         # 0단계: 소스별 3분할 (--dry / --verify)
+bash scripts/probe_1gpu.sh                        # 배선 검증: 유휴 debug-1gpu 에서 3 step (8gpu 안 기다림)
+SMOKE=1 bash scripts/launch_domain_experts.sh     # 5 step 스모크 — 8gpu 노드 3개 점유
+bash scripts/launch_domain_experts.sh             # 본실행 3 arm · STEPS=1200 · NUM_GEN=8 · 118h
+ARMS="mmk12 pmcvqa" bash scripts/launch_domain_experts.sh   # E1 을 빼고 ck-850 을 일반 교사로 쓰는 선택
+#   ⚠️ 노드가 정확히 3개다. 3 arm 동시 제출 = 파티션 전체 점유.
+#   ⚠️ num_generations 는 계산이 아니라 **데이터 노출**을 깎는다 (배치는 32 completion 고정). 8 이 상한.
+
+# Stage-2 풀확장 (구 혼합 경로 — 붕괴로 중단, 재현용으로만 남긴다)
+SMOKE=1 bash scripts/launch_stage2_expanded.sh    # 배선 스모크(max_steps 5)
 bash scripts/launch_stage2_expanded_epoch.sh      # 2,337 step(=0.25 epoch) 체인 4잡, ~209h
-#   기본값(=검증값, 그대로 둘 것): RECIPE=dr_grpo · NUM_GEN=4 · TEMPERATURE=0.9 · BETA=0.04
-#   A/B override 후보:            NUM_GEN=8 · TEMPERATURE=1.0 · BETA=0.01  ← 바꾸면 과거 A/B 와 clean 비교가 깨짐
 
 # 단계별 단독 제출 (의존성 체이닝)
 JID1=$(sbatch --parsable scripts/10_sft.slurm)                                   # Stage-1
@@ -254,6 +322,9 @@ cat logs/verdict_<JID>.json        # 감시자 판정(WATCHDOG=1 로 돌린 잡)
 | [`docs/stage2_overview_for_slides.md`](docs/stage2_overview_for_slides.md) | 📊 **발표용 자립 요약** — 방법론 계보·데이터셋 선별·학습 세팅·진행 경과·홀드아웃 추세를 한 문서로 (절=슬라이드 1장) |
 | [`docs/stage2_run73924_progress.md`](docs/stage2_run73924_progress.md) | **본실행 중간 점검** — 학습 곡선 6패널, 길이 인플레이션 진단, epoch 커버리지 정정, 홀드아웃 추세, **검정력 분석과 step 1200 사전 중단기준**(§6~7), **붕괴 진단**(§8) |
 | [`docs/stage2_run73924_postmortem.md`](docs/stage2_run73924_postmortem.md) | 🚨 **붕괴 사후분석 보고서 (rev.2)** — 발견 경위 시간선, **실제 투입 데이터·실행 파라미터 전량 점검**(로그 검증), 모델·하이퍼파라미터·데이터 3축 원인 식별, 재시작 권고.<br>**rev.2(08-06)**: ms-swift 소스 판독 → **GDPO 무죄 판정**(재가중 ±15%), **인과 순서 정정**(길이는 결과), **감시 임계값 실측 확정**, KL 은 선행지표로 못 씀 |
+| [`docs/rlvr_survey_2026.md`](docs/rlvr_survey_2026.md) | 🆕 **최근 3개월 중국·한국 모델 테크리포트 서베이** — 8종 학습 단계 정리, 출처를 A/B/C 로 등급화, 공통 패턴 7가지 |
+| [`docs/stage2_redesign_2026.md`](docs/stage2_redesign_2026.md) | 🆕 **Stage-2 재설계** — 서베이 기반 설정 변경 A~G, **보상 구성 재평가**(§5-2, 가중치가 아니라 advantage 분산 점유를 잰다) |
+| [`docs/deepseek_v4_pipeline_adoption.md`](docs/deepseek_v4_pipeline_adoption.md) | 🆕 **DeepSeek-V4 방법론 채택 (rev.2)** — 도메인 전문가 → 통합 구조, 베이스 모델 선택(§7-2), RLVR 후 루브릭 RL 순차 배치(§7-3) |
 | [`docs/stage2_data.md`](docs/stage2_data.md) | Stage-2 데이터 — 소스 스크리닝(실측)·혼합비율·빌드 파이프라인 |
 | [`docs/stage2_expansion_runbook.md`](docs/stage2_expansion_runbook.md) | Stage-2 풀확장 재현 0~6단계 |
 | [`docs/rlvr_hparams_external.md`](docs/rlvr_hparams_external.md) | RLVR 하이퍼파라미터 — 2026 리포트 외부 관행 대조·에포크 정책 |
@@ -274,8 +345,15 @@ scripts/
   00_common.sh                      공통 경로/환경/run_py 래퍼 ← 이식 시 PROJ_DIR·ENV_MODE
   10_sft.slurm                      Stage-1 v3 SFT
   20_rlvr_grpo.slurm                Stage-2 GRPO (기본=v3 init + 확장셋)
-  21_rlvr_grpo_adv.slurm            Stage-2 검증된 레시피(dr_grpo/GDPO · dynamic_sample)
-                                    RESUME_CKPT=<경로> 명시적 재개 · WATCHDOG=1 감시자 · SEED=<n>
+  21_rlvr_grpo_adv.slurm            Stage-2 레시피(dapo|gspo|dr_grpo|stable) — 전 단계가 이걸 부른다
+                                    RESUME_CKPT=<경로> 재개 · WATCHDOG=1 감시자 · SEED=<n>
+                                    DOMAIN=<..> 도메인 프리셋 · PDTBS/ACCUM/NPROC_PER_NODE 노드크기
+                                    OFFLOAD/SLEEP_LEVEL/VLLM_MAX_LEN 소형 GPU 검증용
+  split_stage2_by_source.py         🆕 확장셋 → 소스별 3분할(+sha1 manifest). --dry / --verify
+  launch_domain_experts.sh          🆕 도메인 전문가 3 arm 제출. SMOKE=1 / ARMS=".." / DRY=1
+  probe_1gpu.sh                     🆕 배선 검증 — 유휴 debug-1gpu(40GB)에서 3 step. 8gpu 큐를 안 기다린다
+                                    ⚠️ step time·보상 크기는 여기서 읽지 않는다
+  probe_answer_fallback.py          🆕 답 추출기 후보 측정(정밀도 × 복구율). 직관 대신 실측으로 고른다
   launch_stage2_expanded.sh         Stage-2 표준 진입점(단발)
   launch_stage2_expanded_epoch.sh   Stage-2 스텝 체인(resume, MAX_STEPS=2,337 = 0.25 epoch)
   watch_format_collapse.py          🚨 형식 붕괴 감시 → scancel. --simulate 로 과거 로그 재생(GPU 불필요)

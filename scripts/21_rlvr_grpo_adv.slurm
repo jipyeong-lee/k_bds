@@ -98,7 +98,13 @@ if [[ -n "${DOMAIN:-}" ]]; then
   SOFT_CACHE="${SOFT_CACHE:-$SOFT_CACHE_D}"
   NUM_GEN="${NUM_GEN:-8}"
   NDATA=$(wc -l <"$DATASET_FILE")
-  PPS=$((32 / NUM_GEN))
+  #  생성배치를 32 로 박아두면 안 된다 — PDTBS/ACCUM/world 를 바꾸면 거짓말이 된다.
+  #  (1gpu 검증에서 실제 1 프롬프트/step 인데 "4" 로 찍혔다.)
+  GEN_BATCH=$(( ${PDTBS:-1} * ${ACCUM:-4} * ${NPROC_PER_NODE:-8} ))
+  PPS=$(( GEN_BATCH / NUM_GEN ))
+  (( GEN_BATCH % NUM_GEN == 0 )) || {
+    echo "[grpo-adv] ❌ 생성배치 $GEN_BATCH 가 num_generations $NUM_GEN 로 나누어떨어지지 않는다."
+    echo "           PDTBS×ACCUM×world = ${PDTBS:-1}×${ACCUM:-4}×${NPROC_PER_NODE:-8}"; exit 1; }
   echo "[grpo-adv] DOMAIN=$DOMAIN  data=$(basename "$DATASET_FILE") ($NDATA 건)"
   echo "[grpo-adv]   soft_max=$SOFT_MAX  soft_cache=$SOFT_CACHE (벌점 시작 $((SOFT_MAX - SOFT_CACHE)))"
   echo "[grpo-adv]   num_gen=$NUM_GEN → 프롬프트/step=$PPS · 1 epoch=$((NDATA / PPS)) step"

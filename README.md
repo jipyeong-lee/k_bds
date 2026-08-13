@@ -425,6 +425,12 @@ scripts/
   50_eval_v3.slurm · eval_v3_holdout.py                       평가
 configs/   accuracy.py(Stage-2 보상) · medical_reward.py(Stage-3 RaR)
 runc.sh · bin/python                apptainer 우회 런타임(ENV_MODE=loader)
+(루트) 사후분석 일회성 스크립트 — 레포 루트에서 실행할 것(`sys.path.insert(0,'scripts')`)
+  holdout_matrix.py                 전량 홀드아웃 8지점 짝지음 행렬(init 대비 / 인접 / 핵심 쌍)
+  holdout_by_source.py              소스별 추이 + 소스×층 교차
+  train_side.py                     학습측 형식보상·길이 곡선을 홀드아웃 지점에 정렬(v0/v1 병합)
+  classify900.py                    ck-900 greedy 출력의 형식 실패 유형 분류
+  show_collapse.py                  같은 프롬프트로 ck-850 vs 900 출력 대조
 work/      (git 제외) data · images · checkpoints · hf_cache
 ```
 

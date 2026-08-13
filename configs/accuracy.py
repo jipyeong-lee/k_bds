@@ -36,6 +36,52 @@ def _strip_answer(text):
     return (m.group(1).strip() if m else text.strip())
 
 
+# === 태그 없는 출력의 letter 폴백 ======================================
+# 왜 필요한가(사후분석 §4-4 · run 73924): `<answer>` 태그를 잃으면 위 `_strip_answer` 가
+# **추론 전문(全文)** 을 답안으로 넘긴다. 그러면 `_LETTER_PICK` 이 `^` 앵커라 구조적으로
+# 항상 0 점이 된다 → 형식을 잃는 순간 가중치 1.0 의 정확도까지 통째로 0 → advantage 가
+# "정답이냐"가 아니라 "형식 지켰냐"로 지배됨 → 이탈이 이탈을 부르는 절벽.
+# step 899 붕괴에서 의료(letter) −47.5pp 대 수학(본문 숫자 추출 가능) −6.5pp 로 갈린 게 이것이다.
+#
+# 실측으로 설계했다(`scripts/probe_answer_fallback.py`, 73924 롤아웃 9,504건):
+#   · 붕괴 출력의 실제 모양은 "...corresponds to option B.\n</think><|im_end|>" —
+#     **`</think>` 뒤가 비어 있다.** 그래서 뒤가 아니라 추론 **꼬리 자체**를 훑는다.
+#   · 신호 어휘는 빈도 상위에서 뽑았다: "the correct answer is X" · "corresponds to option X"
+#     · "the correct choice/option is X" · "matches option X".
+#   · 태그를 인위로 제거한 검증: 복원 일치 **94.6%** · 거짓양성 **1.13%** · 놓침 4.3%.
+#   · 순열검정 z=3.6~6.6 → 우연이 아니라 모델의 실제 답을 집는다.
+#
+# ⚠️ **의도적으로 불완전하다.** 회수는 개시 구간 정확도 0.000→0.236(정상 0.469의 절반).
+#    형식을 잃으면 여전히 총보상의 ~48%를 잃는다(낙폭 −0.402 → −0.322). 목적은 절벽을
+#    없애는 게 아니라 **경사로 바꾸는 것**이다 — 0 에 가까우면 형식을 버려도 손해가 없어진다.
+_TAIL = 400
+_SPECIAL = re.compile(r'<\|im_end\|>|<\|endoftext\|>|</?think>|</?answer>')
+_CUE_FWD = re.compile(
+    r'(?:answer|option|choice|정답|답)\s*(?:is|:|=|→|->|은|는)?\s*'
+    r'[\*\'"“”\s(\[]*([A-H])(?![A-Za-z])', re.IGNORECASE)
+# 역방향: "'B.(0, 0)' corresponds to this coordinate" — letter 가 신호 **앞**에 온다
+_CUE_BWD = re.compile(
+    r'(?<![A-Za-z])([A-H])[\)\.\'"”\s]*(?:is\s+the\s+)?'
+    r'(?:corresponds|matches|is\s+correct|is\s+the\s+answer)', re.IGNORECASE)
+# 최후 수단: 꼬리 끝에 홀로 선 **대문자** A~H. 소문자 a 는 영어 관사라 절대 받지 않는다.
+_BARE_UPPER = re.compile(r'(?<![A-Za-z])\(?([A-H])\)?[\s.):,\'"]*$')
+
+
+def _fallback_letter(text):
+    """태그 없는 출력의 꼬리에서 최종 letter 를 뽑는다. None = 추출 실패(= 0점)."""
+    t = _SPECIAL.sub(' ', text).strip()[-_TAIL:]
+    for cand in reversed(_BOXED_RE.findall(t)):          # \boxed{B} 는 강한 신호
+        c = cand.strip().strip('()[]{}').strip()
+        if _LETTER_RE.match(c):
+            return c.upper()
+    hits = [(m.end(), m.group(1)) for m in _CUE_FWD.finditer(t)]
+    hits += [(m.end(), m.group(1)) for m in _CUE_BWD.finditer(t)]
+    if hits:
+        return max(hits)[1].upper()                      # 가장 뒤의 신호를 쓴다
+    m = _BARE_UPPER.search(t)
+    return m.group(1).upper() if m else None
+
+
 def _norm_pred(ans):
     """예측 최종답 정규화: <answer> 내용 → \\boxed 해제 → 괄호/공백/끝점 제거."""
     b = _BOXED_RE.search(ans)
@@ -66,6 +112,7 @@ class AccuracyMix(ORM):
         from math_verify import parse, verify
         rewards = []
         for content, sol in zip(completions, solution):
+            tagged = _ANS_RE.search(content) is not None   # 형식 유지 여부
             ans = _strip_answer(content)          # 모델 최종답 영역
             gold = _strip_answer(str(sol))        # 정답
             # 1) 수식/숫자 경로: gold 가 math 로 파싱되면 math_verify
@@ -82,7 +129,14 @@ class AccuracyMix(ORM):
                 continue
             # 2) 객관식 letter 경로
             if _LETTER_RE.match(gold):
-                rewards.append(_letter_match(ans, gold))
+                if tagged:
+                    rewards.append(_letter_match(ans, gold))
+                else:
+                    # 태그 없음 → 전문을 넘기면 `^` 앵커 때문에 무조건 0 이다.
+                    # 꼬리에서 최종 letter 를 찾는다. 못 찾으면 그대로 0.
+                    got = _fallback_letter(content)
+                    rewards.append(0.0 if got is None
+                                   else float(got == gold.upper()))
                 continue
             # 3) 기타 짧은 문자열: 정규화 일치
             rewards.append(float(_norm_pred(ans).casefold() == gold.casefold()))

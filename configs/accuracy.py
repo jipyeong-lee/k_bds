@@ -1,4 +1,4 @@
-"""
+r"""
 accuracy.py — stage-2(DeepVision) 용 커스텀 정확도 보상 'accuracy_mix'
 
 문제: 내장 MathAccuracy(math_verify)는 gold 가 수식으로 파싱 안 되면(예: 객관식 letter "B",
@@ -154,22 +154,65 @@ _THINK_RE = re.compile(r'<think>(.*?)</think>', re.DOTALL)
 _FULL_RE = re.compile(r'^<think>.*?</think>\s*<answer>.*?</answer>(?![\s\S])',
                       re.DOTALL | re.MULTILINE)
 _MIN_THINK_CHARS = 16        # think 내부 실질 추론 최소 길이(공백 제외). 빈/사소한 think 차단.
+_PARTIAL_CREDIT = 0.5        # 추론은 마쳤으나 답 봉투를 못 낸 경우 — 아래 설명
+
+# === 왜 이진이 아니라 단계형인가 ==========================================
+# 붕괴 개시 시점(step 899~910) 롤아웃의 실제 모양은 이렇다:
+#     "...This corresponds to option B.\n</think><|im_end|>"
+# **`</think>` 는 냈다. `<answer>` 만 없다.** 추론을 끝내고 답 태그를 안 쓰고 멈춘다.
+#
+# 실측(73924 롤아웃 9,504건, `scripts/probe_answer_fallback.py` 계열 측정):
+#     구간            fmt=1.0    `</think>`만    둘 다 없음
+#     붕괴전 751-898   93.1%        0.3%          6.7%
+#     개시  899-910    10.7%      **58.9%**      29.7%
+#     확산  911-950    22.0%       32.1%         37.1%
+# **개시 구간의 58.9% 가 `</think>` 를 냈는데 이진 규칙에서는 0.0 을 받는다.**
+# 절벽의 상당 부분이 여기서 만들어진다.
+#
+# 두 개의 관문으로 본다:
+#   ① 실질 추론을 마치고 `</think>` 로 닫았는가   ② 답을 `<answer>` 봉투에 담았는가
+#   둘 다 → 1.0 · ①만 → 0.5 · ① 실패 → 0.0
+#
+# ⚠️ **①을 통과 못 하면 0.5 도 안 준다.** 빈 `<think></think>` 에 부분점수를 주면
+#    `_MIN_THINK_CHARS` 가 막으려던 "추론 건너뛰고 형식만 챙기기"가 절반쯤 되살아난다.
+#
+# 효과 — 9,504건 전량 재채점 실측(총보상 = acc×1.0 + fmt×0.2 + soft_overlong×0.2):
+#     구간            fmt 현행 → 신규    총보상 현행 → 신규    낙폭 완화
+#     붕괴전 751-898   0.9307   0.9321    0.6180   0.6221    (기준선, +0.7%)
+#     개시  899-910    0.1068   0.4023    0.2940   0.4183    **37.1%**
+#     확산  911-950    0.2195   0.4207    0.2447   0.3513      27.5%
+#     퇴화  951-1047   0.4597   0.6580    0.3858   0.4544      27.8%
+#   개시 구간 낙폭: 현행 −0.324 → 정확도 폴백 −0.254 → **+단계형 −0.204**
+#   **정상 구간은 사실상 불변(+0.0041) — 붕괴 영역에만 듣는다.**
+#
+# 회귀 검증(9,504건): 기존 fmt=1.0 **6,157건 전부 무변경** · 새로 0.5 를 받은 1,974건은
+#   **전부 기존 0.0** · **값이 내려간 롤아웃 0건**(단조 증가만).
+#
+# ⚠️ 오프라인 재현 주의: 로그(`completions.jsonl`)의 completion 은 `<|im_end|>` 를 그대로
+#    갖고 있지만 **보상 함수는 그게 제거된 텍스트를 본다.** `_FULL_RE` 가 문자열 끝을
+#    요구하므로(`(?![\s\S])`) 안 지우면 재현이 64.78% 어긋난다. 지우면 0.06%.
+#
+# ⚠️ 보상 해킹 감시: 형식을 잃어도 총보상의 33%만 잃게 된다(−0.204 / 0.622). 유인은 남지만
+#    약해진다. **재실행 로그에서 `rewards/FormatThink/mean` 이 0.9 아래로 추세 하락하면
+#    _PARTIAL_CREDIT 을 낮추거나 되돌릴 것.**
 
 
 class FormatThink(ORM):
-    """<think>(실질추론)</think><answer>...</answer> 구조 + 비어있지 않은 think 만 1.0."""
+    """<think>(실질추론)</think><answer>…</answer> → 1.0 · `</think>` 까지만 → 0.5 · 나머지 0.0."""
 
     def __call__(self, completions, **kwargs) -> List[float]:
         rewards = []
         for content in completions:
             text = content if content.lstrip().startswith('<think>') else '<think>\n' + content
-            if not _FULL_RE.match(text):
+            m = _THINK_RE.search(text)
+            if m is None:                            # `</think>` 조차 없다 — 구조 없음
                 rewards.append(0.0)
                 continue
-            m = _THINK_RE.search(text)
-            think = (m.group(1) if m else '')
-            think = re.sub(r'\s+', '', think)        # 공백 제외 실질 길이
-            rewards.append(1.0 if len(think) >= _MIN_THINK_CHARS else 0.0)
+            think = re.sub(r'\s+', '', m.group(1))   # 공백 제외 실질 길이
+            if len(think) < _MIN_THINK_CHARS:        # 관문 ① 실패 — 추론 건너뛰기
+                rewards.append(0.0)
+                continue
+            rewards.append(1.0 if _FULL_RE.match(text) else _PARTIAL_CREDIT)
         return rewards
 
 

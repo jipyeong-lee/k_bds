@@ -30,6 +30,12 @@
 #        overlong_filter 는 잘린 샘플을 loss 에서 빼므로 유효 배치가 작아짐(의도된 DAPO 동작).
 #
 #  ▶ 빠른 검증(스모크):  EXTRA_ARGS="--max_steps 5"
+#  ▶ **배선 검증(1 GPU, 40GB)**: 8gpu 파티션이 며칠씩 막힐 때 debug-1gpu(유휴 2노드, 8h)로
+#     "돌아가는지"만 본다. step time 은 못 재지만 보상 플러그인·recipe 인자·도메인 프리셋은 검증된다.
+#       scripts/probe_1gpu.sh
+#     A100-40GB 라 9B + vLLM colocate 가 그냥은 안 들어간다(학습 18GB + vLLM 18GB = 36GB).
+#     → OFFLOAD=1 (롤아웃 중 학습가중치/옵티마 CPU 로) + SLEEP_LEVEL=2 (학습 중 vLLM 가중치까지 해제)
+#       로 두 사본이 GPU 에 동시에 있지 않게 만든다. 매 step 18GB 재동기라 느리지만 3 step 이면 족하다.
 #  ▶ plateau 직접 돌파(이어학습): INIT_MODEL=<...checkpoint-1000> 로 override (싼 검증, A/B 아님)
 # =============================================================================
 #SBATCH --job-name=grpo-adv
@@ -189,6 +195,14 @@ OUTPUT_DIR="${OUTPUT_DIR:-$CKPT_DIR/grpo_general_adv_$RECIPE}"
 #    재현 실험용. 반드시 **새 OUTPUT_DIR** 과 함께 쓸 것 — 원본 디렉터리에 그대로 재개하면
 #    save_total_limit=5 때문에 새 저장이 원본 checkpoint-800/850 을 밀어낸다.
 #    (73924 에서 최고 체크포인트 850 이 step 1100 저장에 삭제될 예정이었다 — §1-4)
+# ---- 배치 (PDTBS/ACCUM) ----------------------------------------------------
+#  🚨 GRPO 에서 배치 단위는 **프롬프트가 아니라 completion** 이다.
+#     생성배치 = PDTBS × ACCUM × world  이고 이 값이 num_generations 로 나누어떨어져야 한다.
+#     8gpu 기본:  1 × 4 × 8 = 32 completion → num_gen=8 이면 프롬프트/step = 4.
+#     1gpu 축소:  world=1 이라 1 × 4 × 1 = 4 < 8 → **ms-swift 가 거절한다.**
+#                 → ACCUM=8 로 8 completion = 1 프롬프트/step 로 맞춘다.
+#     이 두 값을 env 로 뺀 이유는 노드 크기를 바꿔가며 같은 스크립트로 검증하기 위해서다.
+#     (별도 축소본 스크립트를 만들면 정작 검증하려던 본 스크립트가 검증되지 않는다.)
 RESUME_ARGS=""
 if [[ -n "${RESUME_CKPT:-}" ]]; then
   [[ -f "$RESUME_CKPT/trainer_state.json" ]] || { echo "❌ RESUME_CKPT 아님: $RESUME_CKPT"; exit 1; }
@@ -252,8 +266,8 @@ run_py swift rlhf \
   --num_generations "${NUM_GEN:-4}" \
   --temperature "$TEMPERATURE" \
   --max_completion_length "${MAX_COMPLETION:-6144}" \
-  --per_device_train_batch_size 1 \
-  --gradient_accumulation_steps 4 \
+  --per_device_train_batch_size "${PDTBS:-1}" \
+  --gradient_accumulation_steps "${ACCUM:-4}" \
   --learning_rate "$LR" \
   --beta "${BETA:-0.04}" \
   --max_length "${MAX_LEN:-10240}" \
@@ -265,7 +279,9 @@ run_py swift rlhf \
   --vllm_tensor_parallel_size "${VLLM_TP:-1}" \
   --vllm_mm_processor_cache_gb 0 \
   --vllm_gpu_memory_utilization "${VLLM_UTIL:-0.4}" \
-  --sleep_level 1 \
+  ${VLLM_MAX_LEN:+--vllm_max_model_len $VLLM_MAX_LEN} \
+  --sleep_level "${SLEEP_LEVEL:-1}" \
+  ${OFFLOAD:+--offload_model true --offload_optimizer true} \
   --log_completions true \
   --log_entropy true \
   --save_strategy steps --save_steps 50 --save_total_limit 5 \

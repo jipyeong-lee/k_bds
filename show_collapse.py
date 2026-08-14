@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """붕괴 체크포인트의 실제 출력 — 같은 프롬프트로 850 vs 900 대조."""
-import json, collections, re
+import json, collections, re, pathlib
 
-P = '/home01/k252a02/kbds_project/logs/probe_frag_samples_step%s.jsonl'
+#  구 계정 절대경로가 박혀 있었다(k252a02) → 이관 후 파일을 못 연다. __file__ 기준으로 바꾼다.
+P = str(pathlib.Path(__file__).parent / 'logs/probe_frag_samples_step%s.jsonl')
 
 
 def load(step):

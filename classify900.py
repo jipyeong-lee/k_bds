@@ -4,10 +4,11 @@
 §8-b 는 학습 롤아웃(T=0.9, step 875~899)에서 "태그 0개 + `Answer: X` 종결"을
 서명으로 기록했다. 체크포인트를 직접 greedy 로 돌리면 같은 모양인지 확인한다.
 """
-import json, re, collections
+import json, re, collections, pathlib
 
-B = [json.loads(l) for l in
-     open('/home01/k252a02/kbds_project/logs/probe_frag_samples_step900.jsonl')]
+#  구 계정 절대경로가 박혀 있었다(k252a02) → 이관 후 파일을 못 연다. __file__ 기준으로 바꾼다.
+LOG = pathlib.Path(__file__).parent / 'logs/probe_frag_samples_step900.jsonl'
+B = [json.loads(l) for l in open(LOG)]
 B = [d for d in B if d['temp'] == 0.0]
 bad = [d for d in B if d['fmt'] == 0.0 and not d['trunc']]
 good = [d for d in B if d['fmt'] == 1.0 and not d['trunc']]

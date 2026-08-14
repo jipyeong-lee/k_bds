@@ -82,15 +82,24 @@ export BUILD_PY=/home01/<새계정>/.conda/envs/<env>/bin/python   # pyarrow+PIL
 `work/` 데이터를 재생성하지 말고 소스 계정에서 **당겨온다**. 확인된 사실(2026-07-24): 같은 그룹(`kbds0754`) 계정끼리
 소스 홈이 group-readable(`drwxr-x---`)·파일 644 → **받는 계정이 pull 가능**(소스는 남의 홈에 push 불가).
 
+**⚠️ 순서가 있다. 코드·문서는 이 스크립트로 옮기지 말 것 — git 이 정본이다.**
+
 ```bash
-# 받는 계정에서, 자기 kbds_project 루트에서 — SRC 를 반드시 지정한다:
-SRC=/home01/<소스계정>/kbds_project bash scripts/transfer_pull.sh                  # Stage-2 필수 subset
-SRC=/home01/<소스계정>/kbds_project WITH_STAGE3=1 bash scripts/transfer_pull.sh    # + judge(27B) + medix
+# ① 먼저 clone (코드·문서·설정). transfer_pull 이 scripts/ 경로 치환을 하므로 이게 먼저다.
+git clone https://github.com/jipyeong-lee/k_bds.git kbds_project && cd kbds_project
+
+# ② 그 다음 work/ 만 채운다 — SRC 를 반드시 지정한다:
+SRC=/home01/<소스계정>/kbds_project bash scripts/transfer_pull.sh                # Stage-2 필수 subset
+SRC=... WITH_STAGE3=1 bash scripts/transfer_pull.sh    # + judge(27B) + medix
+SRC=... WITH_CKPT=1   bash scripts/transfer_pull.sh    # + ck-850 (구 실행 최고점 — 재생성 불가)
+SRC=... WITH_LOGS=0   bash scripts/transfer_pull.sh    # 학습 로그 제외(기본은 포함, ~142M)
 ```
 - 전송량 ≈ **60~80GB**(데이터+이미지 + `sft_mixed_merged` 18G + base 9B + 컨테이너). 전체 work/(~210G)는 불필요.
-- **⚠️ 핵심**: jsonl 의 이미지 경로가 **절대경로** → 전송 후 반드시 치환. `transfer_pull.sh` 가 scripts + `work/data/*.jsonl` 을 함께 sed 처리한다.
+- **⚠️ 핵심**: jsonl 의 이미지 경로가 **절대경로** → 전송 후 반드시 치환. 스크립트가 `scripts/` + `work/data/` **전체**를 sed 처리한다(예전엔 `work/data/*.jsonl` 만 훑어 `domains/` 하위가 통째로 빠졌다 — 학습이 이미지를 못 찾고 죽는다).
+- **`WITH_CKPT=1` 을 빠뜨리지 말 것**: ck-850 은 구 실행 최고점이고 **재생성 불가**다. 전문가 3분할에서 E1 을 빼고 이걸 일반 교사로 쓰는 선택지가 여기 달려 있다.
+- **`logs/` 는 기본 포함**(142M). 사후분석·붕괴 진단·감시자 임계값이 전부 이 로그에서 나왔고 `watch_format_collapse.py --simulate` 가 이걸 먹는다.
 - SRC 를 안 주면 직전 계정(k252a02)이 기본값이고, **SRC==DST 면 스크립트가 즉시 중단**한다.
-- diba·다른 클러스터로 나갈 땐 데이터전송노드 `kbds-dm.kisti.re.kr`(FTP 21 / Aspera 33001).
+- **⚠️ 다른 클러스터로 나갈 땐 이 스크립트를 쓸 수 없다**(홈 직접 read 전제). 데이터전송노드 `kbds-dm.kisti.re.kr`(FTP 21 / Aspera 33001) 경유.
 
 ---
 
@@ -211,6 +220,9 @@ docs/
   stage2_redesign_2026.md          현재 설계의 근거
   stage2_expansion_runbook.md      확장 재현 0~6단계
   medical_reward_spec.md · progress_log.md · worklog_*.md
+(루트) 사후분석 일회성 스크립트 — 레포 루트에서 실행. 붕괴 분석 재현용
+  holdout_matrix.py · holdout_by_source.py · train_side.py · classify900.py · show_collapse.py
+  ⚠️ 입력이 logs/ 와 work/checkpoints/ 다 → transfer_pull 에서 WITH_LOGS 를 끄면 돌지 않는다
 work/  (git 제외 — 재생성)          data·images·checkpoints·hf_cache·images/컨테이너
 ```
 

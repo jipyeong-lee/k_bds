@@ -25,18 +25,42 @@ T0=$(date +%s); stamp(){ echo "[+$(( $(date +%s)-T0 ))s] $*"; }
 SRC="$ORCH_HOME/uploads"; PROJ="$ORCH_HOME/kbds_project"; VENV="$ORCH_HOME/.venv"
 echo "ORCH_HOME=$ORCH_HOME"; df -h "$ORCH_HOME" | tail -1
 
+# There is no `set -e` here (the skip/idempotency logic relies on non-zero returns), so a failed
+# extract used to sail straight through: 46G data.tar stopped partway, the script kept going and
+# reported SWIFT_EXIT=0 — the smoke passed only because pmcvqa images were already on disk.
+# `set -o pipefail` above makes the pipe's rc accurate; this just makes someone look at it.
+untar_parts(){  # $1=parts glob (quoted at the call site, expanded here)  $2=dest dir
+  cat $1 | tar xf - -C "$2" || { echo "❌ extract failed: $1 → aborting"; exit 1; }
+}
+
 stamp "1) extract data from \$ORCH_HOME/uploads (skip if present)"
 if [ ! -d "$PROJ/work/checkpoints/sft_mixed_merged" ]; then
   [ -f "$SRC/code.tar.gz" ] || { echo "❌ missing $SRC/code.tar.gz — run upload first"; exit 1; }
   ls "$SRC"/parts/model.tar.*.part        >/dev/null 2>&1 || { echo "❌ missing model parts in $SRC/parts"; exit 1; }
   ls "$SRC"/parts/pmcvqa_data.tar.*.part  >/dev/null 2>&1 || { echo "❌ missing pmcvqa parts in $SRC/parts"; exit 1; }
   mkdir -p "$PROJ/work/checkpoints" "$PROJ/work"
-  tar xzf "$SRC/code.tar.gz" -C "$ORCH_HOME"                                  # -> kbds_project/ (no work/)
-  cat "$SRC"/parts/model.tar.*.part       | tar xf - -C "$PROJ/work/checkpoints"
-  cat "$SRC"/parts/pmcvqa_data.tar.*.part | tar xf - -C "$PROJ/work"
+  tar xzf "$SRC/code.tar.gz" -C "$ORCH_HOME" || { echo "❌ code.tar.gz extract failed"; exit 1; }
+  untar_parts "$SRC/parts/model.tar.*.part"       "$PROJ/work/checkpoints"
+  untar_parts "$SRC/parts/pmcvqa_data.tar.*.part" "$PROJ/work"
   echo "  extracted: model files=$(ls "$PROJ/work/checkpoints/sft_mixed_merged" | wc -l), pmcvqa rows=$(wc -l <"$PROJ/work/data/domains/stage2_pmcvqa.jsonl")"
 else
   echo "  already extracted — skip"
+fi
+
+stamp "1b) extract full data.tar if uploaded (deepvision+mmk12, for the 3-arm run)"
+# Separate guard from 1): pmcvqa-only setups already pass 1), so this must stand on its own.
+# data.tar holds all of work/data — extracting it over the pmcvqa subset is a superset, not a clash.
+if [ ! -f "$PROJ/work/data/domains/stage2_deepvision.jsonl" ] \
+   && ls "$SRC"/parts/data.tar.*.part >/dev/null 2>&1; then
+  # NOTE: this overwrites domains/*.jsonl, restoring the KISTI absolute image paths.
+  # Step 2) below re-fixes them — never extract data.tar on its own without re-running that sed.
+  untar_parts "$SRC/parts/data.tar.*.part" "$PROJ/work"
+  for a in deepvision mmk12 pmcvqa; do
+    f="$PROJ/work/data/domains/stage2_$a.jsonl"
+    echo "  $a rows=$([ -f "$f" ] && wc -l <"$f" || echo MISSING)"
+  done
+else
+  echo "  skip (already extracted, or data.tar not uploaded yet)"
 fi
 
 stamp "2) path-fix jsonl (KISTI -> node) + image sanity"

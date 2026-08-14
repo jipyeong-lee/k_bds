@@ -19,10 +19,21 @@ KISTI 노드 시간이 종료되어 **Jukyung-Yadok(NHN) 8× B200** 플랫폼으
 **✅ 검증(2026-08-14)**: pmcvqa 3-step 스모크 완주 — `SWIFT_EXIT=0`, 보상 3종 정상,
 mem 172/180 GiB, KL·grad 정상. 데이터 로드→이미지→vLLM 롤아웃(flashinfer)→보상(math_verify)→GDPO 손실→저장 전 구간 동작.
 
+**✅ 데이터 반입 완료 (2026-08-14 21:55)**: `data.tar` 46G 를 14 파트로 청크 업로드(**48,844,247,040 B — 원본과 바이트 일치**)
+→ 노드 재조립 추출(`work/data` 7.0G→46G) → jsonl 경로 치환. **3 arm 전부 학습 가능 상태**:
+deepvision 40,000 · mmk12 15,204 · pmcvqa 19,583, KISTI 경로 잔존 0, 이미지 실존 확인(deepvision 무작위 20/20).
+
+> 🚨 **추출 실패가 조용히 지나갔던 건**: `node_setup_and_smoke.sh` 에 `set -e` 가 없어(멱등 skip 로직이 non-zero 반환에 의존)
+> `cat …|tar` 가 46G 중간에 끊겼는데도 스크립트가 스모크까지 진행해 **`SWIFT_EXIT=0` 을 냈다**.
+> pmcvqa 이미지가 이미 있어 스모크가 통과했을 뿐, deepvision 으로 돌렸으면 이미지를 못 찾고 죽는다.
+> 지금은 `untar_parts()` 가 rc 를 보고 즉시 중단한다. **재추출은 `domains/*.jsonl` 을 덮어써 KISTI 절대경로를 되살리므로,
+> `tar` 를 단독으로 돌렸다면 §2 의 path-fix sed 를 반드시 다시 실행할 것.**
+> (첫 추출이 왜 끊겼는지는 미규명 — 재시도는 16초에 정상 완료됐고 재현되지 않았다.)
+
 **다음 임계경로 (B200)**:
-1. **deepvision·mmk12 데이터 업로드** — 현재 pmcvqa만 올라감. `data.tar`(46G, KISTI `/scratch/migrate_k266_to_gpu/`)를 `b200/upload_chunked.sh`로 청크 업로드.
-2. **3-arm 배선** — `node_setup_and_smoke.sh`의 `swift rlhf`를 arm별로(`--dataset stage2_<arm>.jsonl`, `--max_steps 1500`, `--output_dir runs/expert_<arm>`) 복제. 8 GPU 배치(tensor-parallel vs arm 순차) 결정. 인자 근거 = `scripts/launch_domain_experts.sh`.
-3. **어댑터 통합 → Stage-3** (아래 §5와 동일, 계획서 핵심 산출물·미시작).
+1. **3-arm 배선** — `node_setup_and_smoke.sh`의 `swift rlhf`를 arm별로(`--dataset stage2_<arm>.jsonl`, `--max_steps 1500`, `--output_dir runs/expert_<arm>`) 복제. 8 GPU 배치(tensor-parallel vs arm 순차) 결정. 인자 근거 = `scripts/launch_domain_experts.sh`.
+   ⚠️ 스모크는 **pmcvqa 로만** 검증됐다. deepvision·mmk12 는 파일 실존까지만 확인 — arm 별 3-step 스모크를 먼저 돌릴 것.
+2. **어댑터 통합 → Stage-3** (아래 §5와 동일, 계획서 핵심 산출물·미시작).
 
 > ⚠️ KISTI 원본(`k266a01:~/kbds_project/work`, ~305G)과 검증본은 그대로 보존. B200은 사본이므로
 > KISTI 결과 재현이 목표 — 그래서 스택을 KISTI 버전으로 핀했다.

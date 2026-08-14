@@ -1,6 +1,6 @@
 # 인수인계 (HANDOFF) — K-BDS 의료 멀티모달 파이프라인
 
-> **갱신 2026-07-23.** 다른 계정/사람이 **이어받아 실행**하기 위한 단일 문서.
+> **갱신 2026-08-14.** 다른 계정/사람이 **이어받아 실행**하기 위한 단일 문서.
 > 큰 그림·수치는 [`README.md`](README.md), 확장 재현은 [`docs/stage2_expansion_runbook.md`](docs/stage2_expansion_runbook.md).
 
 ---
@@ -9,36 +9,68 @@
 
 | 단계 | 상태 | 핵심 |
 |---|---|---|
-| ① 콜드스타트 SFT | ✅ **v3 완료·평가됨** | 형식천장 완파(`format_think` v2 0.185→**v3 0.909**), 홀드아웃 acc v2 0.295→**v3 0.348** |
-| ② 범용 RLVR | ✅ 방법론 종결(dr_grpo) · 🔧 **풀확장 세팅완료·실행대기** | DeepVision+MMK12+ThinkLite=**128,349**, init=v3 |
-| ③ 의료 RL (RaR) | 🟡 배선 e2e PASS · **본실행 미시작** | judge(Qwen3.6-27B-FP8)·루브릭 검증완료 |
-| ④ 평가 | 🔄 기준선·v3 홀드아웃 완료 | HealthBench base 0.229/v2 0.224(n=1000), v3 미측정 |
+| ① 콜드스타트 SFT | ✅ **v3 완료·평가됨** | 형식천장 완파(`format_think` v2 0.185→**v3 0.909**), 홀드아웃 acc v2 0.295→**v3 0.348**. `sft_mixed_merged` = 이후 전 단계의 init |
+| ② 범용 RLVR | 🔄 **도메인 전문가 3종 제출·큐 대기** | 구 혼합 실행은 step ~900 **형식 붕괴**로 취소. 최고점 **ck-850(+8.18pp, p<0.0001)** 스냅샷 확보 → 3분할 재설계 후 재제출(75394/75395/75396) |
+| ③ 의료 RL (RaR) | 🟡 배선 e2e PASS · **본실행 미시작** | judge(Qwen3.6-27B-FP8)·루브릭 검증완료(유닛 29/29). **계획서 핵심 산출물인데 아직 안 돌았다** |
+| ④ 평가 | 🔄 기준선 확보 | HealthBench Hard base 0.229 / v2 0.224(n=1000), v3 미측정 |
 
-**바로 다음 임계경로**: Stage-2 풀확장 **배선 스모크 → 본실행**(다른 계정, ~70h/8gpu). 그 다음 Stage-3.
+**바로 다음 임계경로**: 전문가 3종 완주(예상 시작 08-17) → 어댑터 통합 → **Stage-3 본실행**.
+
+⚠️ **예산**: 5,000 노드시간 중 **874 집행 · 잔여 4,126**.
+전문가 3종(1,500 step × 3)이 **2,130 = 잔여의 52%**, **Stage-3·평가에 남는 건 1,996**.
+
+### 실행 중인 잡 (2026-08-14 제출)
+
+| job | arm | 데이터 | 출력 |
+|---|---|---|---|
+| **75394** | deepvision | 40,000 | `expert_deepvision_0814-0812` |
+| **75395** | mmk12 | 15,204 | `expert_mmk12_0814-0812` |
+| **75396** | pmcvqa | 19,583 | `expert_pmcvqa_0814-0812` |
+
+공통: `RECIPE=stable` · `NUM_GEN=8` · `MAX_STEPS=1500` · `LORA_DROPOUT=0` · `WATCHDOG=1` · init `sft_mixed_merged` · walltime 118h · 89 벽시계h/arm.
+노드가 정확히 3개다 — **3 arm 동시 제출 = 파티션 전체 점유**.
+
+### 🚨 인수인계 시 반드시 알아야 할 사건 — Stage-2 형식 붕괴
+
+구 혼합 실행(73924/73925)이 **step ~900 에서 붕괴**했다. 이 프로젝트의 모든 현재 설계는 여기서 나온다.
+
+- **step 850 이 최고점**이었다 — 홀드아웃 51.52%, init 대비 **+8.18pp(p<0.0001)**. 붕괴 직전까지 정상 개선 중이었다.
+- 붕괴는 3단계 — **① 형식 무너짐(899~904) → ② 10 step 뒤 길이 폭주 → ③ `overlong_filter` 가 회복 차단.**
+- **개시 원인은 미규명**이고 **28/28 동일 조건 재현 실패** → 결정론적 원인이 아니다. 원인 규명은 **포기**했고 증폭 경로 차단으로 방향을 틀었다.
+- 붕괴 후 **13h35m(109 GPU-h)을 더 돌았다** — 볼 장치가 없었기 때문. 그래서 지금은 `WATCHDOG=1` 이 기본이다.
+- ⚠️ **재개하지 말 것.** 재시작점 step 700 권고는 폐기됐다. `sft_mixed_merged` 에서 새로 시작한다.
+- 전량 근거 → [`docs/stage2_run73924_postmortem.md`](docs/stage2_run73924_postmortem.md) (rev.2 에서 초판 3건을 정정했다)
+
+**같이 확인된 것**: 의료(pmcvqa)는 RL 여섯 지점 전부 무변화(p>0.5). 붕괴와 무관하게 성립하고, **Stage-3 의 존재 이유를 굳힌다.**
 
 ---
 
 ## 2. 🚨 다른 계정으로 옮길 때 — 반드시 먼저 (경로/토큰/컨테이너)
 
-이 레포는 `/home01/k252a01/kbds_project` 를 가정한다. 새 계정에선 아래 3가지를 **먼저** 처리:
+이 레포는 현재 `/home01/k266a01/kbds_project` 를 가정한다. **이관은 이미 두 번 있었다**(k252a01 → k252a02 → k266a01).
+새 계정에선 아래를 **먼저** 처리:
 
 ```bash
 # (A) 경로 일괄 치환 — PROJ_DIR 은 env 로 되지만, *.slurm 의 #SBATCH --output 은 지시어라 치환 필요
 NEW=/home01/<새계정>/kbds_project
-grep -rl "/home01/k252a01/kbds_project" scripts/ | \
-  xargs sed -i "s#/home01/k252a01/kbds_project#$NEW#g"
-#   → 38개 스크립트의 하드코딩 경로 + 26개 slurm 의 --output 을 한 번에 교체.
+grep -rl "/home01/k266a01/kbds_project" scripts/ | \
+  xargs sed -i "s#/home01/k266a01/kbds_project#$NEW#g"
+#   → 스크립트의 하드코딩 경로 + slurm 의 --output 을 한 번에 교체.
 #   00_common.sh 의 PROJ_DIR 도 이 값으로 바뀜(파생 WORK_DIR/HF_HOME/CKPT_DIR 자동 추종).
+#   ⚠️ 이 sed 는 무차별이다. 아래 두 곳은 치환하면 안 되니 끝나고 반드시 확인:
+#      - transfer_pull.sh 의 SRC (소스 계정이어야 한다. SRC==DST 면 스크립트가 막는다)
+#      - 32_net_test.slurm / 13_build_stage2_expanded.slurm 의 PY (계정밖 conda env → (D) 참조)
 
 # (B) HF 토큰 (게이트·rate-limit 회피, MMK12 큰 parquet 정체 방지)
-export HF_TOKEN=hf_xxx           # 이 계정은 ~/model_download.py 에 보유했음
+export HF_TOKEN=hf_xxx
 
 # (C) 컨테이너 이미지 재빌드 (git 에 없음, ~수GB)
 bash env/build_image.sh          # → $WORK_DIR/images/ms-swift-413-sandbox
-#  ⚠️ 2026-07-27 현재 클러스터 apptainer 가 파손돼 이 빌드도 불가(singularity pull/build 필요).
+#  ⚠️ 2026-07-27 이후 클러스터 apptainer 가 파손돼 이 빌드도 불가(singularity pull/build 필요).
 #     이미지를 §2-A 직접전송으로 받아오고, 실행은 ENV_MODE=loader 우회 사용. → §3 맨 아래
 
-# (D) 변환용 python (pyarrow+PIL) — 위 sed 가 못 잡는 계정밖 경로. 13_build_stage2_expanded 에서 씀.
+# (D) 변환용 python (pyarrow+PIL) — 위 sed 가 못 잡는 계정밖 경로.
+#     13_build_stage2_expanded.slurm · 32_net_test.slurm 이 쓴다. 둘 다 BUILD_PY 로 덮인다.
 export BUILD_PY=/home01/<새계정>/.conda/envs/<env>/bin/python   # pyarrow+PIL 있는 아무 python
 ```
 
@@ -47,15 +79,17 @@ export BUILD_PY=/home01/<새계정>/.conda/envs/<env>/bin/python   # pyarrow+PIL
 
 ### 2-A. 직접 전송 (같은 클러스터·같은 그룹 — 권장)
 
-`work/` 데이터를 재생성하지 말고 소스 계정에서 **당겨온다**. 확인된 사실(2026-07-24): k252a01·k252a02 는 같은 그룹(`kbds0754`), 소스 홈은 group-readable(`drwxr-x---`)·파일 644 → **받는 계정이 pull 가능**(소스는 남의 홈에 push 불가).
+`work/` 데이터를 재생성하지 말고 소스 계정에서 **당겨온다**. 확인된 사실(2026-07-24): 같은 그룹(`kbds0754`) 계정끼리
+소스 홈이 group-readable(`drwxr-x---`)·파일 644 → **받는 계정이 pull 가능**(소스는 남의 홈에 push 불가).
 
 ```bash
-# 받는 계정(k252a02)에서, 자기 kbds_project 루트에서:
-bash scripts/transfer_pull.sh                  # Stage-2 필수 subset + 경로 자동치환
-WITH_STAGE3=1 bash scripts/transfer_pull.sh    # + judge(27B) + medix
+# 받는 계정에서, 자기 kbds_project 루트에서 — SRC 를 반드시 지정한다:
+SRC=/home01/<소스계정>/kbds_project bash scripts/transfer_pull.sh                  # Stage-2 필수 subset
+SRC=/home01/<소스계정>/kbds_project WITH_STAGE3=1 bash scripts/transfer_pull.sh    # + judge(27B) + medix
 ```
-- 전송량 ≈ **60~80GB**(데이터+이미지 + `sft_mixed_merged` 18G + base 9B + 컨테이너). 전체 work/(~210G, HF캐시 원본 zip·A/B 체크포인트 포함)는 불필요.
-- **⚠️ 핵심**: jsonl 의 이미지 경로가 **절대경로**(`/home01/k252a01/...`) → 전송 후 반드시 치환. `transfer_pull.sh` 가 scripts + `work/data/*.jsonl` 을 함께 sed 처리한다(§2 의 경로 sed 와 동일 패턴).
+- 전송량 ≈ **60~80GB**(데이터+이미지 + `sft_mixed_merged` 18G + base 9B + 컨테이너). 전체 work/(~210G)는 불필요.
+- **⚠️ 핵심**: jsonl 의 이미지 경로가 **절대경로** → 전송 후 반드시 치환. `transfer_pull.sh` 가 scripts + `work/data/*.jsonl` 을 함께 sed 처리한다.
+- SRC 를 안 주면 직전 계정(k252a02)이 기본값이고, **SRC==DST 면 스크립트가 즉시 중단**한다.
 - diba·다른 클러스터로 나갈 땐 데이터전송노드 `kbds-dm.kisti.re.kr`(FTP 21 / Aspera 33001).
 
 ---
@@ -68,8 +102,10 @@ WITH_STAGE3=1 bash scripts/transfer_pull.sh    # + judge(27B) + medix
 - **HF 오프라인 플래그**: `00_common.sh` 가 `HF_HUB_OFFLINE=1` 설정 → 다운로드 시 런칭셸에서 **`unset HF_HUB_OFFLINE` + `--env HF_HUB_OFFLINE=0`**.
 - **글로벌 vLLM 로그인노드 불가**(드라이버) → judge·학습·추론 전부 컴퓨트노드.
 - **swift export 병합/eval 은 GPU 노드에서만**(컨테이너 필요). merge_lora 는 CPU 연산이지만 컨테이너가 CPU 노드서 안 도는 게 제약.
+- **속도는 두 종류다.** `step_time` 은 학습 스텝만이고, 벽시계(`train_speed`)는 vLLM 롤아웃·sleep/wake·체크포인트를 포함해 **약 2배**다. 일정·예산 계산에는 **반드시 `train_speed` 쪽**을 쓸 것.
+- **`num_generations` 는 계산이 아니라 데이터 노출을 깎는다.** 배치가 32 completion 고정이라 `num_gen` 을 올리면 프롬프트/step 이 줄어든다. 현재 **8 이 상한**.
 
-### 🚨 apptainer 파손 → `ENV_MODE=loader` 우회 (2026-07-27~)
+### 🚨 apptainer 파손 → `ENV_MODE=loader` 우회 (2026-07-27~ · 현재도 유효)
 
 **증상**: `singularity: error while loading shared libraries: libsubid.so.3` — 로그인·계산 노드 **모두**.
 클러스터 공용 `/apps/application/apptainer/1.4.5` rpm 이 **GLIBC_2.28 요구**(호스트는 CentOS7/glibc 2.17)
@@ -86,44 +122,64 @@ ENV_MODE=container bash scripts/...                      # apptainer 복구 후 
 ```
 - 구현: `runc.sh`(로더 래퍼) + `bin/python`·`bin/python3`(torchrun 자식용 shim). 함정 5개는 `runc.sh` 주석 참조
   (sys.executable / PYTHONHOME / LD_LIBRARY_PATH 분리 / CUDA_HOME 실경로 / Triton 용 gcc 10.2.0).
-- **검증**: job 72844(gpu-1-006) GRPO 2 step 완주, 보상 3종·GDPO 손실·KL 전 구간 동작.
-  배선 확인용 1GPU 스모크 = `sbatch -p debug-1gpu ... smoke1gpu.sh`(메모리 맞춤, 성능검증 아님).
+- **검증**: job 72844 GRPO 2 step 완주 → 이후 8 GPU 본실행 1,047 step 완주(73924/73925)로 실전 검증됨.
 - **apptainer 복구되면** `00_common.sh` 의 `ENV_MODE` 기본값을 `container` 로 되돌릴 것.
 
 ---
 
-## 4. Stage-2 풀확장 — 실행 절차 (이 계정서 세팅·검증 완료)
+## 4. Stage-2 도메인 전문가 — 실행 절차 (현재 경로)
 
-전 과정 상세 = [`docs/stage2_expansion_runbook.md`](docs/stage2_expansion_runbook.md). 요약:
+설계 근거 → [재설계](docs/stage2_redesign_2026.md) · [DeepSeek-V4 채택](docs/deepseek_v4_pipeline_adoption.md) · [서베이](docs/rlvr_survey_2026.md)
 
 ```bash
-# 1) 데이터 다운로드 (로그인노드, 컨테이너, HF_TOKEN)
-#    DeepVision-103K · medix-rl-data · FanqingM/MMK12 · russwang/ThinkLite-VL-hard-11k
-# 2) 신규 2종 변환 (CPU 잡)
-sbatch scripts/13_build_stage2_expanded.slurm
-# 3) 확장셋 조립 (bytehash dedup, seed=42)
-python3 scripts/build_stage2_mix.py            # → stage2_expanded_{train 128,349 / holdout 1,673}
-# 4) v3 init 준비
-sbatch scripts/10_sft.slurm                    # v3 SFT → sft_mixed_lora
-sbatch scripts/12_merge_mixed.slurm            #  → sft_mixed_merged (또는 50_eval_v3.slurm)
-# 5) Stage-2 확장 GRPO
-SMOKE=1 bash scripts/launch_stage2_expanded.sh # 배선 스모크(먼저!)
-bash scripts/launch_stage2_expanded.sh         # 본실행 (dr_grpo, ~70h)
-# 6) 평가: stage2_expanded_holdout.jsonl 소스별(_source)·층별(_stratum) 채점
+# 0) 확장셋 → 소스별 3분할 (이미지 경로 기준, 미분류 시 즉시 실패)
+python3 scripts/split_stage2_by_source.py          # --dry / --verify
+
+# 1) 배선 검증 — 유휴 debug-1gpu(40GB)에서 3 step. 8gpu 큐를 안 기다린다
+bash scripts/probe_1gpu.sh
+#    ⚠️ 여기서 step time·보상 크기는 읽지 않는다 (offload·1프롬프트라 통계가 아니다)
+
+# 2) 8 GPU 스모크 — 5 step. 노드 3개 점유하니 큐 상황 보고
+SMOKE=1 bash scripts/launch_domain_experts.sh
+
+# 3) 본실행 3 arm (= 실제 제출 형태)
+STEPS=1500 bash scripts/launch_domain_experts.sh
+ARMS="mmk12 pmcvqa" bash scripts/launch_domain_experts.sh   # E1 빼고 ck-850 을 일반 교사로 쓰는 선택
+
+# 4) 모니터
+squeue -u $USER ; tail -f logs/grpo_adv_*.log
+cat logs/verdict_<JID>.json          # 형식붕괴 감시자 판정 (WATCHDOG=1 잡)
+bash scripts/watch_train.sh          # 라이브 대시보드 (tmux)
 ```
 
-**검증된 기준선(이 계정 실측)**: v3 콜드스타트 홀드아웃 **0.348**(math 0.324=약점) / v2+RL 0.380~0.390.
-→ 확장 성패 = **신규 홀드아웃(MMK12/ThinkLite)에서 v3(0.348) 대비 상승 + DeepVision 유지**.
+**재설계에서 바꾼 것** (붕괴 대응 — 전부 근거 있음):
+
+| 바꾼 것 | 왜 |
+|---|---|
+| 도메인 3분할 | 혼합에서는 도메인별 길이·그룹 예산을 다르게 줄 수 없었다 |
+| 정확도/형식 분리(`<answer>` 없으면 추론 꼬리에서 letter 복구) | 정확도가 형식에 물려 있어 붕괴가 자기증폭했다 |
+| 단계형 `FormatThink` (`</think>` 까지면 0.5) | 붕괴 개시 절벽 −0.324 → −0.204 (37.1% 완화) |
+| `recipe=stable` (`overlong_filter=false`, `scale_rewards=none`) | `overlong_filter` 는 붕괴를 막지 못하고 **회복을 막았다** |
+| `num_generations` 4→8 | 붕괴 개시 시점 정확도 균일률 13.8%→54.2% |
+| `lora_dropout=0` | RL 로그확률 계산 중 dropout 이 살아 π_rollout ≠ π_train 을 스스로 만들고 있었다 |
+| `WATCHDOG=1` | 과거 로그 재생 결과 step 901 발화 · 오경보 0회 · 실제 발견보다 146 step(13.5h) 빠름 |
+
+**판정 기준**: 각 전문가가 **자기 도메인 홀드아웃에서 init(`sft_mixed_merged`) 대비 상승**.
+구 실행 기준선 = 전체 43.34% / deepvision 35.60 / 수학 48.25 / 의료 57.25 (n=1,772 전량).
+⚠️ 과거 수치(v3 0.348 등)는 **구 홀드아웃** 기준이라 가로 비교 금지.
+
+**감시 항목**: 스모크에서 `memory(GiB)` 52.7 → 65.2 → 74.1(80GB 의 93%). 본실행 초반에 평탄화 확인할 것.
 
 ---
 
 ## 5. 남은 일 (우선순위)
 
-1. **Stage-2 확장 스모크 → 본실행** (다른 계정, 예산 5,000h).
-2. **확장 결과 평가** → v3 대비 STEM 이득 확인.
-3. **Stage-3 본실행**: `bash scripts/launch_stage3.sh` (init=Stage-2 산출 병합본, GDPO 레시피 권고). 계획서 핵심 산출물·미시작.
-4. (옵션) v3 HealthBench Hard(n=1000, ~28 노드시간, gpu:2) — base 0.229/v2 0.224 대비.
-5. (기록만) 구 DeepVision 홀드아웃 22% 오염 재구성.
+1. **전문가 3종 완주 감시** — `WATCHDOG` 판정 확인, 메모리 평탄화 확인. 붕괴 재발 시 즉시 중단(이미 자동).
+2. **전문가별 홀드아웃 평가** → 도메인별 init 대비 이득 확인. `eval_paired.py` 로 McNemar.
+3. **어댑터 통합** → Stage-3 init 만들기.
+4. **Stage-3 본실행**: `bash scripts/launch_stage3.sh`. **계획서 핵심 산출물이고 미시작.** 잔여 예산 1,996 안에 넣어야 한다.
+5. (옵션) v3 HealthBench Hard(n=1000, ~28 노드시간, gpu:2) — base 0.229/v2 0.224 대비.
+6. (기록만) 구 DeepVision 홀드아웃 22% 오염 재구성 · 붕괴 개시 원인(재현 실패로 보류).
 
 ---
 
@@ -131,25 +187,31 @@ bash scripts/launch_stage2_expanded.sh         # 본실행 (dr_grpo, ~70h)
 
 ```
 scripts/
-  00_common.sh                     공통 경로/환경/run_py 래퍼  ← 이식 시 PROJ_DIR
+  00_common.sh                     공통 경로/환경/run_py 래퍼  ← 이식 시 PROJ_DIR·ENV_MODE
   10_sft.slurm                     Stage-1 v3 SFT (기본값=sft_mixed)
   build_mixed_coldstart.py         v3 콜드스타트 데이터 빌드
   50_eval_v3.slurm / eval_v3_holdout.py   병합+홀드아웃 평가(strict format_think·층별)
-  52_eval_v2_baseline.slurm        v2 동일조건 재측정
-  13_build_stage2_expanded.slurm   MMK12·ThinkLite 변환(CPU)
+  13_build_stage2_expanded.slurm   MMK12·ThinkLite 변환(CPU) — BUILD_PY 필요
   build_stage2_mix.py              확장셋 조립+홀드아웃(bytehash dedup)
-  convert_to_swift.py              parquet→swift (DeepVision/medix/MMK12/ThinkLite 자동감지)
-  20_rlvr_grpo.slurm               Stage-2 GRPO (기본값=v3 init+확장셋)
-  launch_stage2_expanded.sh        Stage-2 확장 표준 진입점
+  split_stage2_by_source.py        확장셋 → 소스별 3분할(+sha1 manifest)
+  21_rlvr_grpo_adv.slurm           Stage-2 레시피(dapo|gspo|dr_grpo|stable) — 전 단계가 이걸 부른다
+  launch_domain_experts.sh         🔴 현재 진입점. 전문가 3 arm 제출 (SMOKE / ARMS / DRY / STEPS)
+  probe_1gpu.sh                    배선 검증 — 유휴 debug-1gpu 3 step
+  watch_format_collapse.py         🚨 형식 붕괴 감시 → scancel. --simulate 로 과거 로그 재생
+  eval_paired.py                   두 체크포인트 문항별 조인 → McNemar + 검출 하한
+  plot_train_curves.py             학습 로그 → 6패널 곡선 + 구간 대조표
   30_medical_rl.slurm / launch_stage3.sh / judge_server.sh   Stage-3
-  make_holdout.py                  DeepVision 층화 홀드아웃
+  transfer_pull.sh                 계정 이관 데이터 pull (SRC 지정 필수)
+  launch_stage2_expanded.sh        구 혼합 경로 — 붕괴로 중단, 재현용으로만 남긴다
 configs/
-  accuracy.py                      accuracy_mix + format_think 보상
+  accuracy.py                      accuracy_mix + 단계형 format_think 보상
   medical_reward.py                Stage-3 RaR clinical_judge
 docs/
+  stage2_run73924_postmortem.md    🚨 붕괴 사후분석 rev.2 — 인수인계 시 먼저 읽을 것
+  stage2_redesign_2026.md          현재 설계의 근거
   stage2_expansion_runbook.md      확장 재현 0~6단계
-  medical_reward_spec.md · worklog_*.md · project_status_*.md
+  medical_reward_spec.md · progress_log.md · worklog_*.md
 work/  (git 제외 — 재생성)          data·images·checkpoints·hf_cache·images/컨테이너
 ```
 
-**막히면**: README 현황·진행이력, 이 문서 §2(경로)·§3(함정) 순으로 확인.
+**막히면**: README 현황 → 이 문서 §1-붕괴 → §2(경로) → §3(함정) 순으로 확인.

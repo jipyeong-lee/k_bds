@@ -62,10 +62,31 @@ math_verify==0.9.0 latex2sympy2_extended==1.11.0 word2number==1.1  # 보상 플�
 
 ### 1.5 학습 실행
 ```
-ORCH_PAT=pat_xxx bash b200/drive_node.sh b200/node_setup_and_smoke.sh 1 2400
+# 스모크 1회 (pmcvqa 3 step) — 환경 검증용
+ORCH_PAT=… ORCH_BASE_URL=… bash b200/drive_node.sh b200/node_setup_and_smoke.sh 8 2400
+# 본실행: job 이 timeout 마다 끊기므로 체크포인트 재개 체인으로 돈다
+nohup bash b200/chain_epoch.sh deepvision 7200 &   # 내부에서 run_epoch.sh 를 반복 투입
+bash b200/release_session.sh                        # 세션 조회 / --all-gpu 로 강제 반납
 ```
-스모크 통과 실측(2026-08-14, pmcvqa 3 step, 1 GPU): `SWIFT_EXIT=0`, reward 1.2→0.575,
-AccuracyMix/FormatThink/SoftOverlong 정상, mem **172/180 GiB**, ~40 s/it.
+스모크 통과 실측(2026-08-14, pmcvqa 3 step, 1 GPU): `SWIFT_EXIT=0`, reward 1.2→0.575, ~40 s/it.
+
+**플랫폼 운영 함정 (2026-08-15 실측, 전부 겪은 것):**
+| | 내용 |
+|---|---|
+| job 수명 | `timeout_sec` 이 그대로 상한. 3600 을 주면 3600 초에 `killed`, **7200 도 정상 동작**(60분 고정 아님) |
+| killed 시 | **stdout_tail 이 통째로 빈다.** 결과는 반드시 `$ORCH_HOME` 파일에 남기고 별도 짧은 job 으로 읽을 것 |
+| 세션 반납 | 폴링 프로세스가 죽으면 `DELETE` 가 실행되지 않아 **세션이 GPU 를 계속 점유** → 이후 job 이 전부 `session create failed`. 조회·해제는 `/sessions` (`/nodes/<id>/sessions` 는 405) |
+| 동시 조회 | 학습이 GPU 8장을 잡는 동안 **추가 세션이 안 열린다** → 진행 확인은 job 교체 틈에서만 가능 |
+| 체크포인트 | ms-swift 는 `$OUT/v<N>-<날짜>/checkpoint-<step>` 에 저장. `$OUT/checkpoint-*` 로 찾으면 **영영 못 찾아 매 job 이 step 0 부터 재시작** |
+
+**배치·메모리 실측 (deepvision, max_completion 8192):**
+- `PDTBS 2 × ACCUM 8 × world 7 = 112` 가 상한(171 s/step). PDTBS 4 는 235 GiB 가 필요해 thrashing
+- 메모리는 3 step 117.5 GiB → 41 step **170.6/180 GiB** 로 상승 → `PYTORCH_ALLOC_CONF=expandable_segments:True` 필수
+- **`gradient_checkpointing=false` 는 불가** — 16K 시퀀스에서 PDTBS 1 조차 OOM(178.35 GiB 중 357 MiB 잔여)
+- 순차 롤아웃은 191 s/step(롤아웃 287s + 학습 286s = **GPU 절반이 절반 시간 유휴**)
+  → **`--async_generate true`** 로 오버랩. `vllm_mode server` 전용이라 colocate 로는 못 쓴다.
+  ms-swift 4.1.3 에 이미 있다(`--vllm_enable_prefix_caching`·`--steps_per_generation`·`--num_iterations` 도 동일)
+
 3-arm 확장 → [`HANDOFF.md`](HANDOFF.md) §다음.
 
 ---
@@ -80,4 +101,4 @@ AccuracyMix/FormatThink/SoftOverlong 정상, mem **172/180 GiB**, ~40 s/it.
 | 플랫폼 계정 / 노드 | `gpu-user-1` / `gpu-node-1` (8× B200) |
 | init 모델 | `sft_mixed_merged` (Qwen3.5-9B 병합, 18G) |
 | 도메인 데이터 | domains/stage2_{deepvision 40k / mmk12 15k / pmcvqa 20k}.jsonl |
-| 학습 프레임워크 | ms-swift 4.1.3 (recipe=stable, dr_grpo, GDPO, num_gen=8) |
+| 학습 프레임워크 | ms-swift 4.1.3 · `loss_type=dr_grpo` + `scale_rewards=gdpo` + `async_generate=true` · num_gen 16 |

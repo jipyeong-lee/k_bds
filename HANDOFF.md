@@ -30,10 +30,59 @@ deepvision 40,000 · mmk12 15,204 · pmcvqa 19,583, KISTI 경로 잔존 0, 이�
 > `tar` 를 단독으로 돌렸다면 §2 의 path-fix sed 를 반드시 다시 실행할 것.**
 > (첫 추출이 왜 끊겼는지는 미규명 — 재시도는 16초에 정상 완료됐고 재현되지 않았다.)
 
+### ✅ 1 epoch 본실행 착수 (2026-08-15) — deepvision 진행 중
+
+3-arm 배선을 마치고 **arm 순차 · 도메인당 1 epoch** 으로 확정했다. 스크립트는 [`b200/run_epoch.sh`](b200/run_epoch.sh)
+(+ 재투입 루프 [`b200/chain_epoch.sh`](b200/chain_epoch.sh)). 운영 함정은 [`CLAUDE.md`](CLAUDE.md) §1.5 표.
+
+**GPU 배치 — colocate 를 버리고 server 모드로 갔다.**
+```
+GPU 7    : swift rollout 전용 (vLLM, gpu_util 0.90)
+GPU 0~6  : 학습 7-way DP   (--vllm_mode server, 127.0.0.1:8000)
+PDTBS 2 × ACCUM 8 × 7 = 112 completions/step · num_gen 16 → 프롬프트/step = 7
+max_completion 8192 (KISTI 6144 는 잘림 기록) · clipped_ratio 1.3~1.8% 로 해소
+```
+롤아웃을 분리해야 `--async_generate` 를 쓸 수 있고(그 인자는 server 모드 전용), 배분 자체도 실측상
+거의 최적이었다 — 롤아웃을 2 GPU 로 늘리면 학습이 6 으로 줄어 순 개선이 17% 뿐이다.
+
+**알고리즘 변경 — `scale_rewards` 를 `none` → `gdpo` 로.**
+| 축 | 값 | 근거 |
+|---|---|---|
+| `loss_type` | `dr_grpo` (유지) | 길이 정규화 편향 제거. 빼면 붕괴 때의 길이 폭주(1,376→3,010) 방어가 사라진다 |
+| `scale_rewards` | **`gdpo`** | [GDPO(arXiv 2601.05242, NVIDIA)](https://arxiv.org/pdf/2601.05242)는 **다중 보상 전용** 설계. 우리 보상은 3종(1.0/0.2/0.2) |
+| `async_generate` | **`true`** | 순차 롤아웃은 191 s/step 중 287s 가 대기 = GPU 절반이 절반 시간 유휴 |
+
+> 이 둘은 **직교하는 두 축**이다(`loss_type` = 손실 정규화, `scale_rewards` = advantage 정규화).
+> 붕괴 실행이 `RECIPE=dr_grpo SCALE_REWARDS=gdpo` 였던 것은 "섞은" 게 아니라 각 축에서 하나씩 고른 것이고,
+> [사후분석 §4-2(a)](docs/stage2_run73924_postmortem.md)가 구현을 직접 읽고 **GDPO 무죄**를 판정했다(형식 재가중 최대 **±15%**,
+> 배치 전역 whitening 때문에 절대 크기는 안 커짐 — 초판의 "2.3배 증폭" 주장은 철회됨).
+
+**1 epoch 규모** (프롬프트/step = 7 기준):
+
+| arm | rows | 1 epoch | 순차 롤아웃 | async 적용 시 |
+|---|---|---:|---:|---:|
+| deepvision | 40,000 | 5,715 step | 11.3일 | **~6일** |
+| mmk12 | 15,204 | 2,172 step | 4.3일 | ~2.3일 |
+| pmcvqa | 19,583 | 2,797 step | 5.5일 | ~2.9일 |
+
+**🚨 아직 검증 안 된 것 — 인수인계 시 여기부터 볼 것**
+1. **`async_generate` 첫 실행**이다. 작동 증거는 `clip_ratio/*` 가 **0 에서 벗어나는지**다 — 완전 on-policy 에서는
+   ms-swift 가 clip 을 적용하지 않아 지금까지 계속 0 이었다(고장이 아니다).
+2. **GDPO 는 600 step 까지만 A/B 검증**됐다(홀드아웃 0.390 ≈ dr_grpo 0.380). 붕괴가 났던 step 900 대는
+   사후분석이 "검증된 적이 없다"고 명시한 구간이고, 이번엔 5,715 step 을 간다.
+3. **학습–추론 확률 불일치**: 우리는 학습 `sdpa` / 롤아웃 `flashinfer` 로 수치 경로가 다른데(B200 함정 ⑤의 부작용)
+   여기에 async 의 1 라운드 지연이 더해진다. Kimi K3 는 QAT 로, MiniMax 는 FP32 LM head 로 이 격차를 없앴다.
+   → `--log_rollout_offpolicy_metrics true` 를 켜뒀다. **IcePop 임계 5% 초과 시 `--async_generate false` 로 되돌릴 것.**
+4. **형식 붕괴 감시자**를 job 안에서 함께 띄운다(`scripts/watch_format_collapse.py`, 판정은 `$ORCH_HOME/verdict_*.json`).
+   73924 는 감시 장치가 없어 붕괴 후 13h35m 을 더 돌았다(109 GPU-h).
+
 **다음 임계경로 (B200)**:
-1. **3-arm 배선** — `node_setup_and_smoke.sh`의 `swift rlhf`를 arm별로(`--dataset stage2_<arm>.jsonl`, `--max_steps 1500`, `--output_dir runs/expert_<arm>`) 복제. 8 GPU 배치(tensor-parallel vs arm 순차) 결정. 인자 근거 = `scripts/launch_domain_experts.sh`.
-   ⚠️ 스모크는 **pmcvqa 로만** 검증됐다. deepvision·mmk12 는 파일 실존까지만 확인 — arm 별 3-step 스모크를 먼저 돌릴 것.
-2. **어댑터 통합 → Stage-3** (아래 §5와 동일, 계획서 핵심 산출물·미시작).
+1. deepvision 1 epoch 완주 — 위 4개 지표 감시
+2. mmk12 · pmcvqa 를 같은 설정으로 순차 실행 (`chain_epoch.sh <arm> 7200`)
+3. **어댑터 통합 → Stage-3** (아래 §5와 동일, 계획서 핵심 산출물·미시작).
+   통합 손실 수식은 DeepSeek-V4 리포트에 없고, [Kimi K3 식 (15)](https://arxiv.org/abs/2607.24653)가 공개했다:
+   `r_opd = clip( sg( log[π_teacher/π_student] ), −R_max, R_max )` — 토큰별 밀집 보상.
+   같은 리포트가 **top-k 증류는 수렴·성능 어느 쪽도 이점 없었다**고 보고하므로 그 탐색은 건너뛸 것.
 
 > ⚠️ KISTI 원본(`k266a01:~/kbds_project/work`, ~305G)과 검증본은 그대로 보존. B200은 사본이므로
 > KISTI 결과 재현이 목표 — 그래서 스택을 KISTI 버전으로 핀했다.

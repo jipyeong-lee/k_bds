@@ -28,11 +28,11 @@
 #SBATCH --cpus-per-task=8
 #SBATCH --time=03:00:00
 #SBATCH --comment=pytorch
-#SBATCH --output=/home01/k252a02/kbds_project/logs/eval_midtrain_%j.log
-#SBATCH --error=/home01/k252a02/kbds_project/logs/eval_midtrain_%j.log
+#SBATCH --output=/home01/k266a01/kbds_project/logs/eval_midtrain_%j.log
+#SBATCH --error=/home01/k266a01/kbds_project/logs/eval_midtrain_%j.log
 
 set -u
-cd /home01/k252a02/kbds_project
+cd /home01/k266a01/kbds_project
 source scripts/00_common.sh
 PORT="${EVAL_PORT:-8165}"
 #  EVAL_N=all → 홀드아웃 전량(1,772 = deepvision 972 / mmk12 400 / pmcvqa 400).

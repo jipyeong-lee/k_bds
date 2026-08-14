@@ -18,7 +18,7 @@ import glob
 import re
 import os
 
-PROJ = "/home01/k252a02/kbds_project"
+PROJ = "/home01/k266a01/kbds_project"
 DEEPVISION = f"{PROJ}/work/data/deepvision103k_train.jsonl"
 GLOB = f"{PROJ}/work/checkpoints/grpo_general/v*/completions.jsonl"
 OUT_TRAIN = f"{PROJ}/work/data/sft_rft_coldstart_train.jsonl"

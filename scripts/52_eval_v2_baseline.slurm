@@ -14,11 +14,11 @@
 # ↑ 1차 시도(70342)는 1:20 으로 냈다가 TIMEOUT. v2 는 형식이 깨져 있어 생성이 max_tok(2048)
 #   까지 자주 차서 v3(mean 1,982자)보다 훨씬 느리다 → conc16 으로도 74분 안에 972건 미완주.
 #SBATCH --comment=pytorch
-#SBATCH --output=/home01/k252a02/kbds_project/logs/eval_v2base_%j.log
-#SBATCH --error=/home01/k252a02/kbds_project/logs/eval_v2base_%j.log
+#SBATCH --output=/home01/k266a01/kbds_project/logs/eval_v2base_%j.log
+#SBATCH --error=/home01/k266a01/kbds_project/logs/eval_v2base_%j.log
 
 set -u
-cd /home01/k252a02/kbds_project
+cd /home01/k266a01/kbds_project
 source scripts/00_common.sh
 SB="$CONTAINER_IMG"
 PORT="${EVAL_PORT:-8197}"

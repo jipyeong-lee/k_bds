@@ -8,7 +8,7 @@
 # 사용:  bash scripts/launch_stage3.sh
 # =============================================================================
 set -euo pipefail
-cd /home01/k252a02/kbds_project
+cd /home01/k266a01/kbds_project
 MERGED=work/checkpoints/dr_grpo_merged
 
 wait_job() {  # $1=jobid : 큐에서 사라질 때까지 대기

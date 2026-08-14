@@ -10,11 +10,11 @@
 #SBATCH --cpus-per-task=8
 #SBATCH --time=00:30:00
 #SBATCH --comment=pytorch
-#SBATCH --output=/home01/k252a02/kbds_project/logs/merge_drgrpo_%j.log
-#SBATCH --error=/home01/k252a02/kbds_project/logs/merge_drgrpo_%j.log
+#SBATCH --output=/home01/k266a01/kbds_project/logs/merge_drgrpo_%j.log
+#SBATCH --error=/home01/k266a01/kbds_project/logs/merge_drgrpo_%j.log
 
 set -euo pipefail
-source /home01/k252a02/kbds_project/scripts/00_common.sh
+source /home01/k266a01/kbds_project/scripts/00_common.sh
 export NPROC_PER_NODE=1
 ADAPTER="${ADAPTER:-$CKPT_DIR/grpo_general_adv_dr_grpo/v0-20260625-081142/checkpoint-600}"
 MERGED="${MERGED:-$CKPT_DIR/dr_grpo_merged}"

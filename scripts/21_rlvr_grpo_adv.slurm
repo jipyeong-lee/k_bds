@@ -45,11 +45,11 @@
 #SBATCH --gres=gpu:8
 #SBATCH --cpus-per-task=64
 #SBATCH --time=70:00:00
-#SBATCH --output=/home01/k252a02/kbds_project/logs/grpo_adv_%j.log
-#SBATCH --error=/home01/k252a02/kbds_project/logs/grpo_adv_%j.log
+#SBATCH --output=/home01/k266a01/kbds_project/logs/grpo_adv_%j.log
+#SBATCH --error=/home01/k266a01/kbds_project/logs/grpo_adv_%j.log
 
 set -euo pipefail
-source /home01/k252a02/kbds_project/scripts/00_common.sh
+source /home01/k266a01/kbds_project/scripts/00_common.sh
 if [[ "$ENV_MODE" == conda ]]; then module load compilers/cuda/12.4 compilers/gcc/10.2.0; fi
 
 # ---- baseline 과 동일한 init/데이터 (clean A/B) ----------------------------

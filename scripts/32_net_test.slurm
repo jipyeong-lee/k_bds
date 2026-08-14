@@ -10,12 +10,13 @@
 #SBATCH --ntasks-per-node=1
 #SBATCH --time=00:08:00
 #SBATCH --comment=etc
-#SBATCH --output=/home01/k252a02/kbds_project/logs/net_test_%j.log
-#SBATCH --error=/home01/k252a02/kbds_project/logs/net_test_%j.log
+#SBATCH --output=/home01/k266a01/kbds_project/logs/net_test_%j.log
+#SBATCH --error=/home01/k266a01/kbds_project/logs/net_test_%j.log
 
 set -u
-cd /home01/k252a02/kbds_project
-PY=/home01/k252a01/.conda/envs/swift/bin/python3   # 공유(/home01) 경로 → 전 노드 가시
+cd /home01/k266a01/kbds_project
+PY="${BUILD_PY:-/home01/k252a01/.conda/envs/swift/bin/python3}"   # 공유(/home01) 경로 → 전 노드 가시
+#  ⚠️ 기본값은 구 계정(k252a01) conda env 다. 계정 이관 후엔 BUILD_PY 로 자기 env 를 지정할 것.
 PORT="${NET_TEST_PORT:-8137}"
 
 NODES=($(scontrol show hostnames "$SLURM_JOB_NODELIST"))

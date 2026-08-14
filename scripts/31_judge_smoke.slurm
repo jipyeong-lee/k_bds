@@ -11,11 +11,11 @@
 #SBATCH --cpus-per-task=8
 #SBATCH --time=00:30:00
 #SBATCH --comment=pytorch
-#SBATCH --output=/home01/k252a02/kbds_project/logs/judge_smoke_%j.log
-#SBATCH --error=/home01/k252a02/kbds_project/logs/judge_smoke_%j.log
+#SBATCH --output=/home01/k266a01/kbds_project/logs/judge_smoke_%j.log
+#SBATCH --error=/home01/k266a01/kbds_project/logs/judge_smoke_%j.log
 
 set -u
-cd /home01/k252a02/kbds_project
+cd /home01/k266a01/kbds_project
 SB=work/images/ms-swift-413-sandbox
 PORT="${JUDGE_PORT:-8137}"
 TP="${JUDGE_TP:-1}"

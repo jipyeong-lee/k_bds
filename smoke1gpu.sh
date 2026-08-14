@@ -3,7 +3,7 @@
 #   목적: 데이터로딩→vLLM롤아웃→보상(accuracy_mix/format_think/soft_overlong)
 #         →GDPO 손실→저장 경로가 loader 모드에서 끝까지 도는지 확인.
 #   ⚠️ 성능/수렴 검증 아님. 8GPU 본실행 파라미터와 다름(메모리 맞춤).
-cd /home01/k252a02/kbds_project
+cd /home01/k266a01/kbds_project
 export NPROC_PER_NODE=1          # 1 GPU
 export NUM_GEN=2                 # 그룹크기 축소(A100 40GB 1장)
 export MAX_COMPLETION=512        # 롤아웃 길이 대폭 축소(속도)

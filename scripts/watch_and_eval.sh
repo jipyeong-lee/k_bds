@@ -21,7 +21,7 @@
 #     DRY_RUN=1                 제출 없이 감지까지만
 # =============================================================================
 set -u
-cd /home01/k252a02/kbds_project || exit 1
+cd /home01/k266a01/kbds_project || exit 1
 
 TARGET_STEP="${TARGET_STEP:-1200}"
 EVAL_PORT="${EVAL_PORT:-8176}"

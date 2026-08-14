@@ -13,11 +13,11 @@
 #SBATCH --cpus-per-task=16
 #SBATCH --time=04:00:00
 #SBATCH --comment=pytorch
-#SBATCH --output=/home01/k252a02/kbds_project/logs/build_coldstart_%j.log
-#SBATCH --error=/home01/k252a02/kbds_project/logs/build_coldstart_%j.log
+#SBATCH --output=/home01/k266a01/kbds_project/logs/build_coldstart_%j.log
+#SBATCH --error=/home01/k266a01/kbds_project/logs/build_coldstart_%j.log
 
 set -u
-cd /home01/k252a02/kbds_project
+cd /home01/k266a01/kbds_project
 source scripts/00_common.sh
 
 N_OMR="${N_OMR:-5000}"      # 의료 — 정답문자 균형(A 편향 제거)

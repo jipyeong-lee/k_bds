@@ -22,11 +22,11 @@
 #SBATCH --gres=gpu:8
 #SBATCH --cpus-per-task=64
 #SBATCH --time=70:00:00           # 5일(120h) 한도 내. 사이클당 70h 예상
-#SBATCH --output=/home01/k252a02/kbds_project/logs/grpo_%j.log
-#SBATCH --error=/home01/k252a02/kbds_project/logs/grpo_%j.log
+#SBATCH --output=/home01/k266a01/kbds_project/logs/grpo_%j.log
+#SBATCH --error=/home01/k266a01/kbds_project/logs/grpo_%j.log
 
 set -euo pipefail
-source /home01/k252a02/kbds_project/scripts/00_common.sh
+source /home01/k266a01/kbds_project/scripts/00_common.sh
 # 호스트 모듈은 conda 폴백 시에만 필요(컨테이너는 자체 cuda/gcc 보유)
 if [[ "$ENV_MODE" == conda ]]; then module load compilers/cuda/12.4 compilers/gcc/10.2.0; fi
 

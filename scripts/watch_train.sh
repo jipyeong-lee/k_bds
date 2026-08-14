@@ -5,8 +5,8 @@
 #     logfile 생략 시 logs/grpo_stage2_*.log 중 최신을 매 갱신마다 자동 추적(잡 재시작 대응).
 #   tmux:  tmux attach -t kbds   /   detach: Ctrl-b 누른 뒤 d
 # =============================================================================
-PROJ=/home01/k252a02/kbds_project
-USER_ID=k252a01
+PROJ=/home01/k266a01/kbds_project
+USER_ID="${USER_ID:-$USER}"
 FIXED_LOG="${1:-}"
 
 while true; do

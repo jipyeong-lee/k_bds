@@ -1,6 +1,6 @@
 #!/bin/bash
 # =============================================================================
-# transfer_pull.sh — 받는 계정(예: k252a02)에서 실행. 소스 계정(k252a01)의 데이터·모델을
+# transfer_pull.sh — 받는 계정(현재 k266a01)에서 실행. 소스 계정의 데이터·모델을
 #   pull 하고 절대경로를 자기 경로로 치환한다. (재다운로드/재빌드 회피 — 같은 클러스터 전용)
 #
 #   전제: 같은 KISTI 클러스터 + 같은 그룹(kbds0754). 소스 홈이 group-readable(확인됨).
@@ -21,10 +21,11 @@
 #      clone 이 먼저 끝나 있어야 한다.
 # =============================================================================
 set -euo pipefail
-SRC="${SRC:-/home01/k252a02/kbds_project}"
+SRC="${SRC:-/home01/k252a02/kbds_project}"   # 직전 계정. 새 이관 때는 SRC= 로 반드시 지정
 DST="${DST:-$(cd "$(dirname "$0")/.." && pwd)}"
 echo "[pull] SRC=$SRC"
 echo "[pull] DST=$DST"
+[ "$SRC" != "$DST" ] || { echo "❌ SRC 와 DST 가 같다 — SRC=/home01/<소스계정>/kbds_project 로 지정하라"; exit 1; }
 [ -r "$SRC/work/data/stage2_expanded_train.jsonl" ] || { echo "❌ 소스 읽기 불가 — 같은 그룹/권한 확인"; exit 1; }
 mkdir -p "$DST/work/data" "$DST/work/checkpoints" "$DST/work/hf_cache/hub" "$DST/work/images"
 

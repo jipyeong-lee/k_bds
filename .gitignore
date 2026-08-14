@@ -22,6 +22,7 @@ __pycache__/
 # ── 에이전트 도구 로컬 설정 (사용자별, 공유 대상 아님) ──
 .claude/
 .omc/
+.serena/
 
 # ── 기타 ──
 .DS_Store

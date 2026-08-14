@@ -5,6 +5,30 @@
 
 ---
 
+## 0. 🆕 B200 플랫폼으로 이관 (2026-08-14) — 파이프라인 실행 검증됨
+
+KISTI 노드 시간이 종료되어 **Jukyung-Yadok(NHN) 8× B200** 플랫폼으로 옮겼다. 실행 방법·함정은
+[`CLAUDE.md`](CLAUDE.md) §1, 스크립트는 [`b200/`](b200/). 요지:
+
+- **하드웨어**: 8× B200 180GB NVLink (KISTI A100-40GB·NVLink無 대비 대폭 상향). GRPO **~40 s/it**(스모크) vs KISTI 213.
+- **접속**: HTTP API + PAT(`$ORCH_PAT`). 세션 생성→`exec`→job 폴링(대화형 셸 없음). `b200/drive_node.sh`로 감쌈.
+- **저장소**: `$ORCH_HOME`(xfs 3.2T, job R/W) — venv·데이터·체크포인트 전부 여기. 세션 워크스페이스·`/tmp`는 휘발성.
+- **반입**: KISTI→플랫폼 `/me/data/upload` ~138 MB/s, **단일 요청 60초 제한 → 3.5G 청크**. HF 대용량 CDN은 차단(직접 다운로드 불가).
+- **스택**: KISTI 검증본 핀(ms-swift 4.1.3 / torch 2.10.0+cu129 / vllm 0.19.1 …). B200 5대 함정(uv 인덱스·cutlass-dsl 4.5.0.dev0·Triton 캐시 exec·flashinfer nvrtc.h·attn sdpa) 전부 `b200/node_setup_and_smoke.sh`에 반영.
+
+**✅ 검증(2026-08-14)**: pmcvqa 3-step 스모크 완주 — `SWIFT_EXIT=0`, 보상 3종 정상,
+mem 172/180 GiB, KL·grad 정상. 데이터 로드→이미지→vLLM 롤아웃(flashinfer)→보상(math_verify)→GDPO 손실→저장 전 구간 동작.
+
+**다음 임계경로 (B200)**:
+1. **deepvision·mmk12 데이터 업로드** — 현재 pmcvqa만 올라감. `data.tar`(46G, KISTI `/scratch/migrate_k266_to_gpu/`)를 `b200/upload_chunked.sh`로 청크 업로드.
+2. **3-arm 배선** — `node_setup_and_smoke.sh`의 `swift rlhf`를 arm별로(`--dataset stage2_<arm>.jsonl`, `--max_steps 1500`, `--output_dir runs/expert_<arm>`) 복제. 8 GPU 배치(tensor-parallel vs arm 순차) 결정. 인자 근거 = `scripts/launch_domain_experts.sh`.
+3. **어댑터 통합 → Stage-3** (아래 §5와 동일, 계획서 핵심 산출물·미시작).
+
+> ⚠️ KISTI 원본(`k266a01:~/kbds_project/work`, ~305G)과 검증본은 그대로 보존. B200은 사본이므로
+> KISTI 결과 재현이 목표 — 그래서 스택을 KISTI 버전으로 핀했다.
+
+---
+
 ## 1. 지금 어디까지 왔나 (한눈에)
 
 | 단계 | 상태 | 핵심 |

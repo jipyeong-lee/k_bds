@@ -8,7 +8,14 @@
 
 ---
 
-## 현황 (2026-08-14)
+## 현황 (2026-08-15)
+
+**지금 위치**: **B200 에서 deepvision 1 epoch 본실행 진행 중** — 5,715 step 중 **284** (08-15 22:35 기준, 완료 예상 08-22).
+KISTI 큐(75394~75396, 08-17 시작 예상)를 기다리는 대신 **Jukyung-Yadok B200 8장**으로 옮겨 돌리고 있다.
+알고리즘도 `dr_grpo + gdpo + TIS`로 바꿨다. → [B200 1 epoch 본실행](#b200-1-epoch-본실행-2026-08-15)
+
+<details>
+<summary>이전 현황 (2026-08-14, KISTI 기준)</summary>
 
 **지금 위치**: **Stage-2 도메인 전문가 3종 본실행 제출 완료** — job **75394**(deepvision) / **75395**(mmk12) / **75396**(pmcvqa), 각 1,500 step · 118h.
 붕괴 재현은 **포기**했다(28/28 동일 조건 재현 실패 = 상태 의존 저확률 사건). 대신 **붕괴가 증폭된 경로를 끊는 쪽**으로 방향을 틀었고,
@@ -61,6 +68,57 @@ DeepSeek-V4 구조를 따라 **혼합 학습 → 도메인별 전문가 3분할*
 > 🚨 **환경 (2026-07-27~)**: 클러스터 **apptainer 파손**(`libsubid.so.3` 부재 + GLIBC_2.28 요구 vs 호스트 2.17) → `singularity exec` 불가.
 > **이미지는 정상**이라 재빌드는 무의미(빌드도 불가). **우회 = `ENV_MODE=loader` 가 기본값**이라 기존 스크립트가 그대로 동작
 > (검증: 8GPU GRPO 완주, job 72832). apptainer 복구 시 `ENV_MODE=container` 로 원복. → [`HANDOFF.md`](HANDOFF.md) §3 · `runc.sh` 주석
+
+</details>
+
+### B200 1 epoch 본실행 (2026-08-15)
+
+KISTI 큐 대기가 길어져 **Jukyung-Yadok B200 8장**으로 옮겼다. 실행 절차·함정은 [`CLAUDE.md`](CLAUDE.md) §1 · [`b200/`](b200/).
+
+![deepvision 학습 곡선](b200/progress_deepvision.png)
+
+> 곡선 갱신: 노드에서 `b200/dump_metrics.sh` → CSV 를 받아 `python3 b200/plot_progress.py`.
+> CSV 는 노드 stdout 이 8KB 에서 잘리므로 80 행 안팎으로 솎아서 나온다.
+
+**설정** (이전 실행에서 바꾼 것을 굵게)
+
+| | 값 | 근거 |
+|---|---|---|
+| loss / advantage | `dr_grpo` + `scale_rewards=gdpo` | 상수 정규화로 길이 편향 제거 + 보상별 z-score |
+| **off-policy 보정** | **`rollout_importance_sampling_mode=token_truncate`, threshold 2.0** | async 롤아웃의 1-라운드 정책 지연을 IS 로 되돌린다 |
+| 롤아웃 | `vllm_mode=server`(GPU 7) + `async_generate=true` | 순차 롤아웃은 GPU 절반이 절반 시간 유휴(실측) |
+| 배치 | PDTBS 2 × ACCUM 8 × world 7 = **112**, num_gen 16 | PDTBS 4 는 이득 없음(아래 ③) |
+| **KL / 온도** | **`beta=0`**(0.04 에서) · **`temperature=1.0`**(0.9 에서) | step 284 에서 변경 |
+| 총 step | 40,000 ÷ 7 = **5,715** (1 epoch) | 완료 예상 08-22 |
+
+**관측 (step 284)**
+
+| 지표 | 값 | 판정 |
+|---|---|---|
+| reward | 0.54 → 0.66(step 200) → **0.52** | 최근 30 step 하락. 추세인지 배치 변동인지 **미확정** |
+| AccuracyMix | 0.35 → 0.47 → 0.36 | 위와 같은 모양 |
+| FormatThink | **0.98~1.0** | 붕괴 신호 없음 (구 실행은 ~900 에서 형식 붕괴) |
+| `log_ppl_abs_diff` | 0.06~0.08 | IcePop 임계 5% **위**에서 유지 — 단 이건 보정 **전** 진단값이다 |
+| **ESS** | **0.985** | 보정 후 유효표본 98.5%. 실제 건전성은 이쪽으로 본다(기준선 0.9) |
+| memory / step | 84.9 GiB / 108 s | 180 GiB 중 |
+
+**이날 확정한 것**
+
+1. **TIS 가 실제로 걸린다** — `is_weight_mean` 0.996 · `clipped_frac` 0.2% · `ess` 0.985.
+   rollout logprob 은 원래도 수집되고 있었으므로(off-policy 지표가 찍히는 게 증거) 추가 비용이 없다.
+2. **ms-swift 4.5.0 업그레이드는 이득이 없다** — mismatch 관련 인자가 4.1.3 과 **동일**하다(인자 diff 로 확인).
+   4.5.0 에만 있는 17개는 전부 다른 축이다(`fipo_*`=Future-KL loss, `rlsd_*`·`sdar_*`=distillation, `min_p`, `gym_env`).
+3. **PDTBS 4 는 무익하다** — `step_time` 은 48→38 s 로 줄지만 wall clock 은 119 vs **122** s/step 로 같고
+   메모리만 85→150 GiB 를 쓴다. 병목이 step 밖(롤아웃 대기·통신)에 있다는 뜻이다 → 2×8 로 되돌렸다.
+4. **job 교체마다 11분씩 잃고 있었다** — killed 된 job 의 rollout 이 포트 8000 을 쥔 채 남으면 새 서버가
+   **실패하지 않고 조용히 8001 로 올라간다.** health check 는 8000 만 보므로 서버가 멀쩡한데 타임아웃으로 죽는다.
+   기동 전 포트 정리로 수정. 2시간마다 11분 = 7일이면 약 15시간이었다.
+5. **실패 시 rollout 로그 경로가 틀려 있었다** — `rollout_${ARM}.log` 로 찍고 실제 파일은 `rollout_${RUNTAG}.log` 였다.
+   ④의 진단이 세 번 빗나간 직접 원인이다. 로그가 제때 보였으면 `Uvicorn running on ...:8001` 한 줄로 끝났을 문제다.
+
+> **32비트 학습은 이 환경에서 닫혀 있다.** 최근 레포트들이 말하는 fp32 는 logits/logprob 계산만 올리는 것인데
+> ms-swift 는 4.1.3·4.5.0 모두 그 스위치가 없다(fp32 는 reward 텐서에만 쓴다). `torch_dtype=float32` 로
+> 통째 올리는 건 메모리 2배라 180 GiB 에 안 들어간다. 이 축 대신 **IS 보정**으로 간다.
 
 ### Stage-2 본실행 현황
 

@@ -78,6 +78,8 @@ bash b200/release_session.sh                        # 세션 조회 / --all-gpu 
 | 세션 반납 | 폴링 프로세스가 죽으면 `DELETE` 가 실행되지 않아 **세션이 GPU 를 계속 점유** → 이후 job 이 전부 `session create failed`. 조회·해제는 `/sessions` (`/nodes/<id>/sessions` 는 405) |
 | 동시 조회 | 학습이 GPU 8장을 잡는 동안 **추가 세션이 안 열린다** → 진행 확인은 job 교체 틈에서만 가능 |
 | 체크포인트 | ms-swift 는 `$OUT/v<N>-<날짜>/checkpoint-<step>` 에 저장. `$OUT/checkpoint-*` 로 찾으면 **영영 못 찾아 매 job 이 step 0 부터 재시작** |
+| **rollout 포트** | killed 된 job 의 rollout 이 8000 을 쥔 채 남으면 새 서버가 실패하지 않고 **조용히 8001 로 뜬다.** health check 는 8000 만 보므로 서버가 멀쩡한데 타임아웃 사망 → **기동 전 포트를 비울 것**. 교체마다 11분씩 잃었다 |
+| **stdout 8KB** | `run_node_extract.sh` 의 stdout 은 8KB 근처에서 **앞부분이 잘린다**. 289 행 CSV 가 191~283 만 돌아왔다 → 긴 출력은 노드에서 미리 솎을 것 |
 
 **배치·메모리 실측 (deepvision, max_completion 8192):**
 - `PDTBS 2 × ACCUM 8 × world 7 = 112` 가 상한(171 s/step). PDTBS 4 는 235 GiB 가 필요해 thrashing
@@ -102,3 +104,5 @@ bash b200/release_session.sh                        # 세션 조회 / --all-gpu 
 | init 모델 | `sft_mixed_merged` (Qwen3.5-9B 병합, 18G) |
 | 도메인 데이터 | domains/stage2_{deepvision 40k / mmk12 15k / pmcvqa 20k}.jsonl |
 | 학습 프레임워크 | ms-swift 4.1.3 · `loss_type=dr_grpo` + `scale_rewards=gdpo` + `async_generate=true` · num_gen 16 |
+| off-policy 보정 | `rollout_importance_sampling_mode=token_truncate` (threshold 2.0) · `beta=0` · `temperature=1.0` |
+| 버전 | 최신은 4.5.0 이지만 **mismatch 관련 인자가 4.1.3 과 동일** → 업그레이드 이득 없음(인자 diff 확인) |

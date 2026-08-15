@@ -34,12 +34,36 @@ SCALE="${SCALE:-gdpo}"
 # 순차 573s(롤아웃 287 + 학습 286) → max(287,286) ≈ 300s 를 노린다. server 모드 전용이라
 # 오늘 colocate→server 로 바꾼 것이 전제 조건을 만들었다. 멀티턴에서는 못 쓰지만 우리는 싱글턴.
 ASYNC="${ASYNC:-true}"
-RUNTAG="${ARM}_ep1_${SCALE}$([ "$ASYNC" = true ] && echo _async)"
+# 학습·추론 확률 불일치 보정(TIS). async 롤아웃은 "1 라운드 이전 가중치"로 생성하므로 정책 지연이
+# 그대로 off-policy 편향으로 쌓인다 — 실측으로 log_ppl_abs_diff 가 78 step 4.4% → 102 step 8.1% 로
+# 올라 IcePop 기준(5%)을 넘겼다. loss 에 w=min(π_θ/π_rollout, C) 를 곱해 그 편향을 되돌린다.
+# ppl_ratio 실측이 1.086 이라 C=2 는 거의 안 걸린다 → 잘라내기보다 순수 IS 보정으로 동작한다.
+# rollout logprob 은 이미 수집되고 있다(off-policy 지표가 찍히는 게 그 증거) → 추가 비용 없음.
+# 4.1.3 과 최신 4.5.0 의 mismatch 관련 인자는 동일하다(인자 diff 로 확인) → 업그레이드 이득 없음.
+ISMODE="${ISMODE:-token_truncate}"   # '' 면 보정 끔. token_mask/sequence_truncate/sequence_mask 도 가능
+ISTHRESH="${ISTHRESH:-2.0}"
+# 참조 모델 KL 페널티. 0.04 로 돌다가 step ~280 에서 0 으로 내렸다 — Dr. GRPO·DAPO·GSPO·GLM-5 가
+# 모두 beta 0 을 쓴다. 검증 가능한 보상이 있는 RLVR 에서는 참조 모델 KL 이 탐색을 묶는 쪽으로 작용한다.
+# loss_type=dr_grpo 를 고르면서 KL 을 남겨둔 건 앞뒤가 안 맞았다. 부수 효과로 ref 모델 forward 가
+# 사라져 step 이 빨라지고 메모리도 준다.
+BETA="${BETA:-0}"
+# GRPO 는 그룹 내 다양성이 advantage 의 분산을 만든다 → 관례는 1.0 이고 ms-swift 예제도 1.0 이다.
+# 0.9 로 돌다가 같은 시점에 1.0 으로 올렸다.
+TEMP="${TEMP:-1.0}"
+IS_ARGS=()
+[ -n "$ISMODE" ] && IS_ARGS=(--rollout_importance_sampling_mode "$ISMODE" \
+                             --rollout_importance_sampling_threshold "$ISTHRESH")
+# 보정 유무로 output_dir 을 가른다 — loss 가 바뀌면 같은 디렉터리에서 이어받는 게 의미가 없다.
+RUNTAG="${ARM}_ep1_${SCALE}$([ "$ASYNC" = true ] && echo _async)$([ -n "$ISMODE" ] && echo _tis)"
 OUT="$ORCH_HOME/runs/$RUNTAG"
 LOG="$ORCH_HOME/train_${RUNTAG}.log"
 PORT=8000
 NUMGEN="${NUMGEN:-16}"; WORLD="${WORLD:-7}"
-# 벤치 실측: PDTBS 2 = 171 s/step @117.5 GiB (상한). PDTBS 4 는 235 GiB 가 필요해 thrashing.
+# PDTBS 4 를 실제로 돌려봤고 되돌렸다. expandable_segments 덕에 OOM 은 안 났지만(143.7→150 GiB)
+# **wall clock 이 전혀 줄지 않았다** — job 하나에서 PDTBS 2 는 119 s/step, PDTBS 4 는 122 s/step 이었고
+# 심지어 PDTBS 4 쪽 completion 이 더 짧았다(679 vs 889). step_time 은 48→38 s 로 줄었는데 벽시계가
+# 그대로라는 건 병목이 step 밖(롤아웃 대기·통신)에 있다는 뜻이다. 메모리 65 GiB 를 더 쓰고 얻은 게 없다.
+# GEN_BATCH=PDTBS×ACCUM×world 는 112 로 고정이어야 한다(num_gen 16) → 바꾸려면 곱이 16 을 유지할 것.
 PDTBS="${PDTBS:-2}"; ACCUM="${ACCUM:-8}"
 # GC off 는 16K 시퀀스에서 PDTBS 1 조차 못 버틴다(GPU 178 GiB 중 357 MiB 잔여로 OOM).
 GC="${GC:-true}"
@@ -80,8 +104,21 @@ echo "=== 설정 ==="
 echo "  arm=$ARM  rows=$ROWS  1epoch=$TOTAL step"
 echo "  PDTBS=$PDTBS ACCUM=$ACCUM world=$WORLD → GEN_BATCH=$GEN_BATCH, num_gen=$NUMGEN, 프롬프트/step=$PPS"
 echo "  max_completion=$MAXCOMP soft_cache=$SOFTCACHE gradient_checkpointing=$GC"
+echo "  off-policy 보정: ${ISMODE:-없음} (threshold=$ISTHRESH) · async_generate=$ASYNC"
+echo "  beta(KL)=$BETA · temperature=$TEMP"
 
 stamp "1) vLLM 롤아웃 서버 기동 (GPU 7)"
+# 앞 job 이 timeout 으로 killed 되면 아래 trap 이 실행되지 않아 rollout 이 포트 $PORT 를 쥔 채 남는다.
+# 그 상태로 새 서버를 띄우면 vLLM 은 실패하지 않고 **조용히 다음 포트(8001)로 올라간다.** health check
+# 는 $PORT 만 보므로 서버가 멀쩡히 떠 있는데도 영원히 기다리다 죽는다 — job #4·#6·#8 이 이것이었다.
+# (job #8 의 서버는 53 초 만에 8001 에 떴고, 우리는 8000 에서 30 분을 기다렸다.)
+for _ in $(seq 1 60); do
+  (exec 3<>"/dev/tcp/127.0.0.1/$PORT") 2>/dev/null || break
+  exec 3<&-
+  echo "  포트 $PORT 를 이전 job 의 rollout 이 쥐고 있다 → 정리"
+  pkill -f "swift rollout" 2>/dev/null
+  sleep 5
+done
 CUDA_VISIBLE_DEVICES=7 nohup "$VENV/bin/swift" rollout \
   --model "$MODEL" --model_type qwen3_5 \
   --vllm_tensor_parallel_size 1 \
@@ -93,12 +130,16 @@ ROLLOUT_PID=$!
 cleanup(){ echo "[cleanup] rollout pid=$ROLLOUT_PID 종료"; kill "$ROLLOUT_PID" 2>/dev/null; wait "$ROLLOUT_PID" 2>/dev/null; }
 trap cleanup EXIT
 
-for i in $(seq 1 120); do
+# 정상이면 53 초에 뜬다(실측). 넉넉히 잡되, 서버가 죽으면 아래 kill -0 이 즉시 빠져나온다.
+for i in $(seq 1 240); do   # 20분
   curl -s "http://127.0.0.1:$PORT/health" >/dev/null 2>&1 && { echo "  health OK ($((i*5))s)"; break; }
-  kill -0 "$ROLLOUT_PID" 2>/dev/null || { echo "  ❌ rollout 사망"; tail -30 "$ORCH_HOME/rollout_${ARM}.log"; exit 1; }
+  kill -0 "$ROLLOUT_PID" 2>/dev/null || { echo "  ❌ rollout 사망"; tail -30 "$ORCH_HOME/rollout_${RUNTAG}.log"; exit 1; }
   sleep 5
 done
-curl -s "http://127.0.0.1:$PORT/health" >/dev/null 2>&1 || { echo "  ❌ 서버 미기동"; exit 1; }
+# 실패했을 때 로그를 안 남겨서 진단이 세 번 늦어졌다 — 여기서 반드시 꼬리를 찍는다.
+# 특히 "Uvicorn running on ...:8001" 이 보이면 포트가 밀린 것이다(위 정리 루프를 의심할 것).
+curl -s "http://127.0.0.1:$PORT/health" >/dev/null 2>&1 || {
+  echo "  ❌ 서버 미기동 — rollout 로그 꼬리:"; tail -20 "$ORCH_HOME/rollout_${RUNTAG}.log"; exit 1; }
 
 stamp "2) 형식 붕괴 감시자 기동"
 # 73924/73925 는 step ~900 붕괴 후 13h35m 을 더 돌았다(109 GPU-h). 이번 실행은 5,715 step /
@@ -135,10 +176,11 @@ CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6 NPROC_PER_NODE="$WORLD" \
   --dynamic_sample true --max_resample_times 3 --overlong_filter false \
   --loss_type dr_grpo --importance_sampling_level token --epsilon 0.2 --scale_rewards "$SCALE" \
   --log_rollout_offpolicy_metrics true \
-  --enable_thinking true --num_generations "$NUMGEN" --temperature 0.9 \
+  "${IS_ARGS[@]}" \
+  --enable_thinking true --num_generations "$NUMGEN" --temperature "$TEMP" \
   --max_completion_length "$MAXCOMP" --max_length "$MAXLEN" --max_pixels 262144 \
   --per_device_train_batch_size "$PDTBS" --gradient_accumulation_steps "$ACCUM" \
-  --learning_rate 1e-5 --beta 0.04 \
+  --learning_rate 1e-5 --beta "$BETA" \
   --gradient_checkpointing "$GC" --attn_impl sdpa \
   --use_vllm true --vllm_mode server --vllm_server_host 127.0.0.1 --vllm_server_port "$PORT" \
   --async_generate "$ASYNC" \

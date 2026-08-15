@@ -21,6 +21,8 @@ export ORCH_BASE_URL=https://...   # 플랫폼 API base (커밋 금지 — 기�
 | **`check_progress.sh`** | 진행 step·보상·메모리·off-policy 지표 조회 | 노드(payload) |
 | **`bench_pdtbs.sh`** | GEN_BATCH 고정 후 PDTBS 만 올려 학습 처리량 상한 측정 | 노드(payload) |
 | **`release_session.sh`** | 반납 안 된 세션 조회/해제 (`/sessions`) | KISTI |
+| **`dump_metrics.sh`** | 학습 로그 → CSV. stdout 8KB 제한 때문에 80 행 안팎으로 솎아서 낸다 | 노드(payload) |
+| **`plot_progress.py`** | CSV → 학습 곡선 PNG (`../README.md` 에 실린다) | 로컬 |
 
 ## 순서
 ```bash
@@ -44,7 +46,14 @@ job 은 `timeout_sec` 에 도달하면 `killed` 되고 **그때 stdout 이 통�
 그래서 `chain_epoch.sh` 가 매 job 종료 후 `check_progress.sh` 를 자동으로 한 번 돌려 로그에 남긴다.
 
 ## 실측 근거 (2026-08-15)
-- 배치 상한 `PDTBS 2 × ACCUM 8 × 7 = 112` → 171 s/step. PDTBS 4 는 thrashing (`bench_pdtbs.sh` 결과)
+- 배치는 `PDTBS 2 × ACCUM 8 × 7 = 112`. **PDTBS 4 도 돌려봤지만 되돌렸다** — `expandable_segments` 덕에
+  OOM 은 안 나지만(143→150 GiB) wall clock 이 119 vs 122 s/step 로 같다. `step_time` 만 48→38 s 로 줄고
+  벽시계가 그대로라는 건 병목이 step 밖(롤아웃 대기·통신)에 있다는 뜻이다. 메모리 65 GiB 를 더 쓰고 얻는 게 없다.
 - `gradient_checkpointing=false` 불가 — 16K 시퀀스에서 PDTBS 1 도 OOM
-- 순차 롤아웃은 GPU 절반이 절반 시간 유휴 → `--async_generate true`(server 모드 전용)로 오버랩
+- 순차 롤아웃은 GPU 절반이 절반 시간 유휴 → `--async_generate true`(server 모드 전용)로 오버랩.
+  대신 롤아웃이 1 라운드 이전 가중치를 쓰므로 `--rollout_importance_sampling_mode token_truncate` 로 보정한다.
+  판단 지표는 진단값(`log_ppl_abs_diff`)이 아니라 **보정 후 `ess`** 다(기준선 0.9, 실측 0.985).
+- **rollout 포트 충돌**: killed 된 job 의 rollout 이 8000 을 쥔 채 남으면 새 서버가 실패하지 않고
+  **조용히 8001 로 올라간다.** health check 는 8000 만 보므로 서버가 멀쩡한데 타임아웃으로 죽는다
+  (job 교체마다 11분, 7일이면 약 15시간). `run_epoch.sh` 가 기동 전에 포트를 비운다.
 - 나머지 함정은 [`../CLAUDE.md`](../CLAUDE.md) §1.5 표 참조

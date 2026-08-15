@@ -53,7 +53,9 @@ job 은 `timeout_sec` 에 도달하면 `killed` 되고 **그때 stdout 이 통�
 - 순차 롤아웃은 GPU 절반이 절반 시간 유휴 → `--async_generate true`(server 모드 전용)로 오버랩.
   대신 롤아웃이 1 라운드 이전 가중치를 쓰므로 `--rollout_importance_sampling_mode token_truncate` 로 보정한다.
   판단 지표는 진단값(`log_ppl_abs_diff`)이 아니라 **보정 후 `ess`** 다(기준선 0.9, 실측 0.985).
-- **rollout 포트 충돌**: killed 된 job 의 rollout 이 8000 을 쥔 채 남으면 새 서버가 실패하지 않고
-  **조용히 8001 로 올라간다.** health check 는 8000 만 보므로 서버가 멀쩡한데 타임아웃으로 죽는다
-  (job 교체마다 11분, 7일이면 약 15시간). `run_epoch.sh` 가 기동 전에 포트를 비운다.
+- **rollout 포트 밀림**: 앞 job 이 killed 되면 그 소켓이 **TIME_WAIT** 로 남고, vLLM 은 실패하지 않고
+  **조용히 8001 로 올라간다.** health 가 8000 만 보면 서버가 53초 만에 떠 있는데도 타임아웃으로 죽는다
+  (교체마다 10~30분). TIME_WAIT 는 연결 체크로 감지할 수 없으므로(연결은 실패하고 bind 만 실패)
+  포트를 비우려는 시도는 통하지 않는다 — `run_epoch.sh` 는 로그의 `Uvicorn running on ...:<포트>` 를
+  읽어 **뜬 포트를 따라간다**(그 값이 그대로 `--vllm_server_port` 로 간다).
 - 나머지 함정은 [`../CLAUDE.md`](../CLAUDE.md) §1.5 표 참조

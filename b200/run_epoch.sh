@@ -108,17 +108,6 @@ echo "  off-policy 보정: ${ISMODE:-없음} (threshold=$ISTHRESH) · async_gene
 echo "  beta(KL)=$BETA · temperature=$TEMP"
 
 stamp "1) vLLM 롤아웃 서버 기동 (GPU 7)"
-# 앞 job 이 timeout 으로 killed 되면 아래 trap 이 실행되지 않아 rollout 이 포트 $PORT 를 쥔 채 남는다.
-# 그 상태로 새 서버를 띄우면 vLLM 은 실패하지 않고 **조용히 다음 포트(8001)로 올라간다.** health check
-# 는 $PORT 만 보므로 서버가 멀쩡히 떠 있는데도 영원히 기다리다 죽는다 — job #4·#6·#8 이 이것이었다.
-# (job #8 의 서버는 53 초 만에 8001 에 떴고, 우리는 8000 에서 30 분을 기다렸다.)
-for _ in $(seq 1 60); do
-  (exec 3<>"/dev/tcp/127.0.0.1/$PORT") 2>/dev/null || break
-  exec 3<&-
-  echo "  포트 $PORT 를 이전 job 의 rollout 이 쥐고 있다 → 정리"
-  pkill -f "swift rollout" 2>/dev/null
-  sleep 5
-done
 CUDA_VISIBLE_DEVICES=7 nohup "$VENV/bin/swift" rollout \
   --model "$MODEL" --model_type qwen3_5 \
   --vllm_tensor_parallel_size 1 \
@@ -130,16 +119,29 @@ ROLLOUT_PID=$!
 cleanup(){ echo "[cleanup] rollout pid=$ROLLOUT_PID 종료"; kill "$ROLLOUT_PID" 2>/dev/null; wait "$ROLLOUT_PID" 2>/dev/null; }
 trap cleanup EXIT
 
-# 정상이면 53 초에 뜬다(실측). 넉넉히 잡되, 서버가 죽으면 아래 kill -0 이 즉시 빠져나온다.
-for i in $(seq 1 240); do   # 20분
-  curl -s "http://127.0.0.1:$PORT/health" >/dev/null 2>&1 && { echo "  health OK ($((i*5))s)"; break; }
-  kill -0 "$ROLLOUT_PID" 2>/dev/null || { echo "  ❌ rollout 사망"; tail -30 "$ORCH_HOME/rollout_${RUNTAG}.log"; exit 1; }
+# 요청한 포트가 아니라 **실제로 바인딩된 포트**를 로그에서 읽는다.
+#
+# 앞 job 이 timeout 으로 killed 되면 그 rollout 의 소켓이 TIME_WAIT 로 남는다. 이때 vLLM 은 실패하지
+# 않고 **조용히 다음 포트(8001)로 올라간다.** 우리가 준 $PORT 만 폴링하면 서버가 53 초 만에 멀쩡히
+# 떠 있는데도 타임아웃까지 기다리다 죽는다 — job #4·#6·#8·#10 이 전부 이것이었고 매번 10~30 분을
+# 8000 에서 헛기다렸다. 실측: 실패 job #10 은 8001, 성공 job #11 은 8000 이었다.
+#
+# TIME_WAIT 는 "연결이 되는가"로는 감지할 수 없다(연결은 실패하고 bind 만 실패한다) — 그래서
+# 포트를 미리 비우려는 시도는 통하지 않는다. 뜬 포트를 따라가는 쪽이 맞다.
+RLOG="$ORCH_HOME/rollout_${RUNTAG}.log"
+for i in $(seq 1 240); do   # 20분. 정상이면 53 초에 뜬다.
+  ACTUAL=$(grep -oE "Uvicorn running on http://[0-9.]+:[0-9]+" "$RLOG" 2>/dev/null | tail -1 | sed 's/.*://')
+  if [ -n "$ACTUAL" ] && curl -s "http://127.0.0.1:$ACTUAL/health" >/dev/null 2>&1; then
+    [ "$ACTUAL" != "$PORT" ] && echo "  ⚠️ 포트가 밀렸다: $PORT → $ACTUAL (앞 job 소켓이 TIME_WAIT)"
+    PORT="$ACTUAL"
+    echo "  health OK ($((i*5))s, port=$PORT)"
+    break
+  fi
+  kill -0 "$ROLLOUT_PID" 2>/dev/null || { echo "  ❌ rollout 사망"; tail -30 "$RLOG"; exit 1; }
   sleep 5
 done
-# 실패했을 때 로그를 안 남겨서 진단이 세 번 늦어졌다 — 여기서 반드시 꼬리를 찍는다.
-# 특히 "Uvicorn running on ...:8001" 이 보이면 포트가 밀린 것이다(위 정리 루프를 의심할 것).
 curl -s "http://127.0.0.1:$PORT/health" >/dev/null 2>&1 || {
-  echo "  ❌ 서버 미기동 — rollout 로그 꼬리:"; tail -20 "$ORCH_HOME/rollout_${RUNTAG}.log"; exit 1; }
+  echo "  ❌ 서버 미기동 — rollout 로그 꼬리:"; tail -20 "$RLOG"; exit 1; }
 
 stamp "2) 형식 붕괴 감시자 기동"
 # 73924/73925 는 step ~900 붕괴 후 13h35m 을 더 돌았다(109 GPU-h). 이번 실행은 5,715 step /

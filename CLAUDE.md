@@ -80,6 +80,7 @@ bash b200/release_session.sh                        # 세션 조회 / --all-gpu 
 | **세션 없는 파일 읽기** | `GET /me/data/file?path=<$ORCH_HOME 기준 상대경로>` 가 파일 내용을 그대로 준다 — 학습 중에도 언제든. `/me/data?path=<dir>` 는 목록, `download`·`cat` 는 404. **stdout 8KB 절단도 없다** → 로그를 통째로 받아 전 step 파싱. [`b200/pull_file.sh`](b200/pull_file.sh) → [`b200/parse_log.py`](b200/parse_log.py) → [`b200/plot_progress.py`](b200/plot_progress.py) |
 | 체크포인트 | ms-swift 는 `$OUT/v<N>-<날짜>/checkpoint-<step>` 에 저장. `$OUT/checkpoint-*` 로 찾으면 **영영 못 찾아 매 job 이 step 0 부터 재시작** |
 | **rollout 포트** | 앞 job 이 killed 되면 그 소켓이 **TIME_WAIT** 로 남고, vLLM 은 실패하지 않고 **조용히 8001 로 뜬다.** health 가 8000 만 보면 서버가 53초 만에 멀쩡히 떠 있는데도 타임아웃 사망(교체마다 10~30분 손실). TIME_WAIT 는 "연결이 되는가"로는 감지할 수 없다(연결은 실패하고 bind 만 실패) → 포트를 비우려 하지 말고 로그의 `Uvicorn running on ...:<포트>` 를 읽어 **그 포트를 따라갈 것** |
+| **chain 페이로드 고정** | `chain_epoch.sh` 는 루프 **시작 시 1회만** `run_epoch.sh` → `run_epoch_<arm>.sh` 를 만든다. 체인 도중 `run_epoch.sh` 를 고쳐도 **다음 job 에 반영되지 않는다** → 페이로드도 같이 갱신할 것 |
 | **stdout 8KB** | 노드 exec 의 stdout 은 8KB 근처에서 **앞부분이 잘린다**. 289 행 CSV 가 191~283 만 돌아왔다. 솎아내면 **최저점이 사라져 오판한다**(실제로 `zero_std` 최대 0.357 을 "전 구간 0" 으로 읽었다) → 지표는 솎지 말고 위 파일 API 로 통째로 받을 것 |
 
 **배치·메모리 실측 (deepvision, max_completion 8192):**

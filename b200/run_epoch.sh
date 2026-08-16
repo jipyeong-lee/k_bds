@@ -86,6 +86,9 @@ PDTBS="${PDTBS:-2}"; ACCUM="${ACCUM:-8}"
 GC="${GC:-true}"
 # --max_steps 는 21_rlvr_grpo_adv.slurm 과 같은 의미로 쓴다: 이번 job 의 몫이 아니라 **누적 목표**.
 # job 마다 다른 값을 주면 lr 스케줄러가 그 값 기준으로 다시 깔려 매번 0 으로 소멸한다.
+# log_completions=true → $OUT/v<N>-*/completions.jsonl 에 prompt·completion·보상·advantage·entropy.
+# 롤아웃 실물을 보는 유일한 경로다(1차 실행은 이게 꺼져 있어 붕괴한 텍스트를 끝내 못 봤다).
+# 크기는 step 당 generation_batch_size(=112) 건 → job 당 ~50MB, v 디렉터리가 job 마다 새로 생겨 누적되지 않는다.
 # job 은 60분에 killed 되고 다음 job 이 체크포인트에서 이어받는다 → 손실 상한이 save_steps.
 SAVE_STEPS="${SAVE_STEPS:-4}"
 MAXLEN="${MAXLEN:-16384}"
@@ -204,7 +207,7 @@ CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6 NPROC_PER_NODE="$WORLD" \
   --gradient_checkpointing "$GC" --attn_impl sdpa \
   --use_vllm true --vllm_mode server --vllm_server_host 127.0.0.1 --vllm_server_port "$PORT" \
   --async_generate "$ASYNC" \
-  --log_completions false --logging_steps 1 \
+  --log_completions true --logging_steps 1 \
   --max_steps "$TOTAL" \
   --save_strategy steps --save_steps "$SAVE_STEPS" --save_total_limit 3 \
   --output_dir "$OUT" --report_to none \

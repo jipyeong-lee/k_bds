@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-"""dump_metrics.sh 가 뽑은 CSV 를 학습 곡선 PNG 로 그린다.
+"""parse_log.py 가 뽑은 CSV 를 학습 곡선 PNG 로 그린다.
 
     python3 b200/plot_progress.py b200/metrics_deepvision.csv b200/progress_deepvision.png
 
-CSV 는 노드 stdout 제한 때문에 이미 솎아져 있다(80 행 안팎) — 여기서 추가로 손대지 않는다.
-설정이 바뀐 지점은 세로 점선으로 표시한다. 곡선만 보면 "왜 여기서 꺾였나"를 알 수 없어서다.
+CSV 는 전 step 이 들어 있다 — step 별 값은 배치 난이도로 크게 튀므로 원본은 흐리게 깔고
+이동평균으로 추세를 본다. 설정이 바뀐 지점은 세로 점선으로 표시한다.
+곡선만 보면 "왜 여기서 꺾였나"를 알 수 없어서다.
 """
 import sys
 
@@ -35,15 +36,16 @@ MARKS = [
 ]
 
 # step 별 값은 배치 난이도 때문에 크게 튄다 — 원본은 흐리게 깔고 이동평균으로 추세를 본다.
-WIN = max(3, len(pd.read_csv(src)) // 12)
+# 창이 너무 넓으면 붕괴 같은 짧은 사건이 뭉개지므로 40 에서 끊는다.
+WIN = min(40, max(3, len(df) // 12))
 
 
-def trend(a, x, y, color, label, raw_alpha=0.25):
-    a.plot(x, y, lw=1.0, color=color, alpha=raw_alpha)
+def trend(a, x, y, color, label, raw_alpha=0.15):
+    a.plot(x, y, lw=0.6, color=color, alpha=raw_alpha)
     a.plot(x, y.rolling(WIN, min_periods=1, center=True).mean(),
            lw=1.8, color=color, label=label)
 
-fig, ax = plt.subplots(2, 2, figsize=(13, 8))
+fig, ax = plt.subplots(2, 3, figsize=(19, 8))
 fig.suptitle(
     "Stage-2 RLVR · deepvision (dr_grpo + gdpo + TIS, async rollout)",
     fontsize=13, fontweight="bold",
@@ -83,7 +85,25 @@ h1, l1 = a.get_legend_handles_labels(); h2, l2 = a2.get_legend_handles_labels()
 a.legend(h1 + h2, l1 + l2, fontsize=8, loc="lower left")
 a.grid(alpha=0.3); marks(a)
 
-# 3) 생성 길이 — 붕괴는 길이에서 먼저 보인다
+# 3) 학습 모델 vs 롤아웃 모델의 perplexity — 둘이 벌어지는 것이 붕괴의 실체다.
+#    ro_ppl 이 내려가면 롤아웃 분포가 뾰족해진 것(엔트로피 붕괴), tr_ppl 이 올라가면
+#    학습 모델이 그 생성을 덜 그럴듯하게 보는 것이다. 비율이 벌어지면 둘이 다른 모델이 된다.
+#    tr_ppl 은 가끔 수십까지 튀므로 추세가 안 보이게 되는 걸 막으려고 5 에서 자른다.
+a = ax[0][2]
+trend(a, df["step"], df["tr_ppl"].clip(upper=5), "#d62728", "학습 ppl")
+trend(a, df["step"], df["ro_ppl"].clip(upper=5), "#1f77b4", "롤아웃 ppl")
+a.set_xlabel("step"); a.set_ylabel("perplexity", fontsize=8)
+a2 = a.twinx()
+a2.plot(df["step"], (df["tr_ppl"] / df["ro_ppl"]).clip(upper=3)
+        .rolling(WIN, min_periods=1, center=True).mean(),
+        lw=1.4, color="0.35", ls="--", label="비율 tr/ro")
+a2.set_ylabel("비율", fontsize=8); a2.set_ylim(0.9, 2.2)
+a.set_title("학습 ppl vs 롤아웃 ppl (괴리)", fontsize=10)
+h1, l1 = a.get_legend_handles_labels(); h2, l2 = a2.get_legend_handles_labels()
+a.legend(h1 + h2, l1 + l2, fontsize=8, loc="center left")
+a.grid(alpha=0.3); marks(a)
+
+# 4) 생성 길이 — 붕괴는 길이에서 먼저 보인다
 a = ax[1][0]
 trend(a, df["step"], df["len"], "#8c564b", "completion 평균 길이")
 a.set_xlabel("step"); a.set_ylabel("tokens", fontsize=8)
@@ -94,8 +114,22 @@ a.set_title("생성 길이 / 잘림 비율", fontsize=10)
 h1, l1 = a.get_legend_handles_labels(); h2, l2 = a2.get_legend_handles_labels()
 a.legend(h1 + h2, l1 + l2, fontsize=8); a.grid(alpha=0.3); marks(a)
 
-# 4) 자원 — 배치를 되돌린 효과가 여기서 보인다
+# 5) 학습 신호가 남아 있는지 — zero_std 가 오르면 그룹 내 보상이 전부 같아 advantage 가 0 이 된다.
 a = ax[1][1]
+trend(a, df["step"], df["zero_std"], "#d62728", "advantage 0 비율")
+trend(a, df["step"], df["r_std"], "#2ca02c", "그룹 보상 std")
+a.set_xlabel("step"); a.set_ylim(0, 0.6)
+a2 = a.twinx()
+a2.plot(df["step"], df["grad"].rolling(WIN, min_periods=1, center=True).mean(),
+        lw=1.4, color="#bcbd22", label="grad_norm")
+a2.set_ylabel("grad_norm", fontsize=8)
+a.set_title("학습 신호 (advantage 소실 / 그래디언트)", fontsize=10)
+h1, l1 = a.get_legend_handles_labels(); h2, l2 = a2.get_legend_handles_labels()
+a.legend(h1 + h2, l1 + l2, fontsize=8, loc="center left")
+a.grid(alpha=0.3); marks(a)
+
+# 6) 자원 — 배치를 되돌린 효과가 여기서 보인다
+a = ax[1][2]
 a.plot(df["step"], df["mem"], lw=1.4, color="#17becf", label="memory(GiB)")
 a.axhline(180, color="0.5", ls="--", lw=0.9)
 a.text(df["step"].max(), 178, "B200 180 GiB", fontsize=7, color="0.4",
@@ -115,7 +149,7 @@ fig.text(
     0.5, 0.005,
     f"step {int(last['step'])}/5715 · reward {last['reward']:.3f} · "
     f"AccuracyMix {last['acc']:.3f} · FormatThink {last['fmt']:.3f} · "
-    f"ESS {last['ess']:.4f} · mem {last['mem']:.1f} GiB",
+    f"ESS {last['ess']:.4f} · 불일치 {last['ppl_abs_diff']:.3f} · mem {last['mem']:.1f} GiB",
     ha="center", fontsize=8, color="0.3",
 )
 fig.tight_layout(rect=(0, 0.02, 1, 0.96))

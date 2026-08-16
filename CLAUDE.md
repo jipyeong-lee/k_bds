@@ -76,10 +76,11 @@ bash b200/release_session.sh                        # 세션 조회 / --all-gpu 
 | job 수명 | `timeout_sec` 이 그대로 상한. 3600 을 주면 3600 초에 `killed`, **7200 도 정상 동작**(60분 고정 아님) |
 | killed 시 | **stdout_tail 이 통째로 빈다.** 결과는 반드시 `$ORCH_HOME` 파일에 남기고 별도 짧은 job 으로 읽을 것 |
 | 세션 반납 | 폴링 프로세스가 죽으면 `DELETE` 가 실행되지 않아 **세션이 GPU 를 계속 점유** → 이후 job 이 전부 `session create failed`. 조회·해제는 `/sessions` (`/nodes/<id>/sessions` 는 405) |
-| 동시 조회 | 학습이 GPU 8장을 잡는 동안 **추가 세션이 안 열린다** → 진행 확인은 job 교체 틈에서만 가능 |
+| 동시 조회 | 학습이 GPU 8장을 잡는 동안 **추가 세션이 안 열린다**(`session create failed`) → 노드 exec 로는 job 교체 틈에서만 조회 가능. **단 파일 읽기는 세션이 필요 없다** ↓ |
+| **세션 없는 파일 읽기** | `GET /me/data/file?path=<$ORCH_HOME 기준 상대경로>` 가 파일 내용을 그대로 준다 — 학습 중에도 언제든. `/me/data?path=<dir>` 는 목록, `download`·`cat` 는 404. **stdout 8KB 절단도 없다** → 로그를 통째로 받아 전 step 파싱. [`b200/pull_file.sh`](b200/pull_file.sh) → [`b200/parse_log.py`](b200/parse_log.py) → [`b200/plot_progress.py`](b200/plot_progress.py) |
 | 체크포인트 | ms-swift 는 `$OUT/v<N>-<날짜>/checkpoint-<step>` 에 저장. `$OUT/checkpoint-*` 로 찾으면 **영영 못 찾아 매 job 이 step 0 부터 재시작** |
 | **rollout 포트** | 앞 job 이 killed 되면 그 소켓이 **TIME_WAIT** 로 남고, vLLM 은 실패하지 않고 **조용히 8001 로 뜬다.** health 가 8000 만 보면 서버가 53초 만에 멀쩡히 떠 있는데도 타임아웃 사망(교체마다 10~30분 손실). TIME_WAIT 는 "연결이 되는가"로는 감지할 수 없다(연결은 실패하고 bind 만 실패) → 포트를 비우려 하지 말고 로그의 `Uvicorn running on ...:<포트>` 를 읽어 **그 포트를 따라갈 것** |
-| **stdout 8KB** | `run_node_extract.sh` 의 stdout 은 8KB 근처에서 **앞부분이 잘린다**. 289 행 CSV 가 191~283 만 돌아왔다 → 긴 출력은 노드에서 미리 솎을 것 |
+| **stdout 8KB** | 노드 exec 의 stdout 은 8KB 근처에서 **앞부분이 잘린다**. 289 행 CSV 가 191~283 만 돌아왔다. 솎아내면 **최저점이 사라져 오판한다**(실제로 `zero_std` 최대 0.357 을 "전 구간 0" 으로 읽었다) → 지표는 솎지 말고 위 파일 API 로 통째로 받을 것 |
 
 **배치·메모리 실측 (deepvision, max_completion 8192):**
 - `PDTBS 2 × ACCUM 8 × world 7 = 112` 가 상한(171 s/step). PDTBS 4 는 235 GiB 가 필요해 thrashing

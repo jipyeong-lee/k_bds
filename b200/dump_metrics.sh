@@ -8,7 +8,8 @@ ARM="${ARM:-deepvision}"
 SCALE="${SCALE:-gdpo}"
 ASYNC="${ASYNC:-true}"
 ISMODE="${ISMODE:-token_truncate}"
-RUNTAG="${ARM}_ep1_${SCALE}$([ "$ASYNC" = true ] && echo _async)$([ -n "$ISMODE" ] && echo _tis)"
+ENTQ="${ENTQ:-0.2}"
+RUNTAG="${ARM}_ep1_${SCALE}$([ "$ASYNC" = true ] && echo _async)$([ -n "$ISMODE" ] && echo _tis)$([ "$ENTQ" != "1.0" ] && echo _entmask)"
 
 "$ORCH_HOME/.venv/bin/python" - "$ORCH_HOME/train_${RUNTAG}.log" "${1:-1}" <<'PY'
 import re, sys

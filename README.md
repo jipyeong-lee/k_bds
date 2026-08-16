@@ -8,11 +8,13 @@
 
 ---
 
-## 현황 (2026-08-15)
+## 현황 (2026-08-16)
 
-**지금 위치**: **B200 에서 deepvision 1 epoch 본실행 진행 중** — 5,715 step 중 **284** (08-15 22:35 기준, 완료 예상 08-22).
-KISTI 큐(75394~75396, 08-17 시작 예상)를 기다리는 대신 **Jukyung-Yadok B200 8장**으로 옮겨 돌리고 있다.
-알고리즘도 `dr_grpo + gdpo + TIS`로 바꿨다. → [B200 1 epoch 본실행](#b200-1-epoch-본실행-2026-08-15)
+**지금 위치**: **B200 deepvision 2차 실행 개시** — 1차가 step ~700 부터 **엔트로피 붕괴**로 무너져
+(롤아웃 ppl 1.70→1.14, 길이 1344→498, `log_ppl_abs_diff` 0.067→0.380) step 1268 에서 정지하고,
+**`top_entropy_quantile=0.2`(엔트로피 마스크) 하나만 켜서 step 0 부터 재시작**했다(08-16 20:11).
+결정적 발견: **`clip_ratio` 가 1,280 step 전부 0 — `epsilon`·`epsilon_high` 는 `num_iterations=1` 때문에 죽은 인자다.**
+DAPO Clip-Higher 는 이 설정에서 아무 일도 하지 않는다. → [B200 1 epoch 본실행](#b200-1-epoch-본실행-2026-08-15--최신-갱신-08-16-step-1255)
 
 <details>
 <summary>이전 현황 (2026-08-14, KISTI 기준)</summary>
@@ -106,8 +108,13 @@ KISTI 큐 대기가 길어져 **Jukyung-Yadok B200 8장**으로 옮겼다. 실�
 | 1100~1199 | 0.719 | 0.527 | 0.961 | 681 | 0.209 | 0.967 | 1.55 / 1.23 |
 | 1200~1255 | 0.652 | 0.465 | 0.936 | 498 | **0.380** | 0.965 | 1.81 / **1.14** |
 
-극값: `FormatThink` 최저 **0.556**(step 989) · `ESS` 최저 **0.917**(877) · `ppl_abs_diff` 최대 **0.742**(1241) ·
-`frac_reward_zero_std` 최대 **0.357**(1200 이후).
+극값: `FormatThink` 최저 **0.556**(step 989) · `ESS` 최저 **0.917**(877) · `ppl_abs_diff` 최대 **0.742**(1241).
+
+> **`frac_reward_zero_std` 는 여기서 근거로 쓸 수 없다.** 최대 0.357 이 찍히긴 하지만 그건 단일 step 이고,
+> 0 이 아닌 step 은 **1197 에서 처음** 나타나 최근 100 step 중 **1%**(평균 0.0036)에 그친다.
+> 게다가 `dynamic_sample=true`·`max_resample_times=3`(DAPO Dynamic Sampling)이 켜져 있어
+> **보상 std 가 0 인 그룹은 이미 걸러지고 재샘플링된다** — 이 지표가 낮은 건 필터가 일하고 있다는 뜻이지
+> advantage 가 살아 있다는 뜻이 아니다. 어느 방향으로도 증거가 되지 않는다.
 
 **🚨 step ~700 부터 학습·추론 분포가 벌어지고 있다 — 진행 중이고, 회복되지 않았다.**
 
@@ -123,9 +130,11 @@ KISTI 큐 대기가 길어져 **Jukyung-Yadok B200 8장**으로 옮겼다. 실�
 - TIS 는 아직 붙들고 있다(`ESS` 0.96, `clipped_frac` 0.9%). 다만 ESS 는 보정 **후** 값이라
   "보정이 감당 중"이지 "괴리가 없다"가 아니다. 판단은 `ppl_abs_diff` 쪽으로 해야 한다.
 
-> ⚠️ **앞서 이 문서와 대화에서 보고한 두 값이 틀렸다.** 노드 stdout 8KB 제한 때문에 80 행으로 솎아낸
-> CSV 만 보고 판단했고, 솎인 사이에 최저점이 들어 있었다. `frac_reward_zero_std` "전 구간 0" → 실제 최대 **0.357**,
-> `FormatThink` 최저 0.674 → 실제 **0.556**. 전 step 파싱(아래 ⑥)으로 바로잡았다.
+> ⚠️ **정정 2건.** ① 노드 stdout 8KB 제한 때문에 80 행으로 솎아낸 CSV 만 보고 판단했고, 솎인 사이에
+> 최저점이 들어 있었다 — `FormatThink` 최저를 0.674 로 적었으나 실제는 **0.556**(step 989)이다.
+> 전 step 파싱(아래 ⑥)으로 바로잡았다.
+> ② `frac_reward_zero_std` 를 "전 구간 0 → 실제 최대 0.357" 로 정정하면서 **advantage 소실이 있었다고
+> 강조한 것은 과했다.** 위에 적은 대로 이 지표는 어느 쪽 근거도 되지 못한다.
 
 **확정한 것**
 
@@ -148,6 +157,56 @@ KISTI 큐 대기가 길어져 **Jukyung-Yadok B200 8장**으로 옮겼다. 실�
    exec stdout 8KB 절단도 없어서 **4.7 MB 로그를 통째로 받아 전 step 을 파싱**한다(80 행 → 1,255 행).
    위 정정 두 건이 이것으로 드러났다. `/me/data?path=<dir>` 는 목록, `/me/data/file?path=<file>` 이 내용
    (`download`·`cat` 는 404). → [`b200/pull_file.sh`](b200/pull_file.sh) · [`b200/parse_log.py`](b200/parse_log.py)
+7. **🚨 clip 은 1,280 step 전부 미발동이었다 — `epsilon`·`epsilon_high` 는 이 설정에서 죽은 인자다.**
+   `clip_ratio/{low,high,region}_mean` 합계가 정확히 **0**이다. 원인은 `num_iterations=1`:
+   rollout 배치당 업데이트가 1번이면 π_θ = π_old 이고, `grpo_trainer.py:1150` 이 그 최적화를 명시한다
+   (`# old_per_token_logps == per_token_logps, so we can skip it's computation`) → `ratio ≡ 1` → clip 범위 한복판.
+   **DAPO Clip-Higher 를 적용해도 아무 일도 일어나지 않는다.** 죽은 인자를 바꾸면 개입했다고 착각하게 되는 것이
+   더 큰 문제다. (살리려면 `num_iterations>1` 이 필요한데 그건 off-policy 를 일부러 키우는 것이라 방향이 반대다.)
+8. **ms-swift 4.1.3 에서 엔트로피 붕괴에 쓸 수 있는 레버는 둘뿐이다** — `top_entropy_quantile` 과 `beta`.
+   entropy bonus 는 인자 자체가 없고, clip 계열은 ⑦ 때문에 무효다.
+   최근 문헌도 여기 맞는다: [clip-low/clip-high 분석](https://arxiv.org/html/2509.26114v1)은 clip-high 완화가
+   **감소력을 약화시킬 뿐**이라 하고(능동적 상승은 ε_low↓), [OPEFO(ACL 2026 Findings)](https://arxiv.org/abs/2605.11491)는
+   entropy regularization·clipping heuristic **둘 다 부족**하다며 gradient rescaling 을 제안하는데 ms-swift 에 없다.
+   [SFT 과훈련 논문](https://arxiv.org/html/2606.18487)은 SFT 깊이가 붕괴를 예측한다고 하지만 우리 SFT 는
+   **2 epoch·298 step**(val 이 epoch1 이후 평탄해 4→2 로 줄인 값)이라 얕은 쪽이다.
+
+#### 2차 실행 — 엔트로피 마스크 (2026-08-16 20:11 시작, step 0 부터)
+
+1차의 붕괴 원인이 "엔트로피를 붙드는 장치가 하나도 없었던 것"으로 좁혀져, 유일하게 동작하는 레버 하나만 켜고 다시 시작했다.
+1268 에서 이어받지 않고 **처음부터** 간다 — 이미 벌어진 상태에서 출발하면 개입이 먼저 손상을 되돌려야 해서,
+안 들었을 때 "레버가 무효인지 출발점이 나빴는지"를 구분할 수 없다.
+
+| | 1차 (`…_tis`) | 2차 (`…_tis_entmask`) |
+|---|---|---|
+| `top_entropy_quantile` | 1.0 (마스크 없음) | **0.2** — 상위 20% 고엔트로피 토큰에만 손실 |
+| `log_entropy` | false | **true** — 엔트로피 직접 측정 |
+| `epsilon_high` / `beta` | None / 0 | **그대로** (⑦ 때문에 무효 / 다음 카드) |
+| init | `sft_mixed_merged` | 동일 |
+
+베이스 모델부터 RL 하는 안은 **이미 절제실험으로 반증**됐다(job 59946/59970): `base→RL` 200 step 이 +0.03 인 반면
+콜드스타트 경로는 +0.16 이고, 베이스에서는 `FormatThink` 가 100 step 내내 ~0 에 정체한다 →
+[Stage-1 콜드스타트](docs/stage1_coldstart.md) §절제. SFT `checkpoint-149`(1 epoch)를 init 으로 쓰는 안은
+살아 있지만 그 지점의 **생성 기반 지표를 측정한 적이 없어** 보류한다(형식이 epoch 2 에서 완성됐을 수 있다).
+
+> ⚠️ **부작용을 지켜봐야 한다**: `dr_grpo` 의 분모는 `batch_size × max_completion_length` 라 **상수**이고
+> (`grpo_trainer.py:1252`) 마스크는 분자만 줄이므로(`:1223`) **실효 그래디언트가 작아진다.**
+> 배수는 토큰별 손실 기여가 균등하지 않아 미지수 → 추측으로 lr 을 올리지 않고 `grad_norm` 을 보고 정한다.
+> 기준선은 1차 초반의 **0.0062**(step 1~199 평균). 필요하면 `LR` 환경변수로 조정한다.
+
+step 1 확인: `entropy/threshold` **1.618** 이 새로 찍힌다(마스크 동작 증거) · `ppl_ratio` 1.052 · `ess` 0.9869.
+
+**부작용 실측 (step 1~4)** — 우려했던 그래디언트 손실은 오지 않았다.
+
+| | 1차(마스크 없음) step 1~8 | 2차(q=0.2) step 1~4 |
+|---|---|---|
+| `grad_norm` 평균 | 0.00655 | **0.0043** (≈0.66×) |
+| `rollout_ppl` | 1.588 → 1.510 (내려감) | 2.148 → **2.804** (올라감) |
+
+분모가 상수라 마스크가 80% 토큰을 죽이면 그래디언트도 0.2배로 줄 줄 알았는데 **0.66배에 그쳤다.**
+이건 "고엔트로피 소수 토큰이 그래디언트의 대부분을 진다"는 주장의 직접 증거다 —
+버린 80% 는 애초에 기여가 거의 없었다. **`LR` 은 1e-5 유지.**
+`rollout_ppl` 이 초반부터 오르는 것도 1차와 반대 방향이라 일단 의도대로다(수백 step 은 봐야 판정).
 
 > **32비트 학습은 이 환경에서 닫혀 있다.** 최근 레포트들이 말하는 fp32 는 logits/logprob 계산만 올리는 것인데
 > ms-swift 는 4.1.3·4.5.0 모두 그 스위치가 없다(fp32 는 reward 텐서에만 쓴다). `torch_dtype=float32` 로

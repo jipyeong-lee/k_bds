@@ -50,11 +50,28 @@ BETA="${BETA:-0}"
 # GRPO 는 그룹 내 다양성이 advantage 의 분산을 만든다 → 관례는 1.0 이고 ms-swift 예제도 1.0 이다.
 # 0.9 로 돌다가 같은 시점에 1.0 으로 올렸다.
 TEMP="${TEMP:-1.0}"
+# 엔트로피 마스크. 첫 실행(RUNTAG …_tis)이 step ~700 부터 엔트로피 붕괴로 무너졌다 —
+# 롤아웃 ppl 이 1.70→1.14 로 단조 하락(생성이 뾰족해짐), 길이 1344→498, FormatThink 0.995→0.936,
+# log_ppl_abs_diff 0.067→0.380(IcePop 임계의 7.6배). 그런데 그 실행에는 **엔트로피를 붙드는 장치가
+# 하나도 없었다**: beta=0(참조 KL 없음) · entropy bonus 는 ms-swift 에 인자 자체가 없음 ·
+# top_entropy_quantile=1.0(마스크 없음) · 그리고 clip 은 1,280 step 전부 미발동이었다
+# (num_iterations=1 → π_θ==π_old → ratio≡1. grpo_trainer.py:1150 이 그 최적화를 명시한다).
+#   ⚠️ 그래서 DAPO Clip-Higher(epsilon_high)는 이 설정에서 **죽은 인자**다 — 건드리지 않는다.
+# 남은 레버는 이것뿐이다: 상위 q 비율의 고엔트로피 토큰에만 손실을 남긴다
+# (grpo_trainer.py:1126 threshold → :1223 per_token_loss *= entropy_mask).
+# 저엔트로피 토큰은 모델이 이미 확신하는 자리라, 거기 계속 그래디언트를 부으면 분포가 더 뾰족해진다.
+# 다만 이건 엔트로피를 **더하는** 장치가 아니라 **빼는 힘을 약화시키는** 장치다(arXiv:2509.26114 의 구분).
+ENTQ="${ENTQ:-0.2}"                  # 1.0 이면 마스크 끔
+#   ⚠️ 부작용: dr_grpo 의 분모는 batch_size*max_completion_length 라 **상수**다(grpo_trainer.py:1252).
+#   마스크는 분자만 줄이므로(:1223) 실효 그래디언트가 그만큼 작아진다. 배수는 토큰별 손실 기여가
+#   균등하지 않아 미지수 → 추측으로 lr 을 올리지 말고 grad_norm 을 보고 정한다.
+#   기준선: 마스크 없던 첫 실행의 초반 grad_norm = 0.0062 (step 1~199 평균).
+LR="${LR:-1e-5}"
 IS_ARGS=()
 [ -n "$ISMODE" ] && IS_ARGS=(--rollout_importance_sampling_mode "$ISMODE" \
                              --rollout_importance_sampling_threshold "$ISTHRESH")
 # 보정 유무로 output_dir 을 가른다 — loss 가 바뀌면 같은 디렉터리에서 이어받는 게 의미가 없다.
-RUNTAG="${ARM}_ep1_${SCALE}$([ "$ASYNC" = true ] && echo _async)$([ -n "$ISMODE" ] && echo _tis)"
+RUNTAG="${ARM}_ep1_${SCALE}$([ "$ASYNC" = true ] && echo _async)$([ -n "$ISMODE" ] && echo _tis)$([ "$ENTQ" != "1.0" ] && echo _entmask)"
 OUT="$ORCH_HOME/runs/$RUNTAG"
 LOG="$ORCH_HOME/train_${RUNTAG}.log"
 PORT=8000
@@ -105,7 +122,7 @@ echo "  arm=$ARM  rows=$ROWS  1epoch=$TOTAL step"
 echo "  PDTBS=$PDTBS ACCUM=$ACCUM world=$WORLD → GEN_BATCH=$GEN_BATCH, num_gen=$NUMGEN, 프롬프트/step=$PPS"
 echo "  max_completion=$MAXCOMP soft_cache=$SOFTCACHE gradient_checkpointing=$GC"
 echo "  off-policy 보정: ${ISMODE:-없음} (threshold=$ISTHRESH) · async_generate=$ASYNC"
-echo "  beta(KL)=$BETA · temperature=$TEMP"
+echo "  beta(KL)=$BETA · temperature=$TEMP · top_entropy_quantile=$ENTQ (1.0=마스크 끔) · lr=$LR"
 
 stamp "1) vLLM 롤아웃 서버 기동 (GPU 7)"
 CUDA_VISIBLE_DEVICES=7 nohup "$VENV/bin/swift" rollout \
@@ -177,12 +194,13 @@ CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6 NPROC_PER_NODE="$WORLD" \
   --soft_max_length "$MAXCOMP" --soft_cache_length "$SOFTCACHE" \
   --dynamic_sample true --max_resample_times 3 --overlong_filter false \
   --loss_type dr_grpo --importance_sampling_level token --epsilon 0.2 --scale_rewards "$SCALE" \
+  --top_entropy_quantile "$ENTQ" --log_entropy true \
   --log_rollout_offpolicy_metrics true \
   "${IS_ARGS[@]}" \
   --enable_thinking true --num_generations "$NUMGEN" --temperature "$TEMP" \
   --max_completion_length "$MAXCOMP" --max_length "$MAXLEN" --max_pixels 262144 \
   --per_device_train_batch_size "$PDTBS" --gradient_accumulation_steps "$ACCUM" \
-  --learning_rate 1e-5 --beta "$BETA" \
+  --learning_rate "$LR" --beta "$BETA" \
   --gradient_checkpointing "$GC" --attn_impl sdpa \
   --use_vllm true --vllm_mode server --vllm_server_host 127.0.0.1 --vllm_server_port "$PORT" \
   --async_generate "$ASYNC" \

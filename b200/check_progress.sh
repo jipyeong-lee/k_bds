@@ -8,7 +8,8 @@ SCALE="${SCALE:-gdpo}"
 ASYNC="${ASYNC:-true}"
 # run_epoch.sh 와 같은 규칙으로 RUNTAG 를 만들어야 로그를 찾는다 — 어긋나면 조용히 빈 결과가 나온다.
 ISMODE="${ISMODE:-token_truncate}"
-RUNTAG="${ARM}_ep1_${SCALE}$([ "$ASYNC" = true ] && echo _async)$([ -n "$ISMODE" ] && echo _tis)"
+ENTQ="${ENTQ:-0.2}"
+RUNTAG="${ARM}_ep1_${SCALE}$([ "$ASYNC" = true ] && echo _async)$([ -n "$ISMODE" ] && echo _tis)$([ "$ENTQ" != "1.0" ] && echo _entmask)"
 OUT="$ORCH_HOME/runs/$RUNTAG"
 LOG="$ORCH_HOME/train_${RUNTAG}.log"
 

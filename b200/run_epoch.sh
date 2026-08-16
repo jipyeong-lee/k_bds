@@ -90,7 +90,11 @@ GC="${GC:-true}"
 # 롤아웃 실물을 보는 유일한 경로다(1차 실행은 이게 꺼져 있어 붕괴한 텍스트를 끝내 못 봤다).
 # 크기는 step 당 generation_batch_size(=112) 건 → job 당 ~50MB, v 디렉터리가 job 마다 새로 생겨 누적되지 않는다.
 # job 은 60분에 killed 되고 다음 job 이 체크포인트에서 이어받는다 → 손실 상한이 save_steps.
-SAVE_STEPS="${SAVE_STEPS:-4}"
+# 4 는 너무 비쌌다(2026-08-16 실측): 저장 1회 236s = step 4.4개 분량이라 실효 113 s/step 중 절반이 저장이다.
+#   save_steps  4 → 실효 113.1 s/step · 1 epoch 179.5h · kill 시 평균 손실 1.8분
+#   save_steps 16 → 실효  68.8 s/step · 1 epoch 109.3h · kill 시 평균 손실 7.2분
+# 70시간을 아끼려고 job 당 5분을 더 거는 거래 — job 50회면 보험료 4.5h, 명백히 남는다.
+SAVE_STEPS="${SAVE_STEPS:-16}"
 MAXLEN="${MAXLEN:-16384}"
 # 21_rlvr_grpo_adv.slurm 의 도메인별 프리셋 — pmcvqa 만 짧다(실측 최대 1,441 토큰).
 case "$ARM" in

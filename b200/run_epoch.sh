@@ -118,6 +118,21 @@ LAST=$(printf '%s' "$LATEST" | sed 's/.*checkpoint-//')
 LAST="${LAST:-0}"
 RESUME=()
 [ -n "$LATEST" ] && RESUME=(--resume_from_checkpoint "$LATEST") && echo "  재개 지점: $LATEST"
+# HF 는 재개할 때 trainer_state.json 의 save_steps 를 그대로 쓴다 — --save_steps 로 준 값은 경고만 찍고 무시된다
+# ("save_steps: 16 (from args) != 4 (from trainer_state.json)"). 게다가 옛 값이 다음 체크포인트로 계속 전파돼서
+# 체인이 한 번 시작되면 영영 못 바꾼다 → 재개 직전에 상태 파일을 직접 고친다.
+if [ -n "$LATEST" ]; then
+  python3 - "$LATEST/trainer_state.json" "$SAVE_STEPS" <<'EOP'
+import json, sys
+p, v = sys.argv[1], float(sys.argv[2])
+d = json.load(open(p))
+if d.get("save_steps") != v:
+    print(f"  trainer_state.json save_steps {d.get('save_steps')} → {v} 로 교정")
+    d["save_steps"] = v
+    d["eval_steps"] = v
+    json.dump(d, open(p, "w"), indent=2)
+EOP
+fi
 if [ "$LAST" -ge "$TOTAL" ]; then
   echo "✅ $ARM 1 epoch 완료 ($LAST/$TOTAL step) — 더 돌릴 것 없음"
   exit 0

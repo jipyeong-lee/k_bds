@@ -7,6 +7,7 @@ CSV 는 전 step 이 들어 있다 — step 별 값은 배치 난이도로 크�
 이동평균으로 추세를 본다. 설정이 바뀐 지점은 세로 점선으로 표시한다.
 곡선만 보면 "왜 여기서 꺾였나"를 알 수 없어서다.
 """
+import os
 import sys
 
 import matplotlib
@@ -29,11 +30,20 @@ df = pd.read_csv(src).apply(pd.to_numeric, errors="coerce").dropna(subset=["step
 df = df.sort_values("step")
 
 # 설정을 바꾼 지점. 실측 근거는 b200/README.md 에 있다.
-# PDTBS 는 job #5(step 112 재개)부터 2×8 이다 — memory 곡선이 143→85 로 꺾이는 자리와 일치한다.
-MARKS = [
-    (112, "PDTBS 4→2"),
-    (284, "beta 0.04→0\ntemp 0.9→1.0"),
-]
+# 실행마다 이력이 달라서 CSV 이름으로 고른다 — 1 차의 표시가 2 차 그림에 찍히면 거짓말이 된다.
+MARKS_BY_RUN = {
+    # PDTBS 는 job #5(step 112 재개)부터 2×8 이다 — memory 곡선이 143→85 로 꺾이는 자리와 일치한다.
+    "metrics_deepvision.csv": [
+        (112, "PDTBS 4→2"),
+        (284, "beta 0.04→0\ntemp 0.9→1.0"),
+    ],
+    # 2 차는 처음부터 엔트로피 마스크로 돌아서 도중 변경이 없다.
+    "metrics_deepvision_entmask.csv": [],
+}
+MARKS = MARKS_BY_RUN.get(os.path.basename(src), [])
+
+# 엔트로피 마스크 실행에만 있는 열이다. 1 차 CSV 로 그리면 빈 칸이라 곡선을 건너뛴다.
+ENTMASK = "ent" in df.columns and df["ent"].notna().any()
 
 # step 별 값은 배치 난이도 때문에 크게 튄다 — 원본은 흐리게 깔고 이동평균으로 추세를 본다.
 # 창이 너무 넓으면 붕괴 같은 짧은 사건이 뭉개지므로 40 에서 끊는다.
@@ -47,7 +57,8 @@ def trend(a, x, y, color, label, raw_alpha=0.15):
 
 fig, ax = plt.subplots(2, 3, figsize=(19, 8))
 fig.suptitle(
-    "Stage-2 RLVR · deepvision (dr_grpo + gdpo + TIS, async rollout)",
+    "Stage-2 RLVR · deepvision (dr_grpo + gdpo + TIS, async rollout)"
+    + (" + entropy mask top 0.2" if ENTMASK else ""),
     fontsize=13, fontweight="bold",
 )
 
@@ -118,12 +129,16 @@ a.legend(h1 + h2, l1 + l2, fontsize=8); a.grid(alpha=0.3); marks(a)
 a = ax[1][1]
 trend(a, df["step"], df["zero_std"], "#d62728", "advantage 0 비율")
 trend(a, df["step"], df["r_std"], "#2ca02c", "그룹 보상 std")
-a.set_xlabel("step"); a.set_ylim(0, 0.6)
+if ENTMASK:
+    # 1 차 붕괴의 실체가 엔트로피 소실이었다 — 마스크가 이걸 붙들고 있는지가 이 실행의 전부다.
+    trend(a, df["step"], df["ent"], "#17becf", "정책 엔트로피")
+a.set_xlabel("step"); a.set_ylim(0, 0.85 if ENTMASK else 0.6)
 a2 = a.twinx()
 a2.plot(df["step"], df["grad"].rolling(WIN, min_periods=1, center=True).mean(),
         lw=1.4, color="#bcbd22", label="grad_norm")
 a2.set_ylabel("grad_norm", fontsize=8)
-a.set_title("학습 신호 (advantage 소실 / 그래디언트)", fontsize=10)
+a.set_title("학습 신호 (advantage 소실 / 엔트로피 / 그래디언트)"
+            if ENTMASK else "학습 신호 (advantage 소실 / 그래디언트)", fontsize=10)
 h1, l1 = a.get_legend_handles_labels(); h2, l2 = a2.get_legend_handles_labels()
 a.legend(h1 + h2, l1 + l2, fontsize=8, loc="center left")
 a.grid(alpha=0.3); marks(a)
@@ -149,7 +164,8 @@ fig.text(
     0.5, 0.005,
     f"step {int(last['step'])}/5715 · reward {last['reward']:.3f} · "
     f"AccuracyMix {last['acc']:.3f} · FormatThink {last['fmt']:.3f} · "
-    f"ESS {last['ess']:.4f} · 불일치 {last['ppl_abs_diff']:.3f} · mem {last['mem']:.1f} GiB",
+    f"ESS {last['ess']:.4f} · 불일치 {last['ppl_abs_diff']:.3f} · mem {last['mem']:.1f} GiB"
+    + (f" · 엔트로피 {last['ent']:.3f}" if ENTMASK else ""),
     ha="center", fontsize=8, color="0.3",
 )
 fig.tight_layout(rect=(0, 0.02, 1, 0.96))

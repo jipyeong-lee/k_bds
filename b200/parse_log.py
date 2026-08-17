@@ -14,7 +14,8 @@ import sys
 
 COLS = ['step', 'reward', 'acc', 'fmt', 'len', 'clipped', 'mem', 'step_time', 'lr',
         'ppl_abs_diff', 'ess', 'is_weight', 'clipped_frac',
-        'r_std', 'zero_std', 'grad', 'tr_ppl', 'ro_ppl']
+        'r_std', 'zero_std', 'grad', 'tr_ppl', 'ro_ppl',
+        'ent', 'ent_thr', 'soft_ol', 'clip_region']
 SRC = {
     'reward': 'reward', 'acc': 'rewards/AccuracyMix/mean', 'fmt': 'rewards/FormatThink/mean',
     'len': 'completions/mean_length', 'clipped': 'completions/clipped_ratio',
@@ -26,6 +27,9 @@ SRC = {
     'r_std': 'reward_std', 'zero_std': 'frac_reward_zero_std', 'grad': 'grad_norm',
     'tr_ppl': 'rollout_correction/training_ppl',
     'ro_ppl': 'rollout_correction/rollout_ppl',
+    # 2 차 실행(엔트로피 마스크)에서 생긴 지표 — 1 차 로그에는 없어 빈 칸으로 남는다.
+    'ent': 'entropy/mean', 'ent_thr': 'entropy/threshold',
+    'soft_ol': 'rewards/SoftOverlong/mean', 'clip_region': 'clip_ratio/region_mean',
 }
 
 src = sys.argv[1] if len(sys.argv) > 1 else '/tmp/train.log'

@@ -5,6 +5,14 @@ Stage-2 도메인 전문가 3종 RLVR 학습. 두 클러스터에서 실행 가�
 
 > ⚠️ **비밀값 금지**: PAT·비밀번호·OTP를 커밋하지 말 것(GitHub push됨). 자격증명은 `$ORCH_PAT` 등 환경변수로.
 
+> ⚠️ **셸 출력 필터(rtk PreToolUse 훅)**: 명령 출력이 재작성·압축된다(2026-08-18 이 저장소 실측).
+> `git status` 는 git 출력이 아니라 `~ Modified: 1 files` 형태의 **요약본**이 오고, 긴 출력은
+> `// ... N more lines` 로 접힌다 — §1.5 의 "stdout 8KB 절단" 과 같은 부류의 오판 위험이다.
+> **트리 판단은 `git status --porcelain`**(그대로 통과) · 긴 지표·로그는 파일로 받아서 읽을 것 ·
+> 패치는 `git diff --output=x.patch` 로 git 이 직접 쓰게 할 것.
+> (`git diff` 가 `git apply` 못 읽는 형태로 깨지는 사례가 `new_jarvis` 에 실측 기록돼 있다.
+> 이 저장소에선 재현되지 않았으나 예방 형식을 쓴다. `grep` 은 여기선 `/usr/bin/grep` 과 결과 동일.)
+
 ---
 
 ## 0. 두 실행 환경
@@ -82,6 +90,7 @@ bash b200/release_session.sh                        # 세션 조회 / --all-gpu 
 | **rollout 포트** | 앞 job 이 killed 되면 그 소켓이 **TIME_WAIT** 로 남고, vLLM 은 실패하지 않고 **조용히 8001 로 뜬다.** health 가 8000 만 보면 서버가 53초 만에 멀쩡히 떠 있는데도 타임아웃 사망(교체마다 10~30분 손실). TIME_WAIT 는 "연결이 되는가"로는 감지할 수 없다(연결은 실패하고 bind 만 실패) → 포트를 비우려 하지 말고 로그의 `Uvicorn running on ...:<포트>` 를 읽어 **그 포트를 따라갈 것** |
 | **chain 페이로드 고정** | `chain_epoch.sh` 는 루프 **시작 시 1회만** `run_epoch.sh` → `run_epoch_<arm>.sh` 를 만든다. 체인 도중 `run_epoch.sh` 를 고쳐도 **다음 job 에 반영되지 않는다** → 페이로드도 같이 갱신할 것 |
 | **stdout 8KB** | 노드 exec 의 stdout 은 8KB 근처에서 **앞부분이 잘린다**. 289 행 CSV 가 191~283 만 돌아왔다. 솎아내면 **최저점이 사라져 오판한다**(실제로 `zero_std` 최대 0.357 을 "전 구간 0" 으로 읽었다) → 지표는 솎지 말고 위 파일 API 로 통째로 받을 것 |
+| **DELETE 는 거짓말한다** | `DELETE /me/data?path=…` 는 **`runs/` 아래에서 무조건 `{"removed":true}` 를 주고 아무것도 안 지운다**(2026-08-18 실측, 334 파일). 경로 4형태(`a/b`·`./a/b`·`/a/b`·`%2F`)·`recursive=true` 전부 동일, `DELETE /me/data/file` 은 405. 실제로 지워지는 곳은 **`$ORCH_HOME` 직하 파일과 `uploads/` 아래**뿐이다 — API 서비스가 직접 만든 파일만 unlink 되고, 학습 job 이 만든 파일은 실패를 삼키고 200 을 준다. **`runs/` 정리는 GPU 세션 `exec` 의 `rm -rf` 로만 가능** → 학습 중엔 세션이 안 열리니 arm 교체 틈에 할 것. 200 을 삭제 증거로 쓰지 말고 반드시 재조회로 확인할 것 |
 
 **배치·메모리 실측 (deepvision, max_completion 8192):**
 - `PDTBS 2 × ACCUM 8 × world 7 = 112` 가 상한(171 s/step). PDTBS 4 는 235 GiB 가 필요해 thrashing

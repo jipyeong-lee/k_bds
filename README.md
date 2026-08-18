@@ -227,6 +227,17 @@ step 1 확인: `entropy/threshold` **1.618** 이 새로 찍힌다(마스크 동�
 > ms-swift 는 4.1.3·4.5.0 모두 그 스위치가 없다(fp32 는 reward 텐서에만 쓴다). `torch_dtype=float32` 로
 > 통째 올리는 건 메모리 2배라 180 GiB 에 안 들어간다. 이 축 대신 **IS 보정**으로 간다.
 
+**현재까지의 곡선 (step 870 / 5715, 2026-08-18)**
+
+![deepvision 2차 학습 곡선 — 엔트로피 마스크](b200/progress_deepvision_entmask.png)
+
+> 갱신 (3 명령, 학습 중에도 가능 — 세션 불필요):
+> ```
+> bash b200/pull_file.sh train_deepvision_ep1_gdpo_async_tis_entmask.log /tmp/t2.log
+> python3 b200/parse_log.py /tmp/t2.log b200/metrics_deepvision_entmask.csv
+> python3 b200/plot_progress.py b200/metrics_deepvision_entmask.csv b200/progress_deepvision_entmask.png
+> ```
+
 ### Stage-2 본실행 현황
 
 **현재 실행 — 도메인 전문가 3종 (2026-08-14 제출, 대기 중)**

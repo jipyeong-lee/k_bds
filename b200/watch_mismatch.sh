@@ -1,53 +1,70 @@
 #!/bin/bash
 # watch_mismatch.sh — 롤아웃/학습 괴리 붕괴를 조기 경보한다. 정상이면 무출력.
-# 실행 위치: KISTI(/scratch/migrate_k266_to_gpu) — 플랫폼 자격증명이 거기 있고 pull_log.sh·parse_log.py 를 쓴다.
 #
-# 단독으로 붕괴를 판별하는 지표는 tr_ppl/ro_ppl · fmt · len 셋뿐이다(1차 실측):
-#   tr/ro  1.098 → 1.162 → 1.348 → 208.5   (단조 발산)
-#   fmt    0.993 → 0.957 → 0.936           (형식 붕괴)
-#   len    1487 → 665 → 502                (길이 붕괴)
-# ess·ppl_abs_diff·clipped_frac 은 단독으로 쓰면 오탐이다 — 1차는 붕괴가 다 진행된 bin 1000~1200 에서도
-# ess 가 0.9646/0.9665/0.9645 였고, 2차는 건강한 상태에서 0.9620 을 찍었다(2026-08-19 실측).
-# clipped_frac 은 발산이 깊어지는 동안 오히려 내려간다(README 발견 ⑨). → 이 셋은 2개 이상 겹칠 때만 건다.
-cd /scratch/migrate_k266_to_gpu || { echo "ALERT cd 실패"; exit 0; }
-bash pull_log.sh train_deepvision_ep1_gdpo_async_tis_entmask.log t2.log >/dev/null 2>&1 \
-  || { echo "ALERT 로그 pull 실패"; exit 0; }
-python3 parse_log.py t2.log m.csv >/dev/null 2>&1 || { echo "ALERT parse 실패"; exit 0; }
-python3 - <<'PY'
-import csv, time
-r=list(csv.DictReader(open('m.csv')))
+# 실행 위치: **로컬**(저장소 루트). 자격증명은 ./.env 에서 읽고 B200 API 를 직접 친다.
+#   이전 판은 KISTI ssh 를 거쳤는데 세션이 만료되자 감시가 2일간 통째로 멎었다(2026-08-21).
+#
+# 임계는 1차(붕괴)와 2차(정상)의 **100 step 중앙값 궤적**을 겹쳐 보고 뽑았다.
+# 평균은 못 쓴다 — 2차 step 1775 한 개(tr_ppl=119,300)가 200 step 평균을 321 로 만들었다.
+#   지표별 분리 가능 여부:
+#     tr/ro   1차 1.152~1.545  vs 2차 1.046~1.121   → 분리됨
+#     len     1차  482~687     vs 2차  940~2974     → 분리됨
+#     fmt     1차 0.946~1.000  vs 2차 0.987~1.000   → 겹침(붕괴 중반에야 내려간다)
+#     ess     1차 0.947~0.968  vs 2차 0.953~0.986   → 겹침, 단독 사용 금지
+#     clipf   1차 0.0084~0.0148 vs 2차 0.0022~0.0137 → 겹침(발산 깊어지면 오히려 하락)
+set -u
+cd "$(dirname "$0")/.." || { echo "ALERT cd 실패"; exit 0; }
+[ -f .env ] || { echo "ALERT .env 없음"; exit 0; }
+set -a; . ./.env; set +a
+: "${ORCH_BASE_URL:?}" "${ORCH_PAT:?}"
+LOG_NAME=train_deepvision_ep1_gdpo_async_tis_entmask.log
+W="${TMPDIR:-/tmp}/kbds_watch"; mkdir -p "$W"
+
+code=$(curl -k -s --max-time 180 "$ORCH_BASE_URL/me/data/file?path=$LOG_NAME" \
+       -H "Authorization: Bearer $ORCH_PAT" -o "$W/t.log" -w '%{http_code}')
+[ "$code" = 200 ] || { echo "ALERT 로그 다운로드 실패 (HTTP $code)"; exit 0; }
+curl -k -s --max-time 60 "$ORCH_BASE_URL/me/data?path=" -H "Authorization: Bearer $ORCH_PAT" -o "$W/root.json"
+python3 b200/parse_log.py "$W/t.log" "$W/m.csv" >/dev/null 2>&1 || { echo "ALERT parse 실패"; exit 0; }
+
+python3 - "$W" "$LOG_NAME" <<'PY'
+import csv, json, sys, time, statistics as st
+W, LOG = sys.argv[1], sys.argv[2]
+r=[x for x in csv.DictReader(open(f"{W}/m.csv"))]
+if not r: print("ALERT CSV 비어 있음"); sys.exit()
 def f(x):
     try: return float(x)
     except: return None
-def m(c, n=50):
+def med(c, n=50):
     v=[f(x[c]) for x in r[-n:] if f(x[c]) is not None]
-    return sum(v)/len(v) if v else None
+    return st.median(v) if v else None
+def ratio(n=50):
+    v=[f(x['tr_ppl'])/f(x['ro_ppl']) for x in r[-n:]
+       if f(x['tr_ppl']) and f(x['ro_ppl'])]
+    return st.median(v) if v else None
 step=int(r[-1]['step'])
-pd, ro, tr, es, cf = m('ppl_abs_diff'), m('ro_ppl'), m('tr_ppl'), m('ess'), m('clipped_frac')
-fm, ln = m('fmt'), m('len')
-rat = tr/ro if ro and tr else None
+rat, ln, fm = ratio(), med('len'), med('fmt')
+pd, es, cf  = med('ppl_abs_diff'), med('ess'), med('clipped_frac')
 
-a=[]                                   # 단독 트리거 — 1차에서 단조였던 것만
-if rat and rat > 1.15 : a.append(f"tr_ppl/ro_ppl={rat:.4f} > 1.15")
-if fm  and fm  < 0.98 : a.append(f"fmt={fm:.4f} < 0.98")
-if ln  and ln  < 1200 : a.append(f"len={ln:.0f} < 1200")
+a=[]                                    # 단독 — 1차 붕괴 중반 이후 값, 2차와 완전 분리
+if rat and rat > 1.30 : a.append(f"tr/ro={rat:.3f} > 1.30")
+if ln  and ln  < 900  : a.append(f"len={ln:.0f} < 900")
+if fm  and fm  < 0.97 : a.append(f"fmt={fm:.3f} < 0.97")
 
-weak=[]                                # 보조 지표 — 2개 이상 겹칠 때만 경보
-if pd and pd > 0.12  : weak.append(f"ppl_abs_diff={pd:.4f}")
-if es and es < 0.965 : weak.append(f"ess={es:.4f}")
-if cf and cf > 0.02  : weak.append(f"clipped_frac={cf:.5f}")
-if len(weak) >= 2: a.append("보조지표 " + "+".join(weak))
+w=[]                                    # 경고 — 2개 이상 겹칠 때만
+if rat and rat > 1.14  : w.append(f"tr/ro={rat:.3f}")
+if pd  and pd  > 0.125 : w.append(f"ppl_abs_diff={pd:.4f}")
+if es  and es  < 0.950 : w.append(f"ess={es:.4f}")
+if cf  and cf  > 0.015 : w.append(f"clipped_frac={cf:.5f}")
+if len(w) >= 2: a.append("경고지표 " + " + ".join(w))
 
-# 정체 판정은 시각 기준이다 — job 교체는 정상적으로 10~30분 걸린다(TIME_WAIT/vLLM 재기동).
-p='.watch_prev_step'; now=time.time()
-try:    prev, since = open(p).read().split()
-except Exception: prev, since = '', now
-prev, since = (prev or str(step)), float(since)
-if str(step) != prev: since = now
-open(p,'w').write(f"{step} {since}")
-if str(step) == prev and now - since > 2400:
-    a.append(f"step {step} 에서 {int((now-since)/60)}분째 정체")
+# 학습이 살아 있는가 — 원격 로그 mtime 으로 본다(체인이 다른 호스트라 pgrep 불가).
+try:
+    ent={e["name"]: e for e in json.load(open(f"{W}/root.json"))["entries"]}
+    age=time.time()-ent[LOG]["mtime"]
+    if age > 2400: a.append(f"로그가 {int(age/60)}분째 갱신 안 됨")
+except Exception as e:
+    a.append(f"로그 mtime 확인 실패({type(e).__name__})")
+
 if a: print(f"ALERT step={step} | " + " | ".join(a))
 PY
-[ "$(pgrep -fc 'chain_epoch.sh deepvision' || echo 0)" -eq 0 ] && echo "ALERT chain 프로세스 죽음"
 exit 0

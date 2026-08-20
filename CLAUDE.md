@@ -33,6 +33,9 @@ Stage-2 도메인 전문가 3종 RLVR 학습. 두 클러스터에서 실행 가�
 
 ### 1.1 접속
 - API base `$ORCH_BASE_URL`(별도 전달, self-signed → `curl -k`) · 헤더 `Authorization: Bearer $ORCH_PAT`
+- 자격증명은 저장소 루트 **`.env`**(gitignore 됨 · 형식은 [`.env.example`](.env.example)) → `set -a; . ./.env; set +a`.
+  **API 는 로컬에서 직접 호출된다 — KISTI 경유가 필요 없다**(2026-08-21 확인). 그동안 KISTI 안에서만 호출한 탓에
+  ssh 세션이 만료되자 조회·감시가 통째로 2일간 멎었다. 조회는 로컬, 체인 실행만 KISTI 로 분리할 것.
 - 계정 `gpu-user-1`(role user) · 노드 `gpu-node-1`(8× B200) · **1년 grant 승인** · reservations 비활성 → 세션+exec 직행
 - 노드 실행은 [`b200/drive_node.sh`](b200/drive_node.sh)로 감쌈: 세션생성→exec(stdin=`bash -s`)→폴링→반납.
   PAT로 붙으므로 **사람이 직접 실행**(에이전트 자동실행은 종종 차단됨).

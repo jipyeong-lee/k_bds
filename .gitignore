@@ -23,9 +23,15 @@ __pycache__/
 .claude/
 .omc/
 .serena/
+.mcp.json
 
 # ── 기타 ──
 .DS_Store
 core.*
 *.tmp
 *.bak
+
+# ── 비밀값 (절대 커밋 금지 — GitHub 공개 push 됨) ──
+.env
+.env.*
+!.env.example

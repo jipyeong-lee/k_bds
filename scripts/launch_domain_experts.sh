@@ -39,6 +39,12 @@
 #     ⚠️ 파티션 walltime 상한 5일(120h) → 213 s/it 이 유지되면 **약 1,995 step 이 단일 잡의 상한**.
 #        잘려도 save_steps 50 + RESUME=1 로 이어받으므로 STEPS 를 미리 정밀하게 맞출 필요는 없다.
 #     ⚠️ step time 은 도메인마다 다르다. 위 값은 deepvision(6144) 기준이고 pmcvqa(3072)는 더 빠르다.
+#     ✅ **2026-08-21 mmk12 스모크(job 75762) 실측: 정상구간 중앙값 128.7 s/it**(107~190, n=4).
+#        213 은 deepvision 값이었고 mmk12 는 완성 길이가 855~1,296 뿐이라 40% 빠르다.
+#        step time 은 `completions/mean_length` 가 지배한다 — 길이가 뛴 step(1,296)만 190 이었다.
+#        1 epoch 환산: mmk12 3,801 step = 135.8h·1,087 GPU-h · pmcvqa 4,896 step = (미실측)
+#        시작 오버헤드는 **잡당 약 36분**(49m23s − step 합계 13m15s). 체인 2~3잡이면 무시 가능.
+#        메모리는 68.82 GiB 에서 완전 평탄(beta=0 으로 참조모델 forward 제거 → deepvision 74.1 보다 낮다).
 #     ⚠️ memory 가 5 step 만에 52.7→74.1 GiB(80GB 의 93%)까지 올랐다. 본실행 초반에 확인할 것.
 #
 #  ⚠️ 노드가 정확히 3개다. 3 arm 동시 제출 = 파티션 전체 점유.
@@ -76,6 +82,8 @@ WALLTIME="${WALLTIME:-118:00:00}"
 #      N_JOBS   → 체인 길이. 213 s/it · walltime 118h 기준 1잡 ≈ 1,995 step
 EPOCHS="${EPOCHS:-}"
 N_JOBS="${N_JOBS:-1}"
+#  GPU-h 추정에 쓰는 s/it. 실측: mmk12 129(job 75762) · deepvision 213(job 75327) · pmcvqa 미실측.
+SPI="${SPI:-213}"
 STAMP="${STAMP:-$(date +%m%d-%H%M)}"
 
 if [[ "${SMOKE:-0}" == "1" ]]; then
@@ -114,10 +122,10 @@ for arm in $ARMS; do
     --export=ALL,RECIPE=stable,RESUME=1,DOMAIN="$arm",NUM_GEN="$NUM_GEN",LORA_DROPOUT=0,MAX_STEPS="$STEPS_ARM",INIT_MODEL="$INIT_MODEL",OUTPUT_DIR="$OUT",WATCHDOG=1,ENTQ="$ENTQ",BETA="$BETA",TEMPERATURE="$TEMPERATURE",SCALE_REWARDS="$SCALE_REWARDS"
     "$PROJ_DIR/scripts/21_rlvr_grpo_adv.slurm")
 
-  printf '[expert] %-11s %6s건 · %s step → %s 프롬프트 = %.3f epoch · 체인 %s잡 (%.0f GPU-h @213s/it)\n' \
+  printf '[expert] %-11s %6s건 · %s step → %s 프롬프트 = %.3f epoch · 체인 %s잡 (%.0f GPU-h @%ss/it)\n' \
     "$arm" "$N" "$STEPS_ARM" "$SEEN" \
     "$(awk "BEGIN{printf \"%.3f\", $SEEN/$N}")" "$N_JOBS" \
-    "$(awk "BEGIN{printf \"%.0f\", $STEPS_ARM*213/3600*8}")"
+    "$(awk "BEGIN{printf \"%.0f\", $STEPS_ARM*$SPI/3600*8}")" "$SPI"
   echo "         out= $OUT"
   if [[ "${DRY:-0}" == "1" ]]; then
     echo "         (DRY) ${SUBMIT[*]}"

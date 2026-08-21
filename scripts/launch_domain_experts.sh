@@ -133,8 +133,10 @@ for arm in $ARMS; do
   else
     PREV=""
     for k in $(seq 1 "$N_JOBS"); do
-      DEP=(); [[ -n "$PREV" ]] && DEP=(--dependency=afterany:"$PREV")
-      JID=$("${SUBMIT[@]:0:1}" --parsable "${DEP[@]}" "${SUBMIT[@]:1}")
+      #  bash 4.2 는 set -u 에서 빈 배열 "${DEP[@]}" 확장을 unbound 로 죽인다 → 문자열로 쓴다.
+      DEP=""
+      [[ -n "$PREV" ]] && DEP="--dependency=afterany:$PREV"
+      JID=$(sbatch --parsable $DEP "${SUBMIT[@]:1}")
       echo "         제출 $k/$N_JOBS: job $JID  ·  로그 logs/grpo_adv_${JID}.log"
       PREV="$JID"
     done

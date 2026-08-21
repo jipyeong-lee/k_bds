@@ -32,7 +32,9 @@ Stage-2 도메인 전문가 3종 RLVR 학습. 두 클러스터에서 실행 가�
 ## 1. Jukyung-Yadok B200 — 검증된 작동 레시피
 
 ### 1.1 접속
-- API base `$ORCH_BASE_URL`(별도 전달, self-signed → `curl -k`) · 헤더 `Authorization: Bearer $ORCH_PAT`
+- API base `$ORCH_BASE_URL` = **`https://web-orchestration.koreahealth.ai`**(2026-08-21 이전. 구 IP 는 301,
+  `curl -L` 은 크로스호스트에서 인증 헤더를 떨궈 401 이 된다). **인증서가 유효해져 `-k` 가 더는 필요 없다.**
+  헤더 `Authorization: Bearer $ORCH_PAT`
 - 자격증명은 저장소 루트 **`.env`**(gitignore 됨 · 형식은 [`.env.example`](.env.example)) → `set -a; . ./.env; set +a`.
   **API 는 로컬에서 직접 호출된다 — KISTI 경유가 필요 없다**(2026-08-21 확인). 그동안 KISTI 안에서만 호출한 탓에
   ssh 세션이 만료되자 조회·감시가 통째로 2일간 멎었다. 조회는 로컬, 체인 실행만 KISTI 로 분리할 것.
@@ -51,7 +53,8 @@ Stage-2 도메인 전문가 3종 RLVR 학습. 두 클러스터에서 실행 가�
 
 ### 1.3 데이터 반입 (KISTI → 플랫폼)
 - `POST /me/data/upload` 실측 **~138 MB/s**(저지연 4ms). **단일 요청 60초 제한** → ≤3.5G 청크로 split([`b200/upload_chunked.sh`](b200/upload_chunked.sh)), 노드에서 `cat …*.part | tar xf -`로 재조립.
-- **HF 대용량 CDN 차단**(cdn-lfs 000, xethub 403) → HF 직접 다운로드 불가, 반드시 업로드.
+- ~~HF 대용량 CDN 차단~~ → **2026-08-21 재검증: HF 다운로드가 된다**(Qwen2.5-0.5B 의 `model.safetensors`
+  988 MB 를 HTTP 200 으로 받았다). 노드에서 모델을 직접 받아도 되니 업로드가 필수는 아니다.
 - job은 `$ORCH_HOME/uploads`를 파일시스템으로 직접 읽음(API pull 불필요).
 
 ### 1.4 환경 스택 (KISTI 검증본 핀) + B200 5대 함정
@@ -89,6 +92,7 @@ bash b200/release_session.sh                        # 세션 조회 / --all-gpu 
 | 세션 반납 | 폴링 프로세스가 죽으면 `DELETE` 가 실행되지 않아 **세션이 GPU 를 계속 점유** → 이후 job 이 전부 `session create failed`. 조회·해제는 `/sessions` (`/nodes/<id>/sessions` 는 405) |
 | 동시 세션 | 학습 중 막히는 건 **GPU 를 요구하는 세션뿐**이다. `{"gpu_count":0}` 세션은 학습이 8장을 잡고 있어도 **그대로 열린다**(2026-08-21 실측, `gpu_indices:[]`) → `rm -rf`·`du` 같은 파일 작업을 아무 때나 할 수 있다([`b200/cleanup_runs.sh`](b200/cleanup_runs.sh)). "arm 교체 틈에만 가능"이라던 이전 기록은 틀렸다. 파일 *읽기* 는 세션조차 필요 없다 ↓ |
 | **safetensors 는 못 받는다** | `GET /me/data/file` 이 **safetensors 내용에서 HTTP 500** 을 낸다(2026-08-21 실측, 170/170 전부). 크기·확장자 문제가 아니다 — 같은 크기(173MB) 난수 파일은 200, 더 큰 `optimizer.pt`(346MB)도 200, 그런데 safetensors 를 `.bin` 으로 복사해도 500 이다. 서버가 응답 내용을 스니핑하다 죽는 것으로 보인다. **우회: `gpu_count:0` 세션에서 `tar cf` 로 감싸면 200 이다.** 이관 때 실패한 170개가 정확히 **모델 가중치 전부**였으니 이걸 모르면 이관이 통째로 무의미해진다. 부수 효과로 전송도 5배 빠르다(작은 파일 위주 22 MB/s → 173MB tar 106 MB/s — 병목은 대역폭이 아니라 요청 오버헤드다). 재귀 다운로더 → [`b200/pull_all.py`](b200/pull_all.py) |
+| **업로드 디렉터리는 job 이 못 쓴다** | 업로드는 API 서비스가, 학습은 job 컨테이너 사용자가 한다 — 소유자가 달라 업로드된 디렉터리에 로그를 쓰면 `Permission denied` 다(2026-08-21 데모에서 실측). **코드는 업로드 경로에서 읽고, 출력은 job 이 `mkdir` 한 별도 경로에 쓸 것.** `uploads/` 가 세션 `rm` 으로 안 지워지는 것과 같은 원인이다 |
 | **세션 없는 파일 읽기** | `GET /me/data/file?path=<$ORCH_HOME 기준 상대경로>` 가 파일 내용을 그대로 준다 — 학습 중에도 언제든. `/me/data?path=<dir>` 는 목록, `download`·`cat` 는 404. **stdout 8KB 절단도 없다** → 로그를 통째로 받아 전 step 파싱. [`b200/pull_file.sh`](b200/pull_file.sh) → [`b200/parse_log.py`](b200/parse_log.py) → [`b200/plot_progress.py`](b200/plot_progress.py) |
 | 체크포인트 | ms-swift 는 `$OUT/v<N>-<날짜>/checkpoint-<step>` 에 저장. `$OUT/checkpoint-*` 로 찾으면 **영영 못 찾아 매 job 이 step 0 부터 재시작** |
 | **rollout 포트** | 앞 job 이 killed 되면 그 소켓이 **TIME_WAIT** 로 남고, vLLM 은 실패하지 않고 **조용히 8001 로 뜬다.** health 가 8000 만 보면 서버가 53초 만에 멀쩡히 떠 있는데도 타임아웃 사망(교체마다 10~30분 손실). TIME_WAIT 는 "연결이 되는가"로는 감지할 수 없다(연결은 실패하고 bind 만 실패) → 포트를 비우려 하지 말고 로그의 `Uvicorn running on ...:<포트>` 를 읽어 **그 포트를 따라갈 것** |

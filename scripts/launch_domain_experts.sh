@@ -67,6 +67,15 @@ BETA="${BETA:-0}"                      # 참조 KL. 마스크가 KL 항 **이전
 TEMPERATURE="${TEMPERATURE:-1.0}"      # B200 검증값 (slurm 기본 0.9)
 SCALE_REWARDS="${SCALE_REWARDS:-gdpo}" # B200 검증값 (stable 기본 none)
 WALLTIME="${WALLTIME:-118:00:00}"
+
+#  ── 1 epoch 목표 (EPOCHS) 와 resume 체인 (N_JOBS) ────────────────────────────
+#  walltime 상한이 5일(120h)인데 1 epoch 은 그걸 넘는다 → afterany 체인으로 이어학습한다.
+#  각 잡이 RESUME=1 로 같은 OUTPUT_DIR 의 최신 checkpoint 에서 재개하고,
+#  MAX_STEPS 에 도달하면 남은 잡은 즉시 no-op 종료한다(과다 제출이 싸다).
+#      EPOCHS=1 → STEPS 를 도메인별 ceil(건수 × EPOCHS ÷ 프롬프트당step) 으로 덮어쓴다
+#      N_JOBS   → 체인 길이. 213 s/it · walltime 118h 기준 1잡 ≈ 1,995 step
+EPOCHS="${EPOCHS:-}"
+N_JOBS="${N_JOBS:-1}"
 STAMP="${STAMP:-$(date +%m%d-%H%M)}"
 
 if [[ "${SMOKE:-0}" == "1" ]]; then
@@ -90,25 +99,37 @@ for arm in $ARMS; do
   DS="$DATA_DIR/domains/stage2_${arm}.jsonl"
   [[ -f "$DS" ]] || { echo "❌ 데이터 없음: $DS"; exit 1; }
   N=$(wc -l <"$DS")
-  SEEN=$((STEPS * PPS))
+  #  EPOCHS 가 있으면 도메인 건수로 step 을 직접 계산한다(올림). 없으면 STEPS 를 그대로 쓴다.
+  if [[ -n "$EPOCHS" ]]; then
+    STEPS_ARM=$(awk "BEGIN{printf \"%d\", int(($N*$EPOCHS + $PPS - 1)/$PPS)}")
+  else
+    STEPS_ARM="$STEPS"
+  fi
+  SEEN=$((STEPS_ARM * PPS))
   OUT="$CKPT_DIR/expert_${arm}_${STAMP}"
 
   #  --export 값에 **쉼표도 공백도 넣지 않는다.** SLURM 이 쉼표로 쪼개고 공백은 버전에 따라 깨진다.
   #  (이 저장소는 EXTRA_ARGS="--seed 1234" 로 한 번 데인 적이 있다 → 커밋 366a04c)
   SUBMIT=(sbatch --job-name="e-$arm" --time="$WALLTIME"
-    --export=ALL,RECIPE=stable,DOMAIN="$arm",NUM_GEN="$NUM_GEN",LORA_DROPOUT=0,MAX_STEPS="$STEPS",INIT_MODEL="$INIT_MODEL",OUTPUT_DIR="$OUT",WATCHDOG=1,ENTQ="$ENTQ",BETA="$BETA",TEMPERATURE="$TEMPERATURE",SCALE_REWARDS="$SCALE_REWARDS"
+    --export=ALL,RECIPE=stable,RESUME=1,DOMAIN="$arm",NUM_GEN="$NUM_GEN",LORA_DROPOUT=0,MAX_STEPS="$STEPS_ARM",INIT_MODEL="$INIT_MODEL",OUTPUT_DIR="$OUT",WATCHDOG=1,ENTQ="$ENTQ",BETA="$BETA",TEMPERATURE="$TEMPERATURE",SCALE_REWARDS="$SCALE_REWARDS"
     "$PROJ_DIR/scripts/21_rlvr_grpo_adv.slurm")
 
-  printf '[expert] %-11s %6s건 · %s step → %s 프롬프트 = %.3f epoch (혼합 0.09 의 %.1f배)\n' \
-    "$arm" "$N" "$STEPS" "$SEEN" \
-    "$(awk "BEGIN{printf \"%.3f\", $SEEN/$N}")" \
-    "$(awk "BEGIN{printf \"%.1f\", ($SEEN/$N)/0.09}")"
+  printf '[expert] %-11s %6s건 · %s step → %s 프롬프트 = %.3f epoch · 체인 %s잡 (%.0f GPU-h @213s/it)\n' \
+    "$arm" "$N" "$STEPS_ARM" "$SEEN" \
+    "$(awk "BEGIN{printf \"%.3f\", $SEEN/$N}")" "$N_JOBS" \
+    "$(awk "BEGIN{printf \"%.0f\", $STEPS_ARM*213/3600*8}")"
   echo "         out= $OUT"
   if [[ "${DRY:-0}" == "1" ]]; then
     echo "         (DRY) ${SUBMIT[*]}"
+    [[ "$N_JOBS" -gt 1 ]] && echo "         (DRY) + afterany 체인 $((N_JOBS-1))잡 추가"
   else
-    JID=$("${SUBMIT[@]}" | awk '{print $NF}')
-    echo "         제출: job $JID  ·  로그 logs/grpo_adv_${JID}.log"
+    PREV=""
+    for k in $(seq 1 "$N_JOBS"); do
+      DEP=(); [[ -n "$PREV" ]] && DEP=(--dependency=afterany:"$PREV")
+      JID=$("${SUBMIT[@]:0:1}" --parsable "${DEP[@]}" "${SUBMIT[@]:1}")
+      echo "         제출 $k/$N_JOBS: job $JID  ·  로그 logs/grpo_adv_${JID}.log"
+      PREV="$JID"
+    done
   fi
   echo
 done

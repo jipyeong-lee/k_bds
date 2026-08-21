@@ -19,7 +19,7 @@ Stage-2 도메인 전문가 3종 RLVR 학습. 두 클러스터에서 실행 가�
 
 | | **KISTI K-BDS** | **Jukyung-Yadok (NHN B200)** |
 |---|---|---|
-| GPU | A100-40GB PCIe, NVLink 없음 | **8× B200 180GB, NVLink** |
+| GPU | **`8gpu` 파티션 = A100 80GB PCIe × 8**(2026-08-21 실측 81,920 MiB), NVLink 없음. `1gpu`·`debug-1gpu` 노드만 A100-40GB 다 — 학습을 거기 넣으면 OOM | **8× B200 180GB, NVLink** |
 | 접속 | `ssh k266a01@kbds.kisti.re.kr` (OTP+PW) | HTTP API (PAT), 대화형 셸 없음 |
 | 실행 | Slurm `sbatch` | 세션 생성 → `exec` → job 폴링 (async) |
 | 속도(실측) | GRPO ~213 s/it | **GRPO ~16–27 s/it (스모크)** |

@@ -271,6 +271,7 @@ run_py swift rlhf \
   --enable_thinking true \
   --num_generations "${NUM_GEN:-4}" \
   --temperature "$TEMPERATURE" \
+  --top_entropy_quantile "${ENTQ:-1.0}" \
   --max_completion_length "${MAX_COMPLETION:-6144}" \
   --per_device_train_batch_size "${PDTBS:-1}" \
   --gradient_accumulation_steps "${ACCUM:-4}" \

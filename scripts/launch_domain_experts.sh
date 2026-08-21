@@ -57,6 +57,15 @@ INIT_MODEL="${INIT_MODEL:-$CKPT_DIR/sft_mixed_merged}"
 ARMS="${ARMS:-deepvision mmk12 pmcvqa}"
 STEPS="${STEPS:-1500}"   # 213 s/it 실측 → 89 벽시계h/arm. walltime 118h 대비 33% 여유.
 NUM_GEN="${NUM_GEN:-8}"
+
+#  ── B200 2차에서 붕괴를 막은 조합 (README 발견 ⑤~⑫) ────────────────────────────
+#  1차는 이 넷 중 ENTQ 없이 돌려 **step 700 에 붕괴**했다(tr/ro 208 · fmt 0.936 · len 1487→502).
+#  2차는 ENTQ=0.2 로 step 2,203 까지 무붕괴, 보상 0.65 → 0.81.
+ENTQ="${ENTQ:-0.2}"                    # top_entropy_quantile · 1.0 이면 마스크 끔
+BETA="${BETA:-0}"                      # 참조 KL. 마스크가 KL 항 **이전**에 걸려 beta>0 과 조합이 깨진다
+                                       # (grpo_trainer.py: 정책 그래디언트는 상위 20% 토큰, KL 은 100%)
+TEMPERATURE="${TEMPERATURE:-1.0}"      # B200 검증값 (slurm 기본 0.9)
+SCALE_REWARDS="${SCALE_REWARDS:-gdpo}" # B200 검증값 (stable 기본 none)
 WALLTIME="${WALLTIME:-118:00:00}"
 STAMP="${STAMP:-$(date +%m%d-%H%M)}"
 
@@ -73,6 +82,7 @@ fi
 PPS=$((32 / NUM_GEN))
 echo "[expert] init   = $INIT_MODEL"
 echo "[expert] recipe = stable · num_gen=$NUM_GEN (프롬프트/step=$PPS) · lora_dropout=0"
+echo "[expert] B200 검증 노브: top_entropy_quantile=$ENTQ · beta=$BETA · temperature=$TEMPERATURE · scale_rewards=$SCALE_REWARDS"
 echo "[expert] steps  = $STEPS · walltime $WALLTIME · arms: $ARMS"
 echo
 
@@ -86,7 +96,7 @@ for arm in $ARMS; do
   #  --export 값에 **쉼표도 공백도 넣지 않는다.** SLURM 이 쉼표로 쪼개고 공백은 버전에 따라 깨진다.
   #  (이 저장소는 EXTRA_ARGS="--seed 1234" 로 한 번 데인 적이 있다 → 커밋 366a04c)
   SUBMIT=(sbatch --job-name="e-$arm" --time="$WALLTIME"
-    --export=ALL,RECIPE=stable,DOMAIN="$arm",NUM_GEN="$NUM_GEN",LORA_DROPOUT=0,MAX_STEPS="$STEPS",INIT_MODEL="$INIT_MODEL",OUTPUT_DIR="$OUT",WATCHDOG=1
+    --export=ALL,RECIPE=stable,DOMAIN="$arm",NUM_GEN="$NUM_GEN",LORA_DROPOUT=0,MAX_STEPS="$STEPS",INIT_MODEL="$INIT_MODEL",OUTPUT_DIR="$OUT",WATCHDOG=1,ENTQ="$ENTQ",BETA="$BETA",TEMPERATURE="$TEMPERATURE",SCALE_REWARDS="$SCALE_REWARDS"
     "$PROJ_DIR/scripts/21_rlvr_grpo_adv.slurm")
 
   printf '[expert] %-11s %6s건 · %s step → %s 프롬프트 = %.3f epoch (혼합 0.09 의 %.1f배)\n' \

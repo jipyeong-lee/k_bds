@@ -70,3 +70,39 @@ python3 b200/plot_progress.py
   포트를 비우려는 시도는 통하지 않는다 — `run_epoch.sh` 는 로그의 `Uvicorn running on ...:<포트>` 를
   읽어 **뜬 포트를 따라간다**(그 값이 그대로 `--vllm_server_port` 로 간다).
 - 나머지 함정은 [`../CLAUDE.md`](../CLAUDE.md) §1.5 표 참조
+
+## deepvision 학습 결론 (완료, 2026-08-21 — 2,203/5,715 step, 38.5%)
+
+**1차(엔트로피 마스크 없음)는 step ~700 부터 붕괴, 2차(`top_entropy_quantile=0.2`)는 같은 구간을
+무붕괴로 통과했다.** 자원 회수로 2차를 38.5%에서 중지 — 붕괴가 아니라 자원 종료가 이유다.
+
+곡선 재생성:
+```bash
+bash b200/pull_file.sh train_deepvision_ep1_gdpo_async_tis_entmask.log /tmp/t2.log
+python3 b200/parse_log.py /tmp/t2.log b200/metrics_deepvision_entmask.csv
+python3 b200/plot_progress.py b200/metrics_deepvision_entmask.csv b200/progress_deepvision_entmask.png
+```
+
+**진단·감시 지표에 대해 확정한 것:**
+
+- **`clip_ratio` 는 죽은 인자다.** `num_iterations=1`이면 π_θ=π_old라 ratio≡1이 되어(`grpo_trainer.py:1150`)
+  `epsilon`/`epsilon_high`(DAPO Clip-Higher)가 아무 일도 하지 않는다. 1,280 step 전부 clip 발동 0으로 확인.
+- **엔트로피 붕괴에 실제로 쓸 수 있는 레버는 `top_entropy_quantile`과 `beta` 둘뿐이다** — entropy bonus
+  인자 자체가 없고 clip 계열은 위 이유로 무효.
+- **`clipped_frac`(TIS 절단 비율)은 단독 경보로 못 쓴다** — 발산이 깊어질수록 두 분포가 함께 좁아져
+  오히려 비율이 낮아진다(비단조). 단조로 붕괴를 따라가는 건 `tr_ppl/ro_ppl` · `log_ppl_abs_diff` · `ess` 셋.
+- **TIS는 1차에도 켜져 있었고 붕괴를 막지 못했다** — 괴리를 줄이는 장치가 아니라 생긴 괴리의 업데이트
+  분산을 자르는 장치다. 2차가 안정적인 이유는 TIS가 아니라 마스크가 애초에 정책을 안 뾰족하게 만들어서다.
+- **`ess` 도 단독 경보로 못 쓴다** — 붕괴 없는 2차가 붕괴한 1차보다 `ess` 가 낮게 찍힌 사례가 있다.
+  단독 트리거는 `tr/ro`(>1.30) · `fmt`(<0.97) · `len`(<900)로 좁히고, `ess`·`ppl_abs_diff`·`clipped_frac`
+  은 2개 이상 겹칠 때만: [`watch_mismatch.sh`](watch_mismatch.sh).
+- **지표는 평균이 아니라 중앙값으로 봐야 한다** — 튄 step 하나(`tr_ppl`=119,300 같은)가 200-step 평균을
+  통째로 오염시킨다. 중앙값으로 보면 1차·2차가 `tr/ro`·`len` 두 지표에서만 뚜렷이 갈린다.
+- **ms-swift 4.5.0 업그레이드는 이득 없음** — mismatch 관련 인자가 4.1.3과 동일(인자 diff로 확인).
+- **32비트 학습은 이 환경에서 막혀 있다** — ms-swift 어느 버전에도 logits/logprob만 올리는 스위치가
+  없고, 통째로 fp32면 메모리 2배라 180 GiB에 안 들어간다. 이 축 대신 IS 보정으로 간다.
+
+**홀드아웃 궤적(구 혼합 학습 73924/73925, n=1,772)은 별개 실험이다** — 그때 확정된 것:
+RL은 init 대비 붕괴 전까지 유의하게 오른다(+8.18pp, p<0.0001)는 데는 도메인 간 격차가 있다
+(deepvision +10.80 · 수학 +9.25 · 의료 +0.75 미검출) → 상세는
+[`../docs/stage2_run73924_postmortem.md`](../docs/stage2_run73924_postmortem.md).

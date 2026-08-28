@@ -8,7 +8,18 @@
 
 ---
 
-## 현황 (2026-08-16)
+## 현황 (2026-08-28)
+
+**지금 위치**: **Stage-2 도메인 전문가 3종 — deepvision 완주 · pmcvqa 진행 중 · mmk12 방치.**
+deepvision 은 B200 에서 엔트로피 마스크(`top_entropy_quantile=0.2`)로 붕괴 없이 **2,203/5,715 step(38.5%)** 까지 가고
+자원 회수로 중지. 같은 세팅을 KISTI 로 이식해 mmk12·pmcvqa 를 1 epoch 목표로 재제출했는데,
+**mmk12 는 checkpoint-450 부근에서 세 번 연속 같은 자리(FormatThink 붕괴)로 되돌아가 watchdog 자동취소** —
+8/22 19:09 이후 방치 상태로 **결정 대기**. **pmcvqa 는 붕괴 없이 정상 진행**, step **2,877/4,896(58.7%)**.
+중간 홀드아웃(n=400, checkpoint-2850): init **56.5%** → **60.5%**(+4.0pp, McNemar p=0.105·아직 유의성 미확보).
+→ [Stage-2 본실행 현황](#stage-2-본실행-현황)
+
+<details>
+<summary>이전 현황 (2026-08-16, B200 deepvision 착수 시점)</summary>
 
 **지금 위치**: **B200 deepvision 2차 실행 개시** — 1차가 step ~700 부터 **엔트로피 붕괴**로 무너져
 (롤아웃 ppl 1.70→1.14, 길이 1344→498, `log_ppl_abs_diff` 0.067→0.380) step 1268 에서 정지하고,
@@ -71,6 +82,7 @@ DeepSeek-V4 구조를 따라 **혼합 학습 → 도메인별 전문가 3분할*
 > **이미지는 정상**이라 재빌드는 무의미(빌드도 불가). **우회 = `ENV_MODE=loader` 가 기본값**이라 기존 스크립트가 그대로 동작
 > (검증: 8GPU GRPO 완주, job 72832). apptainer 복구 시 `ENV_MODE=container` 로 원복. → [`HANDOFF.md`](HANDOFF.md) §3 · `runc.sh` 주석
 
+</details>
 </details>
 
 ### B200 1 epoch 본실행 (2026-08-15 ~, 최신 갱신 08-16 step 1255)
@@ -268,18 +280,35 @@ step 1 확인: `entropy/threshold` **1.618** 이 새로 찍힌다(마스크 동�
 
 ### Stage-2 본실행 현황
 
-**현재 실행 — 도메인 전문가 3종 (2026-08-14 제출, 대기 중)**
+**현재 실행 — 도메인 전문가 3종, 1 epoch 목표 (2026-08-21 재제출)**
 
-| job | arm | 데이터 | 노출 | 출력 |
-|---|---|---|---|---|
-| **75394** | deepvision | 40,000 | 6,000 프롬프트 = **0.15 ep** | `expert_deepvision_0814-0812` |
-| **75395** | mmk12 | 15,204 | 6,000 = **0.40 ep** | `expert_mmk12_0814-0812` |
-| **75396** | pmcvqa | 19,583 | 6,000 = **0.31 ep** | `expert_pmcvqa_0814-0812` |
+deepvision 은 B200 자체 클러스터, mmk12·pmcvqa 는 KISTI. 공통 세팅은 B200 붕괴 재현 실험에서
+검증한 값을 그대로 이식: `top_entropy_quantile=0.2`(엔트로피 마스크) · `beta=0` · `scale_rewards=gdpo` ·
+`lora_dropout=0` · `lora_rank=16/alpha=32`(계단 0 어댑터 병합 전제) · init `sft_mixed_merged` ·
+watchdog(FormatThink 50-step 평균 <0.85 → 자동 취소). 도메인별 길이예산만 차등(§1 새 손잡이) —
+deepvision/mmk12 `soft_max=8192/6144`(긴 CoT) · pmcvqa `soft_max=3072`(객관식).
 
-공통: `RECIPE=stable` · `NUM_GEN=8` · `MAX_STEPS=1500` · `LORA_DROPOUT=0` · `WATCHDOG=1` · init `sft_mixed_merged` · walltime 118h.
-89 벽시계h/arm(213 s/it 실측) = **2,130 GPU-h · 잔여 예산의 52%**.
-큐 우선순위 974(경쟁 잡 666) — 예상 시작 **08-17**, 노드가 하루 간격으로 열려 **순차 시작** 가능성이 크다.
-설계 근거 → [Stage-2 재설계](#stage-2-재설계-2026-08-13--도메인-전문가-3분할) · 실측 → [8 GPU 스모크](#8-gpu-스모크-2026-08-13--job-75327)
+| domain | 클러스터 · job(체인) | 데이터 | 목표(1 epoch) | 현재 | 상태 |
+|---|---|---:|---:|---:|---|
+| **deepvision** | B200 | 40,000 | 5,715 step | **2,203 (38.5%)** | ✅ 붕괴 없이 정상 종료 — 자원 회수로 중지 |
+| **mmk12** | KISTI 75776→75777→75778 | 15,204 | 3,801 step | **475 (12.5%)** | 🚨 checkpoint-450 부근에서 **3연속 동일 붕괴**(FormatThink) → watchdog 자동취소, 8/22 19:09 이후 **방치·결정 대기** |
+| **pmcvqa** | KISTI 75825→75826(진행중) | 19,583 | 4,896 step | **2,877 (58.7%)** | ✅ 붕괴 없이 진행 중 |
+
+![mmk12 학습 곡선](docs/assets/stage2_mmk12_curves.png)
+![pmcvqa 학습 곡선](docs/assets/stage2_pmcvqa_curves.png)
+
+> **mmk12 붕괴는 resume 버그가 아니다.** 최초 실행(75776, 재개 아님)조차 step 450 에서 이미
+> FormatThink 가 0.847 로 문턱(0.85)을 스쳤다 — checkpoint-450 자체가 붕괴 초입이라 재개할 때마다
+> 같은 자리로 돌아간다. entropy mask 가 deepvision 은 지켰지만 mmk12(수학, 긴 CoT)엔 부족했다.
+>
+> **pmcvqa 는 붕괴는 없지만 training-batch accuracy reward 가 완전히 평평하다**(step 0~2,800 내내
+> 중앙값 0.48~0.52, 드리프트 없음) — 노이즈에 학습 신호가 묻힌 것으로 보고, **중간 홀드아웃(n=400)**
+> 으로 직접 확인했다: init **56.5%** → checkpoint-2850(0.58 epoch) **60.5%**(**+4.0pp**,
+> McNemar exact p=0.105 — 방향은 개선이나 아직 유의성 미확보). 구 혼합 학습(0.09 epoch 노출)의
+> +0.75pp(p>0.5, 완전 미검출)보다는 나아졌다. 1 epoch 완주 후 재평가로 유의성 확보 여부를 본다.
+
+설계 근거 → [Stage-2 재설계](#stage-2-재설계-2026-08-13--도메인-전문가-3분할) ·
+[DeepSeek-V4 방법론 채택](docs/deepseek_v4_pipeline_adoption.md) · 실측 → [8 GPU 스모크](#8-gpu-스모크-2026-08-13--job-75327)
 
 ---
 

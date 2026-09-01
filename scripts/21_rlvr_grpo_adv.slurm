@@ -251,6 +251,63 @@ if [[ "${WATCHDOG:-0}" == "1" ]]; then
   trap '[[ -n "$WATCH_PID" ]] && kill "$WATCH_PID" 2>/dev/null || true' EXIT
 fi
 
+# ---- vLLM 실행 모드 (VLLM_MODE=colocate|server) -----------------------------
+#  server: 롤아웃을 전용 GPU 1장으로 분리해 async_generate 로 학습과 오버랩한다.
+#          B200 deepvision 에서 검증한 레시피를 그대로 이식(CLAUDE.md §1.5).
+#  colocate(기본, 미지정 시): 학습·롤아웃이 같은 GPU 를 순차로 쓴다 — 지금까지 KISTI 기본값.
+#  KISTI 2gpu 스모크로 메커니즘 검증 완료(job 76198, 2026-09-01) — 롤아웃 서버 기동·헬스체크·
+#  async 접속·학습 step 진행까지 정상. 그 스모크의 OOM 은 2GPU/40GB 로 욱여넣은 탓(world=1,
+#  9B 모델) — 실제 8gpu(80GB×6~7) 규모에서는 문제 없을 배치 크기다.
+VLLM_MODE="${VLLM_MODE:-colocate}"
+if [[ "$VLLM_MODE" == "server" ]]; then
+  SERVER_GPU=$((NPROC_PER_NODE - 1))
+  TRAIN_GPUS=$(seq -s, 0 $((SERVER_GPU - 1)))
+  ROLLOUT_PORT="${ROLLOUT_PORT:-8000}"
+  RLOG="$PROJ_DIR/logs/rollout_${SLURM_JOB_ID}.log"
+  echo "[grpo-adv] VLLM_MODE=server → GPU $SERVER_GPU 에 롤아웃 서버, GPU $TRAIN_GPUS 로 학습"
+  (
+    export CUDA_VISIBLE_DEVICES=$SERVER_GPU
+    run_py swift rollout \
+      --model "$INIT_MODEL" --model_type "$MODEL_TYPE" \
+      --vllm_tensor_parallel_size 1 \
+      --vllm_max_model_len "${VLLM_MAX_LEN:-10240}" \
+      --vllm_gpu_memory_utilization "${VLLM_UTIL:-0.90}" \
+      --vllm_enable_prefix_caching true \
+      --port "$ROLLOUT_PORT"
+  ) > "$RLOG" 2>&1 &
+  ROLLOUT_PID=$!
+  sleep 2
+  echo "[grpo-adv]   롤아웃 서버 기동 시도, pid=$ROLLOUT_PID (2초 후 생존: $(kill -0 "$ROLLOUT_PID" 2>/dev/null && echo yes || echo NO))"
+  #  WATCHDOG 트랩과 합친다 — 여기서 새로 trap 을 걸면 위에서 건 WATCH_PID kill 이 덮어써진다.
+  trap '[[ -n "${WATCH_PID:-}" ]] && kill "$WATCH_PID" 2>/dev/null; [[ -n "${ROLLOUT_PID:-}" ]] && kill "$ROLLOUT_PID" 2>/dev/null; true' EXIT
+  #  포트가 TIME_WAIT 로 밀릴 수 있다 — 요청 포트가 아니라 로그의 실제 바인딩을 따라간다(B200 실측).
+  for i in $(seq 1 240); do
+    #  set -e + pipefail 아래서는 grep 이 아직 못 찾는 정상 상태(서버 기동 중)조차 파이프 실패로
+    #  전파돼 스크립트가 조용히(에러 메시지 없이) 죽는다 — || true 로 그 전파를 끊는다.
+    ACTUAL=$(grep -oE "Uvicorn running on http://[0-9.]+:[0-9]+" "$RLOG" 2>/dev/null | tail -1 | sed 's/.*://' || true)
+    if [[ -n "$ACTUAL" ]] && curl -s "http://127.0.0.1:$ACTUAL/health" >/dev/null 2>&1; then
+      [[ "$ACTUAL" != "$ROLLOUT_PORT" ]] && echo "[grpo-adv]   ⚠️ 포트 밀림: $ROLLOUT_PORT → $ACTUAL"
+      ROLLOUT_PORT="$ACTUAL"; echo "[grpo-adv]   롤아웃 서버 health OK (${i}×5s, port=$ROLLOUT_PORT)"; break
+    fi
+    kill -0 "$ROLLOUT_PID" 2>/dev/null || { echo "[grpo-adv] ❌ 롤아웃 서버 사망 — 로그:"; tail -30 "$RLOG"; exit 1; }
+    sleep 5
+  done
+  curl -s "http://127.0.0.1:$ROLLOUT_PORT/health" >/dev/null 2>&1 || {
+    echo "[grpo-adv] ❌ 롤아웃 서버 미기동 — 로그:"; tail -30 "$RLOG"; exit 1; }
+  export CUDA_VISIBLE_DEVICES="$TRAIN_GPUS"
+  export NPROC_PER_NODE="$SERVER_GPU"
+  VLLM_ARGS="--vllm_mode server --vllm_server_host 127.0.0.1 --vllm_server_port $ROLLOUT_PORT \
+    --async_generate true \
+    --rollout_importance_sampling_mode token_truncate --rollout_importance_sampling_threshold 2.0"
+else
+  VLLM_ARGS="--vllm_mode colocate \
+    --vllm_tensor_parallel_size ${VLLM_TP:-1} \
+    --vllm_mm_processor_cache_gb 0 \
+    --vllm_gpu_memory_utilization ${VLLM_UTIL:-0.4} \
+    ${VLLM_MAX_LEN:+--vllm_max_model_len $VLLM_MAX_LEN} \
+    --sleep_level ${SLEEP_LEVEL:-1}"
+fi
+
 run_py swift rlhf \
   --rlhf_type grpo \
   --model "$INIT_MODEL" \
@@ -282,12 +339,7 @@ run_py swift rlhf \
   --gradient_checkpointing true \
   --attn_impl "$ATTN_IMPL" \
   --use_vllm true \
-  --vllm_mode colocate \
-  --vllm_tensor_parallel_size "${VLLM_TP:-1}" \
-  --vllm_mm_processor_cache_gb 0 \
-  --vllm_gpu_memory_utilization "${VLLM_UTIL:-0.4}" \
-  ${VLLM_MAX_LEN:+--vllm_max_model_len $VLLM_MAX_LEN} \
-  --sleep_level "${SLEEP_LEVEL:-1}" \
+  $VLLM_ARGS \
   ${OFFLOAD:+--offload_model true --offload_optimizer true} \
   --log_completions true \
   --log_entropy true \

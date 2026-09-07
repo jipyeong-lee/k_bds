@@ -4,7 +4,7 @@
     bash b200/pull_file.sh train_deepvision_ep1_gdpo_async_tis.log /tmp/train.log
     python3 b200/parse_log.py /tmp/train.log b200/metrics_deepvision.csv
 
-`dump_metrics.sh` 는 노드 안에서 돌기 때문에 (a) GPU 세션이 비는 틈을 기다려야 하고
+(구) `dump_metrics.sh`(삭제됨)는 노드 안에서 돌기 때문에 (a) GPU 세션이 비는 틈을 기다려야 하고
 (b) stdout 8KB 제한 때문에 80 행으로 솎아야 했다. `/me/data/file` 로 로그를 통째로
 내려받을 수 있으니 두 제약이 다 없어진다 — 여기서는 전 step 을 그대로 남긴다.
 """

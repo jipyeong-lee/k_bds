@@ -173,7 +173,6 @@ case "$RECIPE" in
     #         넘는 게 확인되면 그때 token_mask 로 켠다. 같이 켜면 무엇 덕분인지 모른다.
     #   loss_type 은 dr_grpo 유지(길이정규화 편향 제거). sapo 는 grpo 계열 시퀀스 정규화를
     #   쓰므로 그 편향이 되돌아와 보류했다 → docs/stage2_redesign_2026.md §3-I
-    OVERLONG_FILTER=false
     CORE_ARGS="--dynamic_sample true --max_resample_times $DS_RESAMPLE --overlong_filter false"
     RECIPE_ARGS="--loss_type dr_grpo \
       --importance_sampling_level token \

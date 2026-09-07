@@ -24,8 +24,6 @@ export ORCH_BASE_URL=https://...   # 플랫폼 API base (커밋 금지 — 기�
 | **`pull_file.sh`** | `$ORCH_HOME` 파일을 **GPU 세션 없이** 내려받는다 (`/me/data/file`) | 로컬/KISTI |
 | **`parse_log.py`** | 받은 학습 로그 → CSV **전 step** (솎지 않는다) | 로컬 |
 | **`plot_progress.py`** | CSV → 학습 곡선 PNG 6 패널 (`../README.md` 에 실린다) | 로컬 |
-| `dump_metrics.sh` | (구) 노드 안에서 로그 → CSV. stdout 8KB 때문에 80 행으로 솎아야 했다 | 노드(payload) |
-| `dump_collapse.sh` | (구) 붕괴 구간만 진단 열 15개로. 위 3종으로 대체됨 | 노드(payload) |
 
 ## 순서
 ```bash

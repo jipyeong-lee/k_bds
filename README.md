@@ -40,6 +40,7 @@ deepvision/mmk12 `soft_max=8192/6144`(긴 CoT) · pmcvqa `soft_max=3072`(객관�
 ![mmk12 학습 곡선](docs/assets/stage2_mmk12_curves.png)
 ![pmcvqa 학습 곡선](docs/assets/stage2_pmcvqa_curves.png)
 ![deepvision 학습 곡선 — 엔트로피 마스크](b200/progress_deepvision_entmask.png)
+![글로벌 벤치마크 SFT vs RL](docs/assets/stage2_global_bench.png)
 
 > **mmk12 붕괴는 resume 버그가 아니다.** 최초 실행(75776, 재개 아님)조차 step 450 에서 이미
 > FormatThink 가 0.847 로 문턱(0.85)을 스쳤다 — checkpoint-450 자체가 붕괴 초입이라 재개할 때마다

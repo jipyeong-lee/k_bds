@@ -30,7 +30,9 @@ LP="$LP:${NV_LIBS}"
 # libcuda.so(드라이버)는 컨테이너에 없음 → 호스트 것을 사용해야 GPU 가 잡힌다
 LP="$LP:/usr/lib64:/lib64"
 
-export PYTHONPATH="$S/usr/local/lib/python3.12/site-packages${PYTHONPATH:+:$PYTHONPATH}"
+# scripts/pyfix/sitecustomize.py — torch.load weights_only=True(2.6+) 로 인한
+# rng_state_*.pth 재개 로드 실패 우회. site 모듈이 PYTHONPATH 첫 디렉터리에서 자동 import.
+export PYTHONPATH="$PROJ_DIR/scripts/pyfix:$S/usr/local/lib/python3.12/site-packages${PYTHONPATH:+:$PYTHONPATH}"
 # ⚠️ $S/usr/local/cuda 는 /etc/alternatives/cuda 를 가리키는 심볼릭 링크라
 #    컨테이너 밖(chroot 없음)에서는 깨진다 → deepspeed 가 nvcc 를 못 찾아 죽음.
 #    실경로(cuda-12.9)를 직접 지정한다.

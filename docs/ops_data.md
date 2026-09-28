@@ -105,7 +105,7 @@ kbds_project/
 │   │  # ── Stage-2 RLVR ──
 │   ├── 21_rlvr_grpo_adv.slurm           # A/B(dapo/gspo/dr_grpo, RESUME/MAX_STEPS)
 │   ├── make_holdout.py                  # 층화 홀드아웃 분리
-│   ├── 40_eval_compare.slurm / eval_compare.py            # base vs 학습 벤치
+│   ├── 41_eval_compare.slurm / eval_compare.py            # base vs 학습 벤치
 │   ├── eval_midtrain.slurm              # 중간 홀드아웃 벤치(RL 25%)
 │   ├── 46_eval_gdpo_ab.slurm / 47_eval_ablation.slurm     # GDPO 판정 · 콜드스타트 ablation
 │   ├── 48_eval_gspo_holdout.slurm / 49_eval_contaminated.slurm  # GSPO 홀드아웃 · 오염 참고치

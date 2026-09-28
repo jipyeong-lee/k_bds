@@ -15,7 +15,7 @@
 #          600 step × ~365s ≈ 61h < 70h → 단일 잡 완결(체인 불필요). save_steps=50.
 #
 #  판정(완주 후): 두 런의 step501~600 구간평균 Acc/reward/mean_len 비교
-#          + 필요시 각 checkpoint 병합해 층화 홀드아웃 벤치마크(40_eval_compare).
+#          + 필요시 각 checkpoint 병합해 층화 홀드아웃 벤치마크(41_eval_compare).
 #
 #  ⚠️ QOS 사용자당 제출 6잡 상한. dr_grpo 체인이 슬롯을 다 쓰면 이 스크립트 제출 실패 →
 #     dr_grpo 버퍼 잡 1개(체인 맨 뒤)를 취소해 슬롯 확보(5잡으로도 dr_grpo 1-epoch 완주 충분).

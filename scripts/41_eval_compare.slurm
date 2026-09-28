@@ -1,6 +1,6 @@
 #!/bin/bash
 # =============================================================================
-# 40_eval_compare.slurm — base(Qwen3.5-9B) vs 학습모델(dr_grpo_merged) 벤치마크 비교.
+# 41_eval_compare.slurm — base(Qwen3.5-9B) vs 학습모델(dr_grpo_merged) 벤치마크 비교.
 #   각 모델을 vLLM OpenAI 서버로 띄우고 DeepVision 홀드아웃 N건 동일조건 평가 → accuracy_mix.
 #   결과: logs/eval_compare_results.jsonl + 로그. (Stage-2 학습 효과 정량화)
 # =============================================================================

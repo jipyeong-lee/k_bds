@@ -84,7 +84,7 @@ else
   echo "[mid] EVAL_STAGES=$EVAL_STAGES — trained 없음, 체크포인트 스냅샷·병합 건너뜀"
 fi
 
-# ---- 평가 함수 (40_eval_compare.slurm 과 동일 로직, 결과 파일만 별도) --------
+# ---- 평가 함수 (41_eval_compare.slurm 과 동일 로직, 결과 파일만 별도) --------
 run_eval() {  # $1=tag  $2=model
   local tag="$1" model="$2"
   echo "=================  [$tag] $model  ================="

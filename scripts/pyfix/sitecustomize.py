@@ -9,7 +9,8 @@ _orig_load = torch.load
 
 
 def _load(*args, **kwargs):
-    kwargs.setdefault("weights_only", False)
+    # transformers 의 _load_rng_state 는 weights_only=True 를 명시 호출하므로 setdefault 로는 못 덮는다.
+    kwargs["weights_only"] = False
     return _orig_load(*args, **kwargs)
 
 

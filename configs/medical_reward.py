@@ -41,6 +41,12 @@ _EXTRA_BODY = {} if JUDGE_THINK else {'chat_template_kwargs': {'enable_thinking'
 # 스모크/디버그: swift 가 넘기는 kwargs(특히 images) 구조를 첫 호출에 1회 출력.
 JUDGE_DEBUG = os.environ.get('JUDGE_DEBUG', '0') == '1'
 _DEBUG_DONE = []
+# 증거 인식 크레딧(MetaRubric, arXiv 2610.02824 의 Vacuous Credit 대응): judge 가 c2 의 근거 문장을
+# 인용해야 하고, 그 인용이 <think> 에 실제로 있어야 c2 를 인정한다. c2 가 없으면 c4(과장 없음)도 무효.
+# ⚠️ 기본 OFF — judge 가 인용 필드를 지키는지 GPU 에서 분포 프로브로 확인한 뒤 켤 것
+# (안 지키면 전 응답 c2=0 으로 보상이 붕괴한다).
+EVIDENCE_GATE = os.environ.get('RUBRIC_EVIDENCE', '0') == '1'
+_MIN_EVIDENCE_CHARS = 8
 
 
 def _msg_text(resp) -> str:
@@ -122,7 +128,7 @@ def aggregate(rubric: List[dict], verdicts: dict) -> float:
 
 
 def build_judge_prompt(question: str, reference: str, answer_block: str,
-                       rubric: List[dict]) -> str:
+                       rubric: List[dict], evidence: bool = False) -> str:
     lines = [
         "You are a strict grader for medical image VQA. Given the IMAGE, the QUESTION, a "
         "REFERENCE ANSWER (gold), and the MODEL OUTPUT (with <think> reasoning and <answer>), "
@@ -137,6 +143,14 @@ def build_judge_prompt(question: str, reference: str, answer_block: str,
     for item in rubric:
         lines.append(f"- {item['key']} ({item['title']}): {item['description']}")
     keys = ', '.join(f'"{it["key"]}": 0 or 1' for it in rubric)
+    if evidence:
+        keys = '"c2_evidence": "<quote>", ' + keys   # 인용을 먼저 쓰게 해 c2 판정이 인용에 근거하도록
+        lines += [
+            "",
+            "FIRST fill c2_evidence: copy VERBATIM from the <think> text one sentence that states an "
+            "observation about the image (no braces or newlines). If <think> states no such observation, "
+            "use an empty string. Then judge c2: c2 may be 1 ONLY if c2_evidence is non-empty.",
+        ]
     lines += [
         "",
         f"Respond with ONLY a JSON object: {{{keys}}}. No other text.",
@@ -161,6 +175,29 @@ def parse_verdicts(text: str, rubric: List[dict]) -> Optional[dict]:
             out[item['key']] = 1.0 if float(v) >= 0.5 else 0.0
         except Exception:
             return None
+    return out
+
+
+def parse_evidence(text: str) -> str:
+    m = _JSON_RE.search(text or '')
+    try:
+        return str(json.loads(m.group(0)).get('c2_evidence') or '') if m else ''
+    except Exception:
+        return ''
+
+
+def apply_evidence_gate(verdicts: dict, evidence: str, completion: str) -> dict:
+    """c2 는 인용이 <think> 에 실재할 때만 인정, c2 가 무효면 c4 도 무효(아무 주장 안 한 응답이
+    '과장 없음' 을 공짜로 받는 Vacuous Credit 차단). 공백·대소문자는 무시하고 비교."""
+    norm = lambda s: ' '.join((s or '').split()).lower()
+    m = _FORMAT_RE.search(completion or '')
+    ev = norm(evidence)
+    ok = bool(m) and len(ev) >= _MIN_EVIDENCE_CHARS and ev in norm(m.group(1))
+    out = dict(verdicts)
+    if not ok:
+        out['c2'] = 0.0
+    if not out.get('c2'):
+        out['c4'] = 0.0
     return out
 
 
@@ -220,7 +257,7 @@ class ClinicalJudgeReward(AsyncORM):
         answer_block = completion.strip()
         prompt = build_judge_prompt(
             question='(see image)', reference=reference,
-            answer_block=answer_block, rubric=rubric)
+            answer_block=answer_block, rubric=rubric, evidence=EVIDENCE_GATE)
 
         content = [{'type': 'text', 'text': prompt}]
         if SEND_IMAGE and image_path:
@@ -240,6 +277,8 @@ class ClinicalJudgeReward(AsyncORM):
         verdicts = parse_verdicts(text, rubric)
         if verdicts is None:
             return 0.0  # 파싱 불가 → 0
+        if EVIDENCE_GATE:
+            verdicts = apply_evidence_gate(verdicts, parse_evidence(text), completion)
         return aggregate(rubric, verdicts)
 
     async def __call__(self, completions, **kwargs) -> List[float]:

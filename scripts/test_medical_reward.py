@@ -103,5 +103,36 @@ check("빈 dict → None", M._image_to_data_url({'bytes': None, 'path': None}) i
 check("없는 경로 → None", M._image_to_data_url('/no/such/file.png') is None)
 os.unlink(_tmp.name)
 
+print("== 8. 증거 인식 크레딧 (Vacuous Credit 차단, RUBRIC_EVIDENCE) ==")
+ALL1 = {'c1': 1., 'c2': 1., 'c3': 1., 'c4': 1.}
+EV = "CT상 좌하엽에 경계가 분명한 다낭성 종괴가 보이며"
+g = lambda ev, v=ALL1: M.apply_evidence_gate(v, ev, good)
+check("인용이 think 에 실재 → c2·c4 유지", g(EV) == ALL1)
+check("공백·대소문자 달라도 실재하면 유지", g("ct상  좌하엽에\n경계가 분명한 다낭성 종괴") == ALL1)
+check("인용 없음 → c2=0, c4=0", g('')['c2'] == 0 and g('')['c4'] == 0 and g('')['c1'] == 1)
+check("think 에 없는 지어낸 인용 → c2=0, c4=0", g("우하엽에 석회화 결절이 뚜렷함")['c4'] == 0)
+check("너무 짧은 인용 → 거부", g("종괴")['c2'] == 0)
+check("c2 가 이미 0 이면 c4 도 0", g(EV, {**ALL1, 'c2': 0.})['c4'] == 0)
+check("c3 는 건드리지 않음", g('')['c3'] == 1)
+check("프롬프트: 기본은 인용 지시 없음", 'c2_evidence' not in M.build_judge_prompt('q', 'r', 'a', rb_m))
+check("프롬프트: evidence=True 면 인용 지시", 'c2_evidence' in M.build_judge_prompt('q', 'r', 'a', rb_m, evidence=True))
+check("parse_evidence", M.parse_evidence('{"c1":1,"c2":1,"c2_evidence":"abc def"}') == 'abc def')
+check("parse_evidence 필드 없음 → ''", M.parse_evidence('{"c1":1}') == '')
+
+async def run_gate(judge_txt):
+    rw = M.ClinicalJudgeReward(); rw._client = _FakeClient(judge_txt)
+    return (await rw.__call__([good], solution=['28 x 27 mm'], images=[None]))[0]
+
+M.EVIDENCE_GATE = True
+try:
+    s_ev = asyncio.run(run_gate('{"c1":1,"c2":1,"c3":1,"c4":1,"c2_evidence":"%s"}' % EV))
+    s_no = asyncio.run(run_gate('{"c1":1,"c2":1,"c3":1,"c4":1}'))   # judge 가 인용 필드를 안 지킴
+finally:
+    M.EVIDENCE_GATE = False
+print(f"   gate ON: 인용 있음={s_ev} / 인용 없음={s_no}")
+check("게이트 ON + 유효 인용 → 1.0", abs(s_ev - 1.0) < 1e-6)
+check("게이트 ON + 인용 누락 → 감점(c1·c3 만 = 8/15)", abs(s_no - 8/15) < 1e-6)
+check("게이트 OFF(기본) 는 기존 동작 — judge all1 → 1.0", abs(asyncio.run(run_gate('{"c1":1,"c2":1,"c3":1,"c4":1}')) - 1.0) < 1e-6)
+
 print(f"\n== 결과: {PASS} pass / {FAIL} fail ==")
 sys.exit(1 if FAIL else 0)

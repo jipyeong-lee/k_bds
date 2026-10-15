@@ -28,8 +28,10 @@ from typing import List, Optional
 from swift.rewards import AsyncORM, orms
 
 # ---- 설정 (env override) ---------------------------------------------------
-JUDGE_BASE_URL = os.environ.get('JUDGE_BASE_URL', 'http://127.0.0.1:8100/v1')
-JUDGE_MODEL = os.environ.get('JUDGE_MODEL', 'gemma4-26b')
+# 기본 judge = KHDP deepseek-v4-1-flash-ax (2026-10-15 judge_audit 승자). KISTI 계산노드는 외부망이 없어
+# 30_medical_rl.slurm 이 자체 judge 서버 주소·모델을 env 로 덮는다.
+JUDGE_BASE_URL = os.environ.get('JUDGE_BASE_URL', 'https://api.khdp.net/v1')
+JUDGE_MODEL = os.environ.get('JUDGE_MODEL', 'deepseek-v4-1-flash-ax')
 JUDGE_API_KEY = os.environ.get('JUDGE_API_KEY', 'EMPTY')
 JUDGE_TIMEOUT = float(os.environ.get('JUDGE_TIMEOUT', '60'))
 JUDGE_MAX_TOKENS = int(os.environ.get('JUDGE_MAX_TOKENS', '512'))

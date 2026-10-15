@@ -117,6 +117,21 @@ bash b200/release_session.sh                        # 세션 조회 / --all-gpu 
 ## 2. KISTI K-BDS (원본)
 - `ssh k266a01@kbds.kisti.re.kr`(PW+OTP, 대화형). 최초 1회 후 ControlMaster 8h 재사용.
 - `~/kbds_project`, 데이터 `work/`(~305G, git 제외). 상세 [`HANDOFF.md`](HANDOFF.md)·[`README.md`](README.md).
+- **계산 노드는 외부망이 전혀 없다**(DNS 도 실패, job 82390). 외부 judge API(KHDP)는 KISTI 학습에서 못 쓴다.
+- 원격 셸은 `/bin/sh`, curl 은 7.29 → 스크립트는 `ssh … bash -s` 로, 헤더는 `-K <config>` 로 넘긴다(`-H @file`·프로세스 치환 불가).
+  KISTI → kgpu 직접 PUT 은 ~37 MB/s(로컬 경유 ~2 MB/s). 토큰은 stdin 으로 넘길 것 — 인자·파일에 남기지 말 것.
+
+## 2.5 kgpu (`api.kgpu.net`) — Stage-3 스모크 통과(2026-10-15)
+문서 https://kgpu.net/AGENTS.md · 토큰 `$KGPU_API_TOKEN` · 스크립트 [`kgpu/stage3_smoke.sh`](kgpu/stage3_smoke.sh).
+judge 는 KHDP `deepseek-v4-1-flash-ax`(`JUDGE_API_KEY=$KHDP_PAT` 를 pod env 로). 실측: RTX PRO 6000 1장, num_gen 4·completion 1024 에서 **38 s/it, 61.8 GiB**.
+
+| 함정 | 대응 |
+|---|---|
+| pro6000 노드에 기본 이미지 `kgpu-pytorch` 가 없다(ErrImagePull) | `docker.io/nvidia/cuda:12.9.1-cudnn-devel-ubuntu24.04` 로 빌린다. curl·python 도 없어 스크립트가 깐다 |
+| 컨테이너 root 에 setgroups·DAC override 가 없어 apt 가 실패 | `apt-get -o APT::Sandbox::User=root -o Dir::Cache::Archives=<쓰기가능 dir>` |
+| `tar x` 가 소유자 복원에 실패 | `--no-same-owner` |
+| `~/files` 는 네트워크 공유(느림, 작은 파일 대량 생성 금지) | 모델·venv·데이터는 pod 로컬(`/root/w`)로 복사(18G ≈ 600초). `~/files` 엔 로그·결과만 |
+| `pkill -f <패턴>` 이 자기 셸까지 죽인다(exit 144) | pid 로 죽일 것 |
 
 ## 3. 핵심 식별자
 | 항목 | 값 |

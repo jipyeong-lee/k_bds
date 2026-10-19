@@ -5,7 +5,8 @@
 # 레시피는 probe_mmk12_beta001 의 args.json 그대로(beta 0.01·ENTQ 0.2·gdpo·temp 1.0·dr_grpo),
 # 바뀐 것: lr_scheduler constant · attn sdpa(flash-attn 없음, CLAUDE.md §1.4-5) · 1 GPU 라 PDTBS×ACCUM=2×16(=KISTI 1×4×8, 32 completion/step).
 # 전제(~/files = /root/files): kbds/{code.tgz, setup_venv.sh, sft_mixed_merged/, mmk12_data.tar, mmk12_ckpt350.tar}
-# env(선택): MAX_STEPS(기본 550) · PDTBS · ACCUM
+# env(선택): MAX_STEPS(기본 550) · PDTBS · ACCUM · CKPT(기본 350, kbds/mmk12_ckpt$CKPT.tar) · BETA(기본 0.01)
+#           TIS=1 → rollout_importance_sampling_mode token_truncate(2.0) — 학습↔롤아웃 불일치가 붕괴 원인인지 가리는 E1
 set -uo pipefail
 F=/root/files/kbds; W=/root/w; VENV=/root/venv; TAG=mmk12_probe_$(date +%m%d-%H%M)
 mkdir -p "$W" "$F/logs"; exec > >(tee "$W/run.log") 2>&1
@@ -18,7 +19,7 @@ tar xzf "$F/code.tgz" -C "$W" --no-same-owner || { echo "❌ code.tgz"; exit 1; 
 [ -d "$W/base" ] || cp -r "$F/sft_mixed_merged" "$W/base" || { echo "❌ base copy"; exit 1; }
 mkdir -p "$W/data" "$W/ckpt"
 [ -f "$W/data/domains/stage2_mmk12.jsonl" ] || tar xf "$F/mmk12_data.tar" -C "$W/data" --no-same-owner || { echo "❌ data"; exit 1; }
-[ -d "$W/ckpt/checkpoint-350" ] || tar xf "$F/mmk12_ckpt350.tar" -C "$W/ckpt" --no-same-owner || { echo "❌ ckpt"; exit 1; }
+[ -d "$W/ckpt/checkpoint-${CKPT:=350}" ] || tar xf "$F/mmk12_ckpt$CKPT.tar" -C "$W/ckpt" --no-same-owner || { echo "❌ ckpt"; exit 1; }
 sed -i "s#/home01/k266a01/kbds_project/work/data/images#$W/data/images#g" "$W/data/domains/stage2_mmk12.jsonl"
 head -c 300 "$W/data/domains/stage2_mmk12.jsonl"; echo
 
@@ -27,7 +28,7 @@ stamp "2) venv"
 export PYTHONPATH="$W/scripts/pyfix${PYTHONPATH:+:$PYTHONPATH}"   # rng_state·optimizer 재개 로드(weights_only) 우회
 export PYTORCH_ALLOC_CONF=expandable_segments:True
 
-stamp "3) swift rlhf — ckpt-350 → ${MAX_STEPS:=550}, lr 고정"
+stamp "3) swift rlhf — ckpt-$CKPT → ${MAX_STEPS:=550}, lr 고정, beta ${BETA:=0.01}, TIS ${TIS:=0}"
 SYS="You are a multimodal reasoning assistant. Carefully examine the image(s) and reason step by step INSIDE <think> </think>, keeping the reasoning concise. Then give ONLY the final answer INSIDE <answer> </answer>. For multiple-choice, put only the letter, e.g. <answer>A</answer>."
 OUT=$W/runs/$TAG
 "$VENV/bin/swift" rlhf --rlhf_type grpo \
@@ -38,7 +39,7 @@ OUT=$W/runs/$TAG
   --soft_max_length 6144 --soft_cache_length 2048 \
   --loss_type dr_grpo --epsilon 0.2 --importance_sampling_level token --scale_rewards gdpo \
   --dynamic_sample true --max_resample_times 3 --overlong_filter false \
-  --beta 0.01 --top_entropy_quantile 0.2 --temperature 1.0 \
+  --beta $BETA --top_entropy_quantile 0.2 --temperature 1.0 \
   --enable_thinking true --num_generations 8 --max_completion_length 6144 \
   --per_device_train_batch_size ${PDTBS:-2} --gradient_accumulation_steps ${ACCUM:-16} \
   --learning_rate 1e-5 --lr_scheduler_type constant \
@@ -47,7 +48,8 @@ OUT=$W/runs/$TAG
   --vllm_gpu_memory_utilization 0.4 --vllm_max_model_len 10240 --sleep_level 1 \
   --log_completions true --log_entropy true --log_rollout_offpolicy_metrics true --logging_steps 1 \
   --save_strategy steps --save_steps 50 --save_total_limit 3 --report_to none --seed 42 --data_seed 42 \
-  --output_dir "$OUT" --resume_from_checkpoint "$W/ckpt/checkpoint-350" --max_steps "$MAX_STEPS"
+  $([ "$TIS" = 1 ] && echo --rollout_importance_sampling_mode token_truncate --rollout_importance_sampling_threshold 2.0) \
+  --output_dir "$OUT" --resume_from_checkpoint "$W/ckpt/checkpoint-$CKPT" --max_steps "$MAX_STEPS"
 echo "SWIFT_EXIT=$?"
 stamp "4) 결과 → ~/files (tar 1개씩 — 작은 파일 대량 금지)"
 cp "$(ls -t "$OUT"/*/logging.jsonl | head -1)" "$F/logs/$TAG.logging.jsonl"

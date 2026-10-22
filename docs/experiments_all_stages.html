@@ -260,12 +260,12 @@ li{margin:3px 0}
 <tr><th>모델</th><th>holdout 1,772 (dv / mm / pmc)</th><th>보존 dv / mm / pmc</th><th>글로벌 3,712</th></tr>
 <tr><td>SFT</td><td class="n">42.67 (35.19 / 47.0 / 56.5)</td><td>—</td><td class="n">46.77</td></tr>
 <tr><td><b>ta_w07</b></td><td class="n"><b>63.32</b> (64.20 / 65.50 / 59.00)</td><td>95.3% / 107.8% / 101.7%</td><td class="n">56.22</td></tr>
-<tr><td>breadcrumbs_d09</td><td class="n">측정 중</td><td>—</td><td class="n"><b>56.90</b></td></tr>
+<tr><td>breadcrumbs_d09</td><td class="n">63.71 (63.99 / 67.00 / 59.75)</td><td>95.0% / 110.3% / 103.0%</td><td class="n"><b>56.90</b></td></tr>
 <tr><td>기준: deepvision 2192 단독</td><td class="n">— (dv 67.39)</td><td>—</td><td class="n">57.52</td></tr>
 </table>
 <ul>
 <li>ta_w07 의 보존(95~108%)은 선별 결론과 같다. 글로벌은 가장 강한 단일 전문가보다 1.30pp 낮다.</li>
-<li>breadcrumbs_d09 의 글로벌은 ta_w07 보다 0.68pp 높다. 표준오차(약 0.8pp) 안의 차이다. holdout 결과로 최종 모델을 정한다.</li>
+<li>breadcrumbs_d09 는 holdout(+0.39pp)·글로벌(+0.68pp) 모두 조금 높지만 같은 문항끼리 짝지은 검정(McNemar)에서 유의하지 않다(p=0.72, 0.25). <b>최종 모델 선택안은 더 단순한 ta_w07 이다.</b></li>
 <li>SFT holdout 전체(42.67)는 도메인별 측정값을 문항 수로 가중 평균한 값이다.</li>
 </ul>
 
@@ -320,7 +320,6 @@ li{margin:3px 0}
 <!-- ============================================================ -->
 <h2 id="s6">6. 다음 단계</h2>
 <ol>
-<li>breadcrumbs_d09 의 holdout 을 끝내고 최종 모델을 정한다(ta_w07 은 KISTI 에서 생성·평가 완료).</li>
 <li>결과보고서(연구요약서)를 확정한다: <code>docs/kbds_2026-1_result_summary_draft.html</code>. 마감은 과제 종료 후 1개월(약 10/30).</li>
 <li>모델, 코드, 데이터를 K-BDS 마켓플레이스에 기탁한다. 패키지는 LoRA 4개와 <code>merge.sh</code> 로 통합 모델을 재구성한다(재구성본이 평가 모델과 비트 단위로 같음을 확인).</li>
 <li>2차: 통합 모델에서 Stage-3(medix RaR)를 시작한다. merging 이 부족한 도메인이 있으면 증류(계단 1~2)를 한다.</li>

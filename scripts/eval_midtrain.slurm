@@ -93,7 +93,7 @@ run_eval() {  # $1=tag  $2=model
       --limit-mm-per-prompt '{"image": 1}' --host 0.0.0.0 --port "$PORT" \
       > logs/eval_mid_serve_${tag}_${SLURM_JOB_ID:-manual}.log 2>&1 &
   local srv=$! ready=0
-  for i in $(seq 1 60); do
+  for i in $(seq 1 "${EVAL_READY_TRIES:-60}"); do   # 10초 단위. 느린 노드는 600초를 넘긴다(83041·83058)
     curl -s "http://localhost:$PORT/v1/models" 2>/dev/null | grep -q evalmodel && { ready=1; echo "[$tag] READY (~$((i*10))s)"; break; }
     kill -0 $srv 2>/dev/null || { echo "[$tag] ❌ server died"; tail -15 logs/eval_mid_serve_${tag}_${SLURM_JOB_ID:-manual}.log; break; }
     sleep 10

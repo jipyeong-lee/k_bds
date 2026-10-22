@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """merge_experts.py 유닛테스트 — 합성 base·어댑터 2개로 수식 검증(GPU·실모델 없이).
   python3 scripts/test_merge_experts.py
-검증: linear = W₀ + Σ wᵢ·Bᵢ·Aᵢ·(α/r) · LoRA 없는 텐서 불변 · 비-safetensors 파일 복사 · ties 부호 다수결.
+검증: linear = W₀ + Σ wᵢ·Bᵢ·Aᵢ·(α/r) · LoRA 없는 텐서 불변 · 비-safetensors 파일 복사 · ties 부호 다수결 · breadcrumbs 양끝 절단+합.
 """
 import json, os, subprocess, sys, tempfile
 
@@ -34,9 +34,9 @@ for i in range(2):
     save_file({stem + '.lora_A.weight': A, stem + '.lora_B.weight': B}, f'{d}/a{i}/adapter_model.safetensors')
     json.dump({'r': 2, 'lora_alpha': 4}, open(f'{d}/a{i}/adapter_config.json', 'w'))
 
-def run(method, out, density='1.0'):
+def run(method, out, density='1.0', *extra):
     subprocess.run([sys.executable, f'{HERE}/merge_experts.py', '--base', f'{d}/base', '--adapters', f'{d}/a0,{d}/a1',
-                    '--weights', '0.5,1.0', '--method', method, '--density', density, '--out', f'{d}/{out}'],
+                    '--weights', '0.5,1.0', '--method', method, '--density', density, '--out', f'{d}/{out}', *extra],
                    check=True, capture_output=True)
     return load_file(f'{d}/{out}/model-00001-of-00001.safetensors')
 
@@ -58,6 +58,18 @@ want_t = (st * agree).sum(0) / agree.sum(0).clamp(min=1)       # density 1.0 = �
 check('density 1.0: 부호 다수결 + 합의값 평균', torch.allclose(t, want_t.bfloat16().float(), atol=0.05))
 t2 = run('ties', 'ties2', '0.25')[K].float() - base[K].float()
 check('density 0.25: 어댑터당 6칸만 남아 합집합 ≤ 12칸', int((t2 != 0).sum()) <= 12)
+
+print('== breadcrumbs ==')
+b = run('breadcrumbs', 'bc', '0.5', '--gamma', '0.25')[K].float() - base[K].float()
+kept = []
+for t in taus:                                    # 24칸 중 크기순 위 6칸·아래 6칸을 지우고 가운데 12칸만
+    r = t.abs().flatten().argsort().argsort().view_as(t)
+    kept.append(torch.where((r >= 6) & (r < 18), t, torch.zeros_like(t)))
+sk = torch.stack(kept)
+sgn = torch.where(sk.sum(0) >= 0, 1.0, -1.0)
+want_b = (sk * (torch.sign(sk) == sgn)).sum(0)   # normalize false → 평균이 아니라 합
+check('gamma 0.25·density 0.5: 양끝 절단 후 부호 합의값의 합', torch.allclose(b, want_b.bfloat16().float(), atol=0.05))
+check('gamma 가 크기 최대값 칸을 지움', all(k.abs().max() < t.abs().max() for k, t in zip(kept, taus)))
 
 print(f'\n{PASS} passed, {FAIL} failed')
 sys.exit(1 if FAIL else 0)

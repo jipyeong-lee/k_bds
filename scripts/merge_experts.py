@@ -4,6 +4,8 @@
   W = W_base + Σ wᵢ·ΔWᵢ,   ΔWᵢ = Bᵢ·Aᵢ·(αᵢ/rᵢ)            (--method linear)
   TIES(--method ties): τᵢ = wᵢ·ΔWᵢ 를 텐서별 상위 density 만 남기고, 부호 다수결(sign Σ τᵢ)과 같은 부호인
   값만 평균한다(Yadav et al. 2023). 근거·판정 기준 = docs/stage2_design.html §8.
+  breadcrumbs(--method breadcrumbs): mergekit breadcrumbs_ties(normalize false) 재현 — τᵢ 마다 크기 상위 gamma 와
+  하위 (1-density-gamma) 를 지우고, 부호 다수결(합 ≥ 0 이면 +)과 같은 값만 **더한다**(평균 아님).
 
 base 의 safetensors shard 를 하나씩 읽고 LoRA 가 걸린 텐서만 고쳐 같은 이름으로 쓴다 → 모델 클래스를
 불러오지 않으므로 Qwen3.5 VL 의 비전 타워·processor 파일이 그대로 보존된다. ΔW 는 모듈 단위로 만들고 버린다
@@ -46,13 +48,27 @@ def ties(taus, density):
     return (st * agree).sum(0) / agree.sum(0).clamp(min=1)
 
 
+def breadcrumbs(taus, density, gamma):
+    kept = []
+    for t in taus:
+        n = t.numel(); n_top = int(gamma * n); n_bot = n - int(density * n) - n_top
+        idx = t.abs().flatten().argsort()
+        mask = torch.zeros(n, dtype=torch.bool, device=t.device)
+        mask[idx[n_bot:n - n_top]] = True
+        kept.append(t * mask.view_as(t))
+    st = torch.stack(kept)
+    sign = (st.sum(0) >= 0).to(st.dtype) * 2 - 1
+    return (st * (torch.sign(st) == sign)).sum(0)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--base', required=True)
     ap.add_argument('--adapters', required=True, help='쉼표 구분 체크포인트 디렉터리')
     ap.add_argument('--weights', required=True, help='쉼표 구분, 어댑터 수와 같게')
-    ap.add_argument('--method', choices=['linear', 'ties'], default='linear')
-    ap.add_argument('--density', type=float, default=0.2, help='ties 에서 텐서별로 남길 비율')
+    ap.add_argument('--method', choices=['linear', 'ties', 'breadcrumbs'], default='linear')
+    ap.add_argument('--density', type=float, default=0.2, help='ties·breadcrumbs 에서 텐서별로 남길 비율')
+    ap.add_argument('--gamma', type=float, default=0.01, help='breadcrumbs 에서 지울 크기 상위 비율')
     ap.add_argument('--out', required=True)
     a = ap.parse_args()
     paths, ws = a.adapters.split(','), [float(x) for x in a.weights.split(',')]
@@ -81,7 +97,8 @@ def main():
                 w = f.get_tensor(k)
                 if k in targets:
                     taus = [wi * s * (m[k]['B'].to(dev) @ m[k]['A'].to(dev)) for (m, s), wi in zip(adapters, ws)]
-                    delta = sum(taus) if a.method == 'linear' else ties(taus, a.density)
+                    delta = (sum(taus) if a.method == 'linear' else ties(taus, a.density) if a.method == 'ties'
+                             else breadcrumbs(taus, a.density, a.gamma))
                     assert delta.shape == w.shape, f'{k}: ΔW {tuple(delta.shape)} ≠ W {tuple(w.shape)}'
                     w = (w.to(dev, torch.float32) + delta).to(w.dtype).cpu()
                     done += 1
@@ -92,7 +109,8 @@ def main():
     assert done == len(targets), f'고친 텐서 {done} ≠ LoRA 대상 {len(targets)}'
     with open(os.path.join(a.out, 'merge_config.json'), 'w') as f:
         json.dump({'adapters': paths, 'weights': ws, 'method': a.method,
-                   'density': a.density if a.method == 'ties' else None, 'modules': done}, f, indent=1)
+                   'density': a.density if a.method != 'linear' else None,
+                   'gamma': a.gamma if a.method == 'breadcrumbs' else None, 'modules': done}, f, indent=1)
     print(f'[merge] done: {done} modules × {len(paths)} adapters, {a.method} → {a.out}')
 
 

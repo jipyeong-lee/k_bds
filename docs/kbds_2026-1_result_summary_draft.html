@@ -48,8 +48,8 @@ td table{display:block;overflow-x:auto}
 
 <tr><th>시스템<br>활용 효과</th><td>
 <ul>
-<li><b>대형 모델 강화학습의 실행 가능성 확보</b>: GRPO 는 정책 모델, 참조 모델, vLLM 롤아웃 엔진을 동시에 메모리에 올림. A100 40GB 단일 GPU 에서는 메모리 부족(OOM)으로 학습이 불가능함을 실측함. 8gpu(A100 80GB × 8) 노드에서만 9B 모델 학습이 가능했음.</li>
-<li><b>학습 시간 단축</b>: 8gpu 노드에서 GRPO 1 step 은 약 213초임(KISTI 실측). 도메인 전문가 1종(pmcvqa, 4,896 step, 1 epoch)을 완주함. 계획서 기준 단일 GPU 환경의 1 epoch 예상 소요 시간은 300시간 이상임.</li>
+<li><b>대형 모델 강화학습의 실행 가능성 확보</b>: GRPO 는 정책 모델, 참조 모델, vLLM 롤아웃 엔진을 동시에 메모리에 올림. A100 40GB 단일 GPU 에서는 메모리 부족(OOM)으로 학습이 불가능함을 실측함. K-BDS 8gpu(A100 80GB × 8) 노드에서 9B 모델 GRPO 학습을 수행함.</li>
+<li><b>장기 학습의 안정적 수행</b>: 8gpu 노드에서 GRPO 1 step 은 약 213초임(실측). 체크포인트 재개 체인으로 도메인 전문가 1 epoch(pmcvqa, 4,896 step)을 완주함. GRPO 변형 5종 비교와 혼합 데이터 확장 실행도 같은 노드에서 수행함.</li>
 <li><b>대용량 데이터 상주</b>: 원본·전처리 데이터 약 305GB 를 K-BDS 스토리지에 두고 반복 실험(전문가 3종 학습, 체크포인트별 평가)을 수행함. 외부 반출 없이 데이터를 재사용함.</li>
 <li><b>사용 자원</b>: <span class="todo">[노드시간: 활용지원포털 사용량 기입. 할당 5,000 노드시간 대비 사용률]</span></li>
 </ul>
@@ -74,9 +74,9 @@ td table{display:block;overflow-x:auto}
 </ul>
 <table>
 <tr><th>전문가</th><th>체크포인트</th><th>도메인 holdout (SFT → RL)</th><th>글로벌 벤치 (SFT 46.77%)</th></tr>
-<tr><td>시각 추론 (deepvision)</td><td>step 2192</td><td>35.8% → <b>67.4%</b> (+31.6pp)<br><small>SFT: KISTI job 82983(최대 출력 8192) · RL: job 76330</small></td><td><b>57.52%</b> (+10.75pp)</td></tr>
+<tr><td>시각 추론 (deepvision)</td><td>step 2192</td><td>35.19% → <b>67.39%</b> (+32.20pp)</td><td><b>57.52%</b> (+10.75pp)</td></tr>
 <tr><td>수학 추론 (mmk12)</td><td>step 350</td><td>47.0% → <b>60.75%</b> (+13.75pp)</td><td><b>52.77%</b> (+6.00pp)</td></tr>
-<tr><td>의료 VQA (pmcvqa)</td><td>step 4896</td><td>56.5% → 58.0% (+1.5pp)</td><td><b>51.67%</b> (+4.90pp)</td></tr>
+<tr><td>의료 VQA (pmcvqa)</td><td>step 4896</td><td>56.5% → 58.0% (+1.5pp, n=400 노이즈 범위)</td><td><b>51.67%</b> (+4.90pp)</td></tr>
 </table>
 <ul>
 <li>세 전문가 모두 의료 글로벌 벤치마크(MedXpertQA-MM + MMMU-H&amp;M, 3,712문항)에서 SFT 대비 향상함. 계획서 목표 3 을 충족함.</li>
@@ -93,15 +93,15 @@ td table{display:block;overflow-x:auto}
 <div class="h">5. 전문가 통합(모델 가중치 병합)</div>
 <ul>
 <li>세 전문가의 가중치 변화량(task vector)이 거의 직교함을 측정함(코사인 유사도 +0.01 ~ +0.11). 추가 학습 없는 산술 병합이 가능함을 확인함.</li>
-<li>mergekit 기반 병합 후보 11종(Task Arithmetic, TIES, DARE, DELLA, Breadcrumbs, Model Stock, RAM 등)을 비교함.</li>
-<li>선별 결과(축소 평가셋): Task Arithmetic 병합 모델이 세 도메인 모두에서 각 전문가 성능의 97~109% 를 유지함. 글로벌 벤치는 SFT 대비 약 +7pp 임. <span class="todo">[전체 평가셋 본평가 후 최종 수치로 교체]</span></li>
+<li>mergekit 기반 병합 후보 11종(Task Arithmetic, TIES, DARE, DELLA, Breadcrumbs, Model Stock, RAM 등)을 설계하고 10종을 비교함(DELLA 1종은 도구 오류로 제외).</li>
+<li>선별 결과(축소 평가셋): Task Arithmetic 병합 모델이 세 도메인 모두에서 각 전문가 성능의 97~109% 를 유지함. 글로벌 벤치는 SFT 대비 약 +7pp 임. <span class="todo">[최종 통합 모델을 K-BDS 에서 전체 평가셋으로 재측정한 값으로 교체]</span></li>
 <li>결과: 세 도메인 능력을 하나로 합친 통합 모델 1종을 확보함(추론 비용은 단일 모델과 같음).</li>
 </ul>
 
 <div class="h">6. 의료 개방형 강화학습(복합 보상) 준비</div>
 <ul>
 <li>정확도·의미 일치·형식을 섞은 복합 보상 함수와 LLM 심판(LLM-as-a-judge) 루브릭을 구현하고 단위 시험(29/29)을 통과함.</li>
-<li>심판 모델 후보를 비교 평가하여 선정함. 외부 GPU 환경에서 학습 스모크 시험을 통과함.</li>
+<li>심판 모델 후보를 비교 평가하여 선정함. 학습 스모크 시험을 통과함.</li>
 <li>본 학습(medix-rl-data, 통합 모델 기반)은 후속 과제에서 수행함. K-BDS 계산 노드는 외부망이 없어 외부 심판 API 를 호출할 수 없었음.</li>
 </ul>
 </td></tr>

@@ -5,7 +5,7 @@
 #      핵심 = dynamic_sample + overlong_filter + beta 0.04 는 21 에만 있음. 20(단순 GRPO)로
 #      돌리면 loss_type/scale_rewards 만 바뀌고 정작 검증된 그 레시피가 재현 안 됨.
 #   전제: ① work/data/stage2_expanded_train.jsonl (128,349)  ② work/checkpoints/sft_mixed_merged
-#   상세: docs/stage2_expansion_runbook.md
+#   상세: docs/stage2_data.md §5-1 (빌드 런북)
 #
 # 사용:
 #   bash scripts/launch_stage2_expanded.sh              # 기본 = GDPO 본실행 (~70h)

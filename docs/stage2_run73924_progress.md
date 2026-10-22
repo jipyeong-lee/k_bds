@@ -26,7 +26,7 @@
 
 아래 §1~§7 은 붕괴를 발견하기 전(08-02~08-04 오전)의 점검 기록이며, 시간순으로 남긴다.
 **§6-d 의 "400 이후 미검출" 결론은 §8-g 에서 뒤집혔고, §7 의 step 1200 판정은 실행되지 않았다.**
-발표용 자립 요약은 [`stage2_overview_for_slides.md`](stage2_overview_for_slides.md).
+발표 시 주의 사항은 [사후분석 부록 C](stage2_run73924_postmortem.md#부록-c-발표보고-시-주의). 전 단계 요약은 [`experiments_all_stages.html`](experiments_all_stages.html).
 
 ---
 
@@ -1003,7 +1003,7 @@ RL 은 이 스타일을 **억제하고 있었다**(18.3% → 5.8%). 붕괴는 �
 
 - [`README.md`](../README.md) — 현황 요약
 - [`stage2_experiments.md`](stage2_experiments.md) — Stage-2 실험 이력·A/B
-- [`stage2_expansion_runbook.md`](stage2_expansion_runbook.md) — 재현 절차
+- [`stage2_data.md` §5-1](stage2_data.md#5-1-빌드-런북) — 확장셋 재현 절차(구 `stage2_expansion_runbook.md`)
 - [`rlvr_hparams_external.md`](rlvr_hparams_external.md) — 하이퍼파라미터 외부 관행 대조
 - [`ops_data.md`](ops_data.md) — 자원·예산
 

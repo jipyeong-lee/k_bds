@@ -139,6 +139,6 @@ judge 는 KHDP `deepseek-v4-1-flash-ax`(`JUDGE_API_KEY=$KHDP_PAT` 를 pod env �
 | 플랫폼 계정 / 노드 | `gpu-user-1` / `gpu-node-1` (8× B200) |
 | init 모델 | `sft_mixed_merged` (Qwen3.5-9B 병합, 18G) |
 | 도메인 데이터 | domains/stage2_{deepvision 40k / mmk12 15k / pmcvqa 20k}.jsonl |
-| 학습 프레임워크 | ms-swift 4.1.3 · `loss_type=dr_grpo` + `scale_rewards=gdpo` + `async_generate=true` · num_gen 16 |
+| 학습 프레임워크 | ms-swift 4.1.3 · `loss_type=dr_grpo` + `scale_rewards=gdpo` + `async_generate=true` · num_gen 16 (B200. KISTI/kgpu 는 8) |
 | off-policy 보정 | `rollout_importance_sampling_mode=token_truncate` (threshold 2.0) · `beta=0` · `temperature=1.0` |
 | 버전 | 최신은 4.5.0 이지만 **mismatch 관련 인자가 4.1.3 과 동일** → 업그레이드 이득 없음(인자 diff 확인) |

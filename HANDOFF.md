@@ -1,7 +1,7 @@
 # 인수인계 (HANDOFF) — K-BDS 의료 멀티모달 파이프라인
 
 > **갱신 2026-08-14.** 다른 계정/사람이 **이어받아 실행**하기 위한 단일 문서.
-> 큰 그림·수치는 [`README.md`](README.md), 확장 재현은 [`docs/stage2_expansion_runbook.md`](docs/stage2_expansion_runbook.md).
+> 큰 그림·수치는 [`README.md`](README.md), 확장셋 재현(데이터 빌드)은 [`docs/stage2_data.md` §5-1](docs/stage2_data.md#5-1-빌드-런북).
 
 ---
 
@@ -95,7 +95,7 @@ max_completion 8192 (KISTI 6144 는 잘림 기록) · clipped_ratio 1.3~1.8% 로
 |---|---|---|
 | ① 콜드스타트 SFT | ✅ **v3 완료·평가됨** | 형식천장 완파(`format_think` v2 0.185→**v3 0.909**), 홀드아웃 acc v2 0.295→**v3 0.348**. `sft_mixed_merged` = 이후 전 단계의 init |
 | ② 범용 RLVR | 🔄 **도메인 전문가 3종 제출·큐 대기** | 구 혼합 실행은 step ~900 **형식 붕괴**로 취소. 최고점 **ck-850(+8.18pp, p<0.0001)** 스냅샷 확보 → 3분할 재설계 후 재제출(75394/75395/75396) |
-| ③ 의료 RL (RaR) | 🟡 배선 e2e PASS · **본실행 미시작** | judge(Qwen3.6-27B-FP8)·루브릭 검증완료(유닛 29/29). **계획서 핵심 산출물인데 아직 안 돌았다** |
+| ③ 의료 RL (RaR) | 🟡 배선 e2e PASS · **본실행 미시작** | judge·루브릭 검증완료(유닛 29/29). judge 는 7월 KISTI 내부 Qwen3.6-27B-FP8 → **현재 KHDP `deepseek-v4-1-flash-ax`**(KISTI 계산노드 외부망 없음 → kgpu 실행, CLAUDE.md §2.5). **계획서 핵심 산출물인데 아직 안 돌았다** |
 | ④ 평가 | 🔄 기준선 확보 | HealthBench Hard base 0.229 / v2 0.224(n=1000), v3 미측정 |
 
 **바로 다음 임계경로**: 전문가 3종 완주(예상 시작 08-17) → 어댑터 통합 → **Stage-3 본실행**.
@@ -252,7 +252,7 @@ bash scripts/watch_train.sh          # 라이브 대시보드 (tmux)
 | 도메인 3분할 | 혼합에서는 도메인별 길이·그룹 예산을 다르게 줄 수 없었다 |
 | 정확도/형식 분리(`<answer>` 없으면 추론 꼬리에서 letter 복구) | 정확도가 형식에 물려 있어 붕괴가 자기증폭했다 |
 | 단계형 `FormatThink` (`</think>` 까지면 0.5) | 붕괴 개시 절벽 −0.324 → −0.204 (37.1% 완화) |
-| `recipe=stable` (`overlong_filter=false`, `scale_rewards=none`) | `overlong_filter` 는 붕괴를 막지 못하고 **회복을 막았다** |
+| `recipe=stable` (`overlong_filter=false`, `scale_rewards=gdpo` — 전문가 3종은 gdpo 로 돌았다. §0 의 `none`→`gdpo` 변경 참조) | `overlong_filter` 는 붕괴를 막지 못하고 **회복을 막았다** |
 | `num_generations` 4→8 | 붕괴 개시 시점 정확도 균일률 13.8%→54.2% |
 | `lora_dropout=0` | RL 로그확률 계산 중 dropout 이 살아 π_rollout ≠ π_train 을 스스로 만들고 있었다 |
 | `WATCHDOG=1` | 과거 로그 재생 결과 step 901 발화 · 오경보 0회 · 실제 발견보다 146 step(13.5h) 빠름 |
@@ -302,8 +302,8 @@ configs/
 docs/
   stage2_run73924_postmortem.md    🚨 붕괴 사후분석 rev.2 — 인수인계 시 먼저 읽을 것
   stage2_redesign_2026.md          현재 설계의 근거
-  stage2_expansion_runbook.md      확장 재현 0~6단계
-  medical_reward_spec.md · progress_log.md · worklog_*.md
+  stage2_data.md                   확장셋 데이터·빌드 런북(§5-1, 구 stage2_expansion_runbook)
+  medical_reward_spec.md · progress_log.md · worklog_2026-06.md
 (루트) 사후분석 일회성 스크립트 — 레포 루트에서 실행. 붕괴 분석 재현용
   holdout_matrix.py · holdout_by_source.py · train_side.py · classify900.py · show_collapse.py
   ⚠️ 입력이 logs/ 와 work/checkpoints/ 다 → transfer_pull 에서 WITH_LOGS 를 끄면 돌지 않는다

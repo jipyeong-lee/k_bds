@@ -57,7 +57,7 @@ li{margin:3px 0}
 <p>붕괴 전 체크포인트 중에서 holdout 점수가 가장 높은 것을 골랐다.</p>
 <table>
 <tr><th>도메인</th><th>후보</th><th>holdout (init → RL)</th><th>형식</th><th>글로벌 벤치</th><th>판정</th></tr>
-<tr><td rowspan="2">deepvision (n=972)</td><td>2192 (B200)</td><td class="n">35.8 → <b>67.4%</b></td><td class="n">0.978</td><td class="n"><b>57.52%</b></td><td class="ok">채택</td></tr>
+<tr><td rowspan="2">deepvision (n=972)</td><td>2192 (B200)</td><td class="n">35.8 → <b>67.4%</b><br><small>init: KISTI job 82983(최대 출력 8192) · RL: job 76330</small></td><td class="n">0.978</td><td class="n"><b>57.52%</b></td><td class="ok">채택</td></tr>
 <tr><td>2700 (KISTI 이어학습)</td><td class="n">35.8 → 55.6%</td><td class="n">0.765</td><td class="n">54.07%</td><td>탈락</td></tr>
 <tr><td rowspan="2">mmk12 (n=400)</td><td>350</td><td class="n">47.0 → <b>60.75%</b></td><td class="n">1.000</td><td class="n"><b>52.77%</b></td><td class="ok">채택</td></tr>
 <tr><td>400</td><td class="n">47.0 → 58.25%</td><td class="n">0.978</td><td class="n">—</td><td>탈락</td></tr>
@@ -185,7 +185,7 @@ li{margin:3px 0}
 <tr><th>후보</th><th>holdout</th><th>글로벌</th><th>보존 dv / mm / pmc</th><th>판정</th></tr>
 <tr><td><b>ta_w07</b></td><td class="n">63.0</td><td class="n">59.2</td><td>109% / 107% / 97%</td><td class="ok">통과 · 1위</td></tr>
 <tr><td>dare_lin_d05</td><td class="n">62.0</td><td class="n">57.7</td><td>99% / 108% / 101%</td><td class="ok">통과</td></tr>
-<tr><td>ta_w05</td><td class="n">62.2</td><td class="n">57.3</td><td>100% / 113% / 96%</td><td class="ok">통과</td></tr>
+<tr><td>ta_w05</td><td class="n">62.2</td><td class="n">57.8</td><td>100% / 113% / 96%</td><td class="ok">통과</td></tr>
 <tr><td>ta_w1</td><td class="n">61.5</td><td class="n">57.3</td><td>101% / 108% / 97%</td><td class="ok">통과</td></tr>
 <tr><td>ties_d05</td><td class="n">60.2</td><td class="n">57.8</td><td>94% / 110% / 95%</td><td class="ok">통과</td></tr>
 <tr><td>ta_avg</td><td class="n">57.8</td><td class="n">56.8</td><td>92% / 104% / 91%</td><td class="ok">통과</td></tr>
@@ -216,7 +216,7 @@ li{margin:3px 0}
 <script>
 (function(){
   const R=[ // 선별 결과(축소셋), 점수 = (holdout+글로벌)/2 순
-    ['ta_w07',63.0,59.2,'pass'],['dare_lin_d05',62.0,57.7,'pass'],['ta_w05',62.2,57.3,'pass'],['ta_w1',61.5,57.3,'pass'],
+    ['ta_w07',63.0,59.2,'pass'],['dare_lin_d05',62.0,57.7,'pass'],['ta_w05',62.2,57.8,'pass'],['ta_w1',61.5,57.3,'pass'],
     ['ties_d05',60.2,57.8,'pass'],['ta_avg',57.8,56.8,'pass'],['exp_dv (전문가)',60.5,59.3,'ref'],['model_stock',50.5,50.7,'fail'],
     ['exp_mm (전문가)',52.3,54.2,'ref'],['exp_pmc (전문가)',51.3,54.0,'ref']];
   const SFT={hold:47.5,gb:50.2};

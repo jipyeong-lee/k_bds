@@ -1,5 +1,7 @@
 # DeepSeek-V4 파이프라인 도입안 — 도메인별 전문가 + 통합
 
+> ⚠️ **낡은 내용**: §2 의 "Stage-3 = E3-b(E3-a 위 2차 학습)" 와 §6·§9 의 전문가당 step 수(1,000 / 600)는 바뀌었다. Stage-3 는 **전문가 3종 통합 모델**에서 시작하고, 실제 채택 체크포인트는 deepvision 2192 · mmk12 350 · pmcvqa 4896 이다 → [`experiments_all_stages.html`](experiments_all_stages.html) · [`merging_experiments_2026-10-22.html`](merging_experiments_2026-10-22.html). §8 계단식 통합 설계는 유효하다.
+
 > 작성 2026-08-13 · **rev.2** — 도메인 분리 학습으로 전면 개정
 > 근거 = [DeepSeek-V4 (arXiv 2606.19348)](https://arxiv.org/html/2606.19348v1) ·
 > [Kimi K3 (arXiv 2607.24653)](https://arxiv.org/abs/2607.24653) ·

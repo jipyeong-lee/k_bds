@@ -1,9 +1,11 @@
 # RLVR 하이퍼파라미터 — 외부 관행 대조 (2026 리포트 조사)
 
+> ⚠️ **낡은 내용**: 아래 표의 "이 프로젝트" 열(β 0.04 · 그룹 4 · temp 0.9)은 2026-07 구 혼합 실행 값이다. 도메인 전문가 실행은 **beta 0 · num_generations 8(KISTI/kgpu, B200 은 16) · temperature 1.0** 을 썼다 → [`../CLAUDE.md`](../CLAUDE.md) §3 · [`experiments_all_stages.html`](experiments_all_stages.html) 2-C. 외부 관행 대조·출처는 그대로 유효하다.
+
 > 목적: 이 프로젝트의 Stage-2 RLVR(GRPO/GDPO) 설정을 **외부에 알려진 관행**과 대조하고,
 > 자원 제약으로 벌어진 지점과 실험 우선순위를 명시한다.
 > 프로젝트 실측 근거는 [`../README.md`](../README.md)(Stage-2 · step600 포화)·[`../HANDOFF.md`](../HANDOFF.md),
-> 실행 절차는 [`stage2_expansion_runbook.md`](stage2_expansion_runbook.md).
+> 실행 절차는 [`../README.md`](../README.md) "빠른 실행" · 데이터 빌드는 [`stage2_data.md` §5-1](stage2_data.md#5-1-빌드-런북).
 
 ## 0. 조사 프레이밍 (솔직한 한계)
 

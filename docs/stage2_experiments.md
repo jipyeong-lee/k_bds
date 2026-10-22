@@ -10,26 +10,10 @@
 
 **동기**: v3 콜드스타트 A/B 에서 **math 가 v2 와 동률(0.3245)** — vl 은 올렸으나 수치계산은 못 올림. 게다가 프로젝트 목표는 **의료**인데 Stage-2 가 일반 전용이었음. → **DeepVision 단일 → math(MMK12) + 의료(PMC-VQA) 추가**. (예산: 2026-07-27 **k252a02 로 이관 완료** — 신규 5,000 노드시간에서 2,337 step ≈1,674~1,719(33~34%) 집행, 나머지는 Stage-3 유보.)
 
-**확장셋 (의료 27% 확정, 2026-07-24 재조립):**
-
-| 소스 | 설명 | 학습 | 홀드아웃 | 정답형식 | 역할 |
-|---|---|---|---|---|---|
-| DeepVision-103K | 수학·시각논리 멀티모달 문제(일반, 검증가능 정답) | 40,000 | 972 | math/MC | 일반 시각추론 base(RL 검증됨) |
-| **MMK12** | 중국 K-12 수학 시험문제(**영어 번역본**, 이미지+수치/수식 답) | 15,204 | 400 | 수치/수식 82% | **순수 math** — 약점 직격 |
-| **PMC-VQA** | PubMed 논문 그림 기반 의료 VQA(4지선다) | 19,583 | 400 | **MC(B/C/A/D 균형)** | **의료 광범위** — 목표 정렬 |
-| **합계** | — | **74,787** | **1,772** | | 일반53 / math20 / 의료26 |
-
-- **데이터 = "받아서 실측"으로 선별**: Kvasir(58K인데 고유이미지 671·degenerate)·SLAKE(이미지 450)·ThinkLite(노이즈)는 실측 후 탈락. **PMC-VQA만 대형·다양·검증가능 의료**(329K MC·PubMed 광범위). 상세 → [`docs/stage2_data.md`](stage2_data.md).
-- **오염 최종 해소**: 전 소스 **이미지 바이트해시 dedup**. 이번 재조립에서 **DeepVision 구 22% 오염까지 제거**(홀드아웃 이미지해시를 train 서브샘플서 배제) → 전 소스 홀드아웃 1,772건 누수 0 검증.
-- **init = v3** `sft_mixed_merged` · **레시피 = GDPO**(`21_rlvr_grpo_adv` 경유, dynamic_sample 코어 포함). 실행 → [`docs/stage2_expansion_runbook.md`](stage2_expansion_runbook.md).
-- **하이퍼파라미터 외부 관행 대조** → [`docs/rlvr_hparams_external.md`](rlvr_hparams_external.md): 2026 리포트 기준 KL β·그룹크기·temp·에포크 관행과 대조. 코어(손실·advantage·필터)는 관행 정합, 벌어진 4곳(β 0.04·그룹 4·배치 32·temp 0.9)은 자원 제약. **에포크는 ≤1·조기중단이 정설**. 기본값은 검증값 `NUM_GEN=4`·`TEMPERATURE=0.9`·`BETA=0.04` 유지, A/B override 후보가 `NUM_GEN=8`/`TEMPERATURE=1.0`/`BETA=0.01`.
-- 스크립트: `build_pmcvqa.py`·`13_build_stage2_expanded.slurm`(변환) · `build_stage2_mix.py`(조립·`DV_CAP`/`PMC_CAP` 비율조정) · `launch_stage2_expanded.sh`(GDPO 제출).
-- 🚀 **본실행 진행중(2026-07-28~)**: 배선 스모크 완주(1GPU job 72844 · 8GPU job 72832, 5/5 step, `frac_reward_zero_std` 0) → **2,337 step 체인 제출**(`scripts/launch_stage2_expanded_epoch.sh`, afterany 4잡, ~209h). 재제출 후 현재 체인은 **job 73924~73927**(73312~73315 는 구 체인).
-  - **학습량 결정**: 구 데이터셋에선 step600 포화였으나 **확장셋은 MMK12·PMC-VQA 가 새로 들어가 포화점이 다를 수 있어** 학습량을 늘렸다. `MAX_STEPS` 를 처음부터 목표치로 지정해야 LR 이 매끄럽게 감쇠(600→2337 로 늘리면 불연속).
-  - ⚠️ **2026-08-02 정정**: 이 2,337 step 을 "1 epoch" 으로 적어 왔으나 실제로는 **0.25 epoch** 이다(1 epoch = 74,787 ÷ 8 = 9,348 step). 확장셋의 약 75%는 미노출로 남는다. → [`stage2_run73924_progress.md`](stage2_run73924_progress.md) §3
-  - 📊 **중간 점검(step 650)**: 인프라 무결(오류 0건)이나 **AccuracyMix 가 650 step 동안 +1.3% 로 정지**, 대신 completion 길이 +28.1%·클리핑 +41.4%.
-  - 🚨 **중간 홀드아웃 추세(job 74060·74062·74063, n=300 층화 동일 슬라이스)**: base 0.2500 → init **0.4533** → step400 **0.4900** → step500 **0.4800** → step600 **0.4867**. **step 400 이후 판별 불가** — 400~600 폭 1.0pp 는 n=300 의 검출 하한(8.0pp)보다 훨씬 작아 구분되지 않는다. ⚠️ 이는 **포화의 증거가 아니다**: 200 step 당 1~2pp 의 완만한 상승이 배제되지 않으며 그 기울기면 잔여 1,653 step 에서 +8~16pp. 의료(pmcvqa)는 상승 신호 없음(0.57→0.56→0.57→0.53, 소스별 n=100 ±9.8pp), math 는 0.40→0.48~0.50 으로 뚜렷. base→init 은 +20.33pp p<0.001 로 유의 → 평가 설계는 유효. **→ 중단 판단 보류. 홀드아웃 전량(1,772) + 짝지음(McNemar)으로 하한을 2.3pp 로 낮춰 step 1200 에서 사전기준 판정**(≈2~3 노드시간 = 결정 대상 1,184 의 0.2%). → [`stage2_run73924_progress.md`](stage2_run73924_progress.md) §6 · [발표용 요약](stage2_overview_for_slides.md)
-  - ⚠️ **조기중단 원칙**: 외부 문헌의 diversity collapse 경고(후반 구간은 Pass@1 이득 없이 high-k Pass@k 감소)에 따라 **중간 체크포인트(save_steps 50)를 소스별(`_source`) 홀드아웃으로 평가하고 포화 시 중단**. → [`docs/rlvr_hparams_external.md`](rlvr_hparams_external.md)
+- **데이터**: DeepVision 40,000 + MMK12 15,204 + PMC-VQA 19,583 = **74,787**(일반53/math20/의료26), 홀드아웃 1,772(이미지 바이트해시 dedup, 누수 0). 스크리닝·혼합비·빌드 → [`stage2_data.md`](stage2_data.md) (빌드 런북 §5-1).
+- **실행**: init = v3 `sft_mixed_merged` · 레시피 GDPO(`21_rlvr_grpo_adv` 경유) · 체인 job 73924~73927(73312~73315 는 구 체인) · `MAX_STEPS=2,337`(= **0.25 epoch**, 1 epoch = 9,348 step). 경과·홀드아웃·붕괴(step ~900) → [`stage2_run73924_progress.md`](stage2_run73924_progress.md) · [사후분석](stage2_run73924_postmortem.md). 하이퍼파라미터 외부 대조 → [`rlvr_hparams_external.md`](rlvr_hparams_external.md).
+- **학습량 결정(이 문서에만 있던 근거)**: 구 데이터셋에선 step600 포화였으나 **확장셋은 MMK12·PMC-VQA 가 새로 들어가 포화점이 다를 수 있어** 학습량을 늘렸다. `MAX_STEPS` 를 처음부터 목표치로 지정해야 LR 이 매끄럽게 감쇠(600→2337 로 늘리면 불연속).
+- 이후 이 혼합 경로는 폐기되고 도메인 전문가 3종 + 통합으로 바뀌었다 → [`experiments_all_stages.html`](experiments_all_stages.html) 2-B·2-C.
 
 ### 1) baseline → Acc plateau 진단 (job 57249, step 1000 완주)
 

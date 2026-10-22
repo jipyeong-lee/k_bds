@@ -1,5 +1,7 @@
 # Stage-2 재실행 실험 설계
 
+> ⚠️ **낡은 내용**: 항목 **D**(`scale_rewards` gdpo → none)와 **§5**(checkpoint-850 에서 재개)는 실행되지 않았다. 도메인 전문가 3종은 **`scale_rewards=gdpo`** 로, **`sft_mixed_merged` 에서 새로** 시작했다([`../HANDOFF.md`](../HANDOFF.md) §0·§1, [`experiments_all_stages.html`](experiments_all_stages.html) 2-C). §6 의 `beta=0.04`·`num_generations=4` 유지도 바뀌었다(beta 0, num_gen 8/16).
+
 > 작성 2026-08-13 · 근거 = [2026년 모델 서베이](rlvr_survey_2026.md) + [붕괴 사후분석 rev.2](stage2_run73924_postmortem.md)
 > 대상 = job 73924/73925 붕괴 이후의 Stage-2 재실행 설정
 >

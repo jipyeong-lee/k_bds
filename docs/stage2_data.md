@@ -1,7 +1,7 @@
 # Stage-2 데이터 (RLVR 풀확장) — 정리
 
 > **갱신 2026-07-24.** Stage-2(범용 RLVR/GRPO)의 데이터 확장 전 과정: 동기·스크리닝·심층분석·혼합비율·빌드 파이프라인.
-> 학습 세팅은 [`stage2_expansion_runbook.md`](stage2_expansion_runbook.md), 전체 현황은 [`../README.md`](../README.md).
+> 재현(빌드) 절차는 아래 [§5-1 빌드 런북](#5-1-빌드-런북), 전체 현황은 [`../README.md`](../README.md).
 
 ---
 
@@ -91,6 +91,70 @@ MMK12·MM-Eureka·ThinkLite는 콜드스타트에서 "추론 trace 없음"으로
 > **비율 조정**: `DV_CAP=33000 PMC_CAP=28000 python3 scripts/build_stage2_mix.py` 로 의료 40% 등 재조립 가능.
 
 **남은 소스(미사용, 재현용 보존)**: `thinklite_train.jsonl`(11,031·노이즈로 드롭), `pmcvqa_train.jsonl`(30K 풀 중 20K 사용), SLAKE(변환 안 함).
+
+### 5-1. 빌드 런북
+
+*(구 `stage2_expansion_runbook.md` 에서 옮김. 그 문서의 학습 단계(구 혼합 체인 `launch_stage2_expanded*.sh`)는 붕괴로 폐기된 경로라 맨 아래에 기록만 남긴다. 현재 학습 진입점은 [`README.md`](../README.md) "Stage-2 도메인 전문가 학습".)*
+
+> 대용량 데이터(이미지·jsonl·체크포인트)는 git 에 없으므로 아래로 **재생성**한다.
+> **같은 클러스터라면 재생성보다 직접전송이 훨씬 빠름** → [`../HANDOFF.md`](../HANDOFF.md) §2-A.
+>
+> 🚨 **2026-07-27~ 클러스터 apptainer 파손**으로 `singularity` 실행·빌드 모두 불가. 아래 컨테이너 명령은
+> **그대로는 동작하지 않는다.** 학습·추론은 `ENV_MODE=loader` 우회(기본값)로 수행되며, 데이터 다운로드/변환은
+> conda 경로를 쓴다. → [`../HANDOFF.md`](../HANDOFF.md) §3 · `../runc.sh`
+
+**0) 사전 (1회)**
+- 레포 clone, `scripts/00_common.sh` 상단 경로 확인(`PROJ_DIR`/`WORK_DIR`).
+- 컨테이너 이미지: `work/images/ms-swift-413-sandbox` (직접전송 권장). ⚠️ `bash env/build_image.sh` 는 apptainer 파손으로 **현재 불가**.
+- HF 토큰(게이트/rate-limit): `export HF_TOKEN=hf_...`
+
+**1) 데이터 다운로드 (로그인노드)** — 아래는 apptainer 정상 시의 명령. 현재는 `singularity exec ...` 대신 pyarrow/requests 있는 conda python 으로 `scripts/download_dataset.py` 를 직접 실행할 것.
+```bash
+SB=work/images/ms-swift-413-sandbox
+for ds in skylenage-ai/DeepVision-103K MBZUAI/medix-rl-data FanqingM/MMK12 xmcmic/PMC-VQA; do
+  env -u HF_HUB_OFFLINE singularity exec --bind "$PWD/work:$PWD/work" \
+    --env HF_HUB_OFFLINE=0 --env HF_HOME="$PWD/work/hf_cache" --env HF_TOKEN="$HF_TOKEN" \
+    "$SB" python scripts/download_dataset.py "$ds"
+done
+```
+⚠️ 무인증이면 rate-limit 로 큰 parquet 이 멈출 수 있음 → `HF_TOKEN` 필수. (겪은 이슈: MMK12 train-00000 정체 → 토큰으로 해결.)
+
+**2) 변환 → swift jsonl (CPU 잡, 컨테이너 불필요)** — DeepVision·medix 는 컨테이너 변환 워크플로가 [`ops_data.md`](ops_data.md) 에 있다. 신규 2종은 CPU 잡으로:
+```bash
+sbatch scripts/13_build_stage2_expanded.slurm     # conda swift env(pyarrow+PIL) 로 MMK12 변환
+#   ⚠️ 계정 이식 시 BUILD_PY 지정 필요: export BUILD_PY=<pyarrow+PIL 있는 python>
+# 산출: work/data/mmk12_train.jsonl + work/data/images/mmk12
+```
+> 계산노드는 컨테이너 불가(userns=0)이나 변환은 pyarrow+PIL 만 필요 → conda `swift` env 로 CPU 노드서 실행.
+
+**3) 확장셋 조립 + 클린 홀드아웃**
+```bash
+# 신규 소스 변환: MMK12(parquet) 는 13_build 로, PMC-VQA(CSV+zip) 는 build_pmcvqa 로
+python3 scripts/build_pmcvqa.py --n 30000 --csv <train.csv> <train_2.csv> \
+  --zips <images.zip> <images_2.zip> --out work/data/pmcvqa_train.jsonl --images-dir work/data/images/pmcvqa
+python3 scripts/build_stage2_mix.py     # seed=42, bytehash dedup, 의료 27% 기본(실제 26%)
+# train   = DeepVision 40,000 + MMK12 15,204 + PMC-VQA 19,583 = 74,787 (일반53/math20/의료26)
+# holdout = DeepVision 972 + MMK12 400 + PMC-VQA 400 = 1,772  (_source·_stratum 태그)
+python3 scripts/split_stage2_by_source.py          # 전문가용 소스별 3분할 (--dry / --verify)
+```
+
+**4) v3 콜드스타트 init 준비**
+```bash
+sbatch scripts/10_sft.slurm                       # v3 SFT → sft_mixed_lora/checkpoint-298
+sbatch scripts/50_eval_v3.slurm                   # 병합(sft_mixed_merged) + 홀드아웃 평가(선택)
+#  (병합만 필요하면 12_merge_mixed.slurm)
+```
+※ v3 SFT 데이터(`sft_mixed_*`)도 재현하려면 `scripts/{11_build_coldstart.slurm, build_mixed_coldstart.py}`.
+
+**5) (폐기 경로, 기록용) 구 혼합 GRPO 실행**
+```bash
+SMOKE=1 bash scripts/launch_stage2_expanded.sh    # 배선 확인(max_steps 5)
+bash scripts/launch_stage2_expanded_epoch.sh      # 2,337 step(=0.25 epoch) 체인 4잡 ≈209h
+#   단발(≤70h): MAX_STEPS=600 bash scripts/launch_stage2_expanded.sh · RECIPE=dr_grpo 선택 가능 · 체인 중단 시 4개 job 전부 scancel
+```
+- 런처는 `21_rlvr_grpo_adv.slurm` 를 제출(20 아님) — `dynamic_sample`+`overlong_filter`+`beta 0.04` 는 21 에만 있었다. 산출 `work/checkpoints/grpo_expanded_gdpo`. 이 경로는 step ~900 에서 붕괴했다 → [사후분석](stage2_run73924_postmortem.md).
+
+**6) 평가 (확장 홀드아웃)** — 병합 후 vLLM serve → `stage2_expanded_holdout.jsonl` 채점(`EVAL_DATA=work/data/stage2_expanded_holdout.jsonl`, `50_eval_v3.slurm`·`eval_midtrain.slurm` 패턴). `_source`·`_stratum` 별 분리 리포트.
 
 ## 6. 학습 연결 (Stage-2 GDPO)
 

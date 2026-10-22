@@ -1,5 +1,8 @@
 # Stage-3 · 의료 RL (RaR) & HealthBench 평가
 
+> ⚠️ **낡은 내용**: "구현 & judge" 의 judge(`Qwen/Qwen3.6-27B-FP8`, KISTI 내부)는 2026-10-15 에 **KHDP `deepseek-v4-1-flash-ax`** 로 바뀌었다(KISTI 계산노드 외부망 없음 → kgpu 실행, [`../CLAUDE.md`](../CLAUDE.md) §2.5).
+> "남은 것" 절(Stage-2 step600 체크포인트를 init 으로)도 낡았다 — Stage-3 는 **전문가 3종 통합 모델**에서 시작하고 2차 과제로 넘어갔다([`experiments_all_stages.html`](experiments_all_stages.html) §3).
+
 > 이 문서는 [`README.md`](../README.md) 에서 분리된 상세 기록입니다. 요약·현황은 README, 상세는 여기.
 
 ## Stage-3 · 의료 RL (RaR 루브릭 보상)

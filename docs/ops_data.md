@@ -122,7 +122,7 @@ kbds_project/
 │   ├── 45_healthbench_smoke.slurm / run_healthbench.py    # HealthBench Hard 하니스(n=1000 실측)
 │   ├── _archive/                        # 폐기 스크립트(v1·v2 빌더 등, 이력 보존)
 │   └── convert_to_swift.py / download_{model,dataset}.py
-├── docs/ (medical_reward_spec.md · worklog_*.md) · logs/
+├── docs/ (medical_reward_spec.md · worklog_2026-06.md) · logs/
 ```
 </details>
 

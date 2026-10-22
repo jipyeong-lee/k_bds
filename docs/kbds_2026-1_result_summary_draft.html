@@ -71,7 +71,7 @@ code{font:12.5px Consolas,monospace}
 </ul>
 <table>
 <tr><th>전문가</th><th>체크포인트</th><th>도메인 holdout (SFT → RL)</th><th>글로벌 벤치 (SFT 46.77%)</th></tr>
-<tr><td>시각 추론 (deepvision)</td><td>step 2192</td><td>35.8% → <b>67.4%</b> (+31.6pp)</td><td><b>57.52%</b> (+10.75pp)</td></tr>
+<tr><td>시각 추론 (deepvision)</td><td>step 2192</td><td>35.8% → <b>67.4%</b> (+31.6pp)<br><small>SFT: KISTI job 82983(최대 출력 8192) · RL: job 76330</small></td><td><b>57.52%</b> (+10.75pp)</td></tr>
 <tr><td>수학 추론 (mmk12)</td><td>step 350</td><td>47.0% → <b>60.75%</b> (+13.75pp)</td><td><b>52.77%</b> (+6.00pp)</td></tr>
 <tr><td>의료 VQA (pmcvqa)</td><td>step 4896</td><td>56.5% → 58.0% (+1.5pp)</td><td><b>51.67%</b> (+4.90pp)</td></tr>
 </table>
@@ -90,8 +90,8 @@ code{font:12.5px Consolas,monospace}
 <div class="h">5. 전문가 통합(모델 가중치 병합)</div>
 <ul>
 <li>세 전문가의 가중치 변화량(task vector)이 거의 직교함을 측정함(코사인 유사도 +0.01 ~ +0.11). 추가 학습 없는 산술 병합이 가능함을 확인함.</li>
-<li>mergekit 기반 병합 기법 10종(Task Arithmetic, TIES, DARE, DELLA, Breadcrumbs, Model Stock, RAM 등)을 비교함.</li>
-<li>선별 결과(축소 평가셋): Task Arithmetic 병합 모델이 세 도메인 모두에서 각 전문가 성능의 97~108% 를 유지함. 글로벌 벤치는 SFT 대비 약 +7pp 임. <span class="todo">[전체 평가셋 본평가 후 최종 수치로 교체]</span></li>
+<li>mergekit 기반 병합 후보 11종(Task Arithmetic, TIES, DARE, DELLA, Breadcrumbs, Model Stock, RAM 등)을 비교함.</li>
+<li>선별 결과(축소 평가셋): Task Arithmetic 병합 모델이 세 도메인 모두에서 각 전문가 성능의 97~109% 를 유지함. 글로벌 벤치는 SFT 대비 약 +7pp 임. <span class="todo">[전체 평가셋 본평가 후 최종 수치로 교체]</span></li>
 <li>결과: 세 도메인 능력을 하나로 합친 통합 모델 1종을 확보함(추론 비용은 단일 모델과 같음).</li>
 </ul>
 

@@ -46,7 +46,7 @@ deepvision 과 pmcvqa 는 끝났습니다. mmk12 는 방치 상태입니다.
 - 붕괴 없이 2,203/5,715 step(38.5%)까지 학습했습니다.
 - 자원을 회수해야 해서 학습을 중지했습니다.
 - 교정한 홀드아웃 재평가(job `76330`)로 효과를 확정했습니다. 이 평가는 `EVAL_MAXTOK` 를 2048 에서 8192 로 올렸습니다.
-- 정확도는 init **35.19%** 에서 **67.39%** 로 올랐습니다(**+32.20pp**).
+- 정확도는 init **35.19%** 에서 **67.39%** 로 올랐습니다(**+32.20pp**, job `76330` 측정). 10월에 init 기준선만 다시 쟀습니다(KISTI job `82983`, `EVAL_MAXTOK` 8192). 그 기준으로는 init 35.8% → 67.4%(+31.6pp)입니다([merging 실험](docs/merging_experiments_2026-10-22.html) §2).
 - format 준수율은 91.3% 에서 **97.8%** 로 올랐습니다.
 - 이전 format 값 60.7% 는 착시였습니다. 출력이 2048 토큰에서 잘려서 생긴 값입니다.
 
@@ -95,7 +95,7 @@ deepvision 은 B200 클러스터에서 학습합니다. mmk12 와 pmcvqa 는 KIS
 
 | 도메인 | 클러스터 · job(체인) | 데이터 | 목표(1 epoch) | 현재 | 상태 |
 |---|---|---:|---:|---:|---|
-| **deepvision** | B200 | 40,000 | 5,715 step | **2,203 (38.5%)** | 홀드아웃으로 효과 확정(job `76330`). 정확도 35.19% → **67.39%**(+32.20pp). format 97.8% |
+| **deepvision** | B200 | 40,000 | 5,715 step | **2,203 (38.5%)** | 홀드아웃으로 효과 확정(job `76330`). 정확도 35.19% → **67.39%**(+32.20pp, job `76330` 측정. 10월 init 재측정 job `82983` 기준 35.8%). format 97.8% |
 | **mmk12** | KISTI 75776→75777→75778 | 15,204 | 3,801 step | **475 (12.5%)** | checkpoint-450 부근에서 같은 붕괴 3연속(FormatThink). watchdog 이 자동 취소. 8/22 19:09 이후 방치. 결정 대기. entropy 0.459 → 0.204 단조 감소 |
 | **pmcvqa** | KISTI 75774→75825→75826→76262 | 19,583 | 4,896 step | **4,896 (100%, 완주)** | 붕괴 없이 완주. 효과 미미: 56.5% → **58.0%**(+1.5pp). pass@8 83% 로 개선 여지 확인(job `76449`, `76491`) |
 
@@ -194,7 +194,7 @@ KISTI 에서 deepvision 이어학습을 시도했으나 즉시 크래시했습�
 | 단계 | 목적 | 데이터 | 방법 |
 |---|---|---|---|
 | **①** 콜드스타트 SFT | `<think>/<answer>` 형식을 주입하고 의료 추론의 시드를 만듦 | v3: OpenMedReason + VisualWebInstruct + VLAA 혼합 | LoRA SFT |
-| **②** 범용 RLVR | 검증할 수 있는 정답으로 추론을 강화 | 소스별 3분할: deepvision 40,000 / mmk12 15,204 / pmcvqa 19,583 | GRPO `recipe=stable`(dr_grpo), `num_gen=8`, init=`sft_mixed_merged`. 도메인별 전문가를 학습한 뒤 통합 |
+| **②** 범용 RLVR | 검증할 수 있는 정답으로 추론을 강화 | 소스별 3분할: deepvision 40,000 / mmk12 15,204 / pmcvqa 19,583 | GRPO `recipe=stable`(dr_grpo), `num_gen` B200 16 · KISTI/kgpu 8, init=`sft_mixed_merged`. 도메인별 전문가를 학습한 뒤 통합 |
 | **③** 의료 특화 RL | 개방형 의료 VQA 추론 | medix-rl-data 51K | GRPO + RaR 루브릭 보상 |
 | **④** 평가 | base 모델 대비 성능을 정량화 | 층화 홀드아웃, HealthBench | vLLM 추론과 채점 |
 
@@ -212,7 +212,7 @@ KISTI 에서 deepvision 이어학습을 시도했으나 즉시 크래시했습�
 ### 주의
 
 - **주의**: 노드는 정확히 3개입니다. arm 3개를 동시에 제출하면 파티션 전체를 점유합니다.
-- **주의**: `num_generations` 는 계산량이 아니라 데이터 노출량을 줄입니다. 배치는 32 completion 으로 고정입니다. 상한은 8 입니다.
+- **주의**: `num_generations` 는 계산량이 아니라 데이터 노출량을 줄입니다. KISTI 에서는 배치가 32 completion 으로 고정이고 상한은 8 입니다. B200 은 112 completion/step 이라 16 을 씁니다(HANDOFF §0).
 - **주의**: 체인을 중단할 때는 관련 job 을 모두 `scancel` 하십시오. job 하나만 취소하면 다음 job 이 이어받습니다.
 - **주의**: `MAX_STEPS` 의 단위는 step 입니다. epoch 으로 지정하려면 `EPOCHS=` 를 사용하십시오. 스크립트가 도메인별 데이터 건수로 step 을 계산합니다.
 
@@ -284,15 +284,18 @@ sbatch          --dependency=afterok:$JID3 scripts/40_eval.slurm                
 | [`docs/stage2_run73924_postmortem.md`](docs/stage2_run73924_postmortem.md) | 구 혼합 학습 붕괴 사후분석(rev.2). 3분할로 전환한 계기 |
 | [`docs/stage2_run73924_progress.md`](docs/stage2_run73924_progress.md) | 구 혼합 학습 중간 점검. 학습 곡선, 홀드아웃 추세, 검정력 분석 |
 | [`docs/stage2_experiments.md`](docs/stage2_experiments.md) | Stage-2 실험. plateau 진단. GRPO 계열 5종 clean A/B |
-| [`docs/stage2_overview_for_slides.md`](docs/stage2_overview_for_slides.md) | 발표용 자립 요약. 방법론 계보, 데이터셋, 학습 세팅, 경과를 한 문서에 정리 |
-| [`docs/stage2_data.md`](docs/stage2_data.md) | Stage-2 데이터. 소스 스크리닝, 혼합 비율, 빌드 파이프라인 |
+| [`docs/stage2_data.md`](docs/stage2_data.md) | Stage-2 데이터. 소스 스크리닝, 혼합 비율, 빌드 파이프라인과 빌드 런북(§5-1) |
 | [`docs/rlvr_hparams_external.md`](docs/rlvr_hparams_external.md) | RLVR 하이퍼파라미터. 외부 관행 대조. epoch 정책 |
 | [`docs/stage3_and_eval.md`](docs/stage3_and_eval.md) | Stage-3 의료 RL(RaR 루브릭, judge). HealthBench 추적 |
 | [`docs/medical_reward_spec.md`](docs/medical_reward_spec.md) | 의료 보상 스펙 |
 | [`docs/tech_reference.md`](docs/tech_reference.md) | 환경, 베이스 모델, LoRA, 보상 설계, 논문 레퍼런스 |
 | [`docs/ops_data.md`](docs/ops_data.md) | 자원·운영 정책. 데이터 소스. 홀드아웃 분리(누수 차단) |
 | [`docs/progress_log.md`](docs/progress_log.md) | 진행 이력, 핵심 의사결정, 날짜별 기록, TODO |
-| `docs/worklog_*.md` | 일별 상세 로그 |
+| [`docs/worklog_2026-06.md`](docs/worklog_2026-06.md) | 일별 상세 로그(2026-06-15 ~ 07-01, 날짜별 절) |
+| [`docs/experiments_all_stages.html`](docs/experiments_all_stages.html) | 전 단계 실험 정리(대표 개요, 2026-10-22 기준) |
+| [`docs/experiments_2026-10.html`](docs/experiments_2026-10.html) | 10월 붕괴 원인 추적 실험(X1~X6) |
+| [`docs/merging_experiments_2026-10-22.html`](docs/merging_experiments_2026-10-22.html) | 전문가 통합(모델 merging) 실험 |
+| [`docs/kbds_2026-1_result_summary_draft.html`](docs/kbds_2026-1_result_summary_draft.html) | 결과보고서(연구요약서) 초안 |
 
 ---
 

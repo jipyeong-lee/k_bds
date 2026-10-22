@@ -1,5 +1,8 @@
 # 3단계 의료 복합 보상 (clinical_judge) 구현 스펙
 
+> ⚠️ **낡은 내용**: §3(GenRMPlugin·format 0.1), §7(`\boxed` 규약), §9(SFT 생략) 은 이후 결정으로 뒤집혔다 — 실제 구현은 `AsyncORM` + `format_think 0.2 / clinical_judge 1.0`, `\boxed` 폐기, 콜드스타트 SFT 필수([`stage3_and_eval.md`](stage3_and_eval.md), [`stage1_coldstart.md`](stage1_coldstart.md)).
+> judge 는 Qwen3.6-27B-FP8(7월 KISTI 내부) → **현재 KHDP `deepseek-v4-1-flash-ax`**([`../CLAUDE.md`](../CLAUDE.md) §2.5). §2·§4.2 루브릭·§8 프로브 결과는 유효하다.
+
 > 대상: `configs/medical_reward.py` + `scripts/30_medical_rl.slurm`
 > 상태: **구현·검증 완료**(보상 + judge Qwen3.6-27B-FP8 분포프로브 통과, 2026-06-29). 남은 것: `30_medical_rl.slurm` 배선.
 

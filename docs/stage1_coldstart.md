@@ -29,6 +29,51 @@ RL 이 최적화하는 `format_think`(`configs/accuracy.py`)는 **앵커 매칭*
 
 → 모델은 **절반이 틀린 형식**을 그대로 배웠고, 그래서 RL 시작 FormatThink 0.26 · 600스텝 후에도 **0.425 정체**. RL 이 못 배운 게 아니라 **초기화가 잘못 가르쳤다**.
 
+### v1·v2 구축 상세 — RFT 콜드스타트 (job 57242, 2026-06-16)
+
+*(구 `project_status_2026-07-05.md` 부록 A 에서 옮김. v2 결함은 위 절 참조.)*
+
+**왜 필요했나**: base(Qwen3.5-9B VL)가 어려운 시각/기하 문제에 본래 **매우 길게 추론** → 4096/6144 토큰 budget으로도 **~50% 잘림 → 무답 0점**. RL·budget 조정으로 못 잡음 → **간결 추론 습관을 SFT로 재주입**.
+
+**1차 (plain) 콜드스타트 — 폐기 (v1)**
+- 스크립트 `build_coldstart_sft.py`. 데이터 = `UCSC-VLAA/VLAA-Thinking`의 **clevr_math** 서브셋(~5.9K). answer가 이미 `<think>…</think><answer>X</answer>` 형식이라 거의 그대로 사용 → `sft_coldstart_train.jsonl` **2913건**.
+- **문제**: clevr_math가 너무 쉬움(평균 760자) → 어려운 시각/기하 문제로 **일반화 실패**(여전히 잘림).
+
+**RFT란? (Rejection-sampling Fine-Tuning)** — 모델이 스스로 만든 답 중 **정답인 것만 골라(rejection sampling) 그걸로 다시 SFT**하는 자기증류(self-distillation) 기법. 외부 정답 데이터 없이 **모델 자신의 성공 사례로 부트스트랩**한다.
+1. **생성(sample)**: 한 문제에 여러 후보 답(롤아웃)을 뽑는다.
+2. **거절(reject)**: 검증가능 정답과 대조해 **틀린 것·형식 불량·잘린 것을 버린다**.
+3. **정제(curate)**: 남은 정답 중 중복 제거·간결한 것 위주로 선별.
+4. **재학습(fine-tune)**: 이 선별셋으로 SFT → 좋은 습관을 모델에 고정. (반복 시 STaR/ReST)
+
+계보: STaR(Zelikman 2022) · ReST(Gulcehre 2023) · RFT(Yuan 2023) — 모두 "정답 롤아웃으로 SFT" 골격 공유. RL(GRPO)은 보상 gradient로 정책을 밀지만, RFT는 **정답 샘플만 남긴 offline SFT**라 싸고 안정적이다. 단 "정답을 더 잘 내게" 하기보다 **이미 낼 수 있는 정답을 원하는 스타일로 고정**하는 데 강함 → 콜드스타트(형식·간결성 주입)에 맞다. base는 어려운 문제도 **가끔 맞히긴 하나 장황해서 잘림** → 그 "가끔 맞힌 간결한 성공"만 골라 되먹인다.
+
+**2차 (RFT) 콜드스타트 — v2**
+- 스크립트 `build_rft_coldstart.py` (DeepVision 롤아웃에 RFT 적용). **소스**: 자기 GRPO 롤아웃 로그 `grpo_general/v*/completions.jsonl`.
+- **필터 3중**: ① `AccuracyMix==1.0`(정답) ② `<think></think><answer></answer>` **정상 마감**(비잘림) ③ `len ≤ 6000자`(≈2000토큰, 간결). *(②가 느슨한 `closed()` 였던 것이 위 결함의 원인)*
+- **선별**: 질문당 가장 짧은 것부터 **최대 3개**(`PER_Q=3`). 이미지 경로는 DeepVision 원본과 질문텍스트로 join.
+- **결과**: `sft_rft_coldstart_train.jsonl` **727건** + val 40건 (ms-swift `{messages, images}` 포맷). *(worklog 06-16 의 "767예시"는 727 + val 40 이다)*
+
+```
+base Qwen3.5-9B + LoRA r16/a32 (all-linear)
+727건 · 4 epochs · LR 1e-4 · max_len 4096 · bs1×grad_accum8 · 8GPU DDP
+→ sft_rft_coldstart_lora/checkpoint-48
+→ (merge, job 57245) sft_rft_coldstart_merged (18G)  ← 구 Stage-2 init
+```
+
+학습곡선 (48 step = 12 step/epoch × 4, 총 ~5분):
+
+| epoch/step | train loss | val loss | val token_acc |
+|---|---|---|---|
+| step 1 | 0.263 | — | — |
+| epoch 1 (step 12) | ~0.23 | 0.2149 | 0.9237 |
+| epoch 2 (step 24) | ~0.19 | 0.2136 | 0.9236 |
+| epoch 3 (step 36) | ~0.20 | 0.2137 | 0.9238 |
+| epoch 4 (step 48) | 0.197 | 0.2138 | 0.9242 |
+
+- **형식은 ~1 epoch에 수렴**: val loss가 epoch 1부터 0.214로 평탄(이후 ±0.001), token_acc 0.924 유지. 추가 epoch는 한계효용 작음(과적합 없음). 형식 주입이 목적이라 val 조기수렴은 정상 — **출력 스타일 정렬**이다. *(val 평탄의 다른 원인 = 질문 단위가 아닌 stride 분할 — 아래 v3 설계 5번)*
+- **727건 샘플·길이 분포**: 예시(질문) *"Jewel2 … 특수 원소가 몇 개인가"*(시각논리 퍼즐) → `<think>보드 스캔·계산…</think><answer>N</answer>`. assistant 완성문 길이(문자) 중앙값 **2837** · 평균 2861 · 최소 36 · 최대 5979.
+- **검증**: probe 추론(`probe_coldstart_think_true/false.jsonl`, `probe_rft_think_true.jsonl`)으로 형식 준수 확인. 후속 GRPO **FormatThink 0.05→0.27**(≈5배)·clip↓. 중간 홀드아웃(N=100) base 0.15 → init 0.22(형식 0.12→0.32, 길이 5907→5188자) — ⚠️ 0.22 는 소표본값이며 아래 동일조건 전량 재측정 0.295 로 대체됐다.
+
 ### v3 설계 — `scripts/build_mixed_coldstart.py`
 
 **데이터 (전부 실측 검증 후 채택 — 이름·초록만 보고 고르지 않음)**
@@ -173,7 +218,7 @@ RL 이 최적화하는 `format_think`(`configs/accuracy.py`)는 **앵커 매칭*
 
 *(v2 데이터 기준. **결론은 v3 에도 유효** — 절제변수가 "콜드스타트 init 유무"라 데이터 버전과 무관하게 "콜드스타트 없이는 RL 이 형식을 못 배운다"를 보인다. v3 는 이 결론을 더 강화하는 방향: v2 조차 형식 0.473 이었는데도 필수였으므로.)*
 
-계기: 콜드스타트의 HealthBench(0.224)가 base(0.229)와 동률이라 "Stage-1 제껴도 되나?" → clean ablation 으로 확정. 상세 [`docs/stage1_coldstart_assessment.md`](stage1_coldstart_assessment.md).
+계기: 콜드스타트의 HealthBench(0.224)가 base(0.229)와 동률이라 "Stage-1 제껴도 되나?" → clean ablation 으로 확정. 상세 = 아래 [학습 경과·층별 결과](#ablation-상세--학습-경과층별-홀드아웃) 와 [적합성 판단](#v2-콜드스타트-적합성-판단-2026-07-08)(구 `stage1_coldstart_assessment.md` 에서 옮김).
 
 - **가설**: H1 콜드스타트=RL 전제조건 vs H0 콜드스타트=가속일 뿐.
 - **설계**: **절제변수 = 콜드스타트 init 유무**, 나머지(trainonly·dr_grpo·LoRA·보상·하이퍼) 전부 통제. `base→RL`(dr_grpo·GDPO 2-arm, step200, `59946`/`59970`) vs 기존 콜드스타트 경로.
@@ -188,5 +233,46 @@ RL 이 최적화하는 `format_think`(`configs/accuracy.py`)는 **앵커 매칭*
   *(콜드스타트 無 RL: dr_grpo 0.18 / GDPO 0.165 — GDPO도 붕괴 못 살림)*
 
 - **결론 — H0 기각, H1 채택**: **강한 상호작용**(RL 이득은 콜드스타트에 조건부: +0.16 vs +0.03). 콜드스타트 없이는 **FormatThink 100스텝 내내 ~0 정체**(콜드스타트 0.26 시작)·잘림 40%·학습 2~3배 저속, **200step RL이 콜드스타트 SFT 한 번(0.22)에도 못 미침**. → **Stage-1 필수 확정**. HealthBench 동률은 오프타깃(텍스트 의료)일 뿐.
+
+#### Ablation 상세 — 학습 경과·층별 홀드아웃
+
+*(구 `stage1_coldstart_assessment.md` §3.2·§3.4 에서 옮김)*
+
+- **설계**: `21_rlvr_grpo_adv.slurm` 에서 `INIT_MODEL` 만 교체. 처리군 `INIT_MODEL=base(raw Qwen3.5-9B)` → dr_grpo & GDPO 2-arm, MAX_STEPS=200(`59946`/`59970`). 대조군 = 기존 콜드스타트 경로(RL0% 0.22, step600 0.38). 측정 = training dynamics + checkpoint-200 병합 → DeepVision 층화 홀드아웃 N=200(`47_eval_ablation.slurm`).
+- **명분의 근거**: base 파일럿은 답이 **77% 잘렸고** Format=0 이었다 → `<answer>` 미도달 → 보상 0 → advantage 0 → RL 이 오를 언덕이 없다. base 는 HealthBench 에서 최대 44K자까지 장황했다.
+
+**① training dynamics (step 1~100 구간평균)** — 콜드스타트 없이 RL 하면 형식이 안 붙는다:
+
+| arm | FormatThink(1-25→76-100) | clip | AccMix | 대조(콜드스타트 init GRPO) |
+|---|---|---|---|---|
+| base→dr_grpo | 0.001 → 0.004 | 0.54→0.43 | 0.42→0.48 | Format **~0.26 시작** |
+| base→GDPO | 0.002 → 0.002 | 0.46→0.41 | 0.47→0.46 | (동일) |
+
+**② 홀드아웃 (checkpoint-200, N=200)**:
+
+| 모델 | Acc | math | vl | 형식 |
+|---|---|---|---|---|
+| base→dr_grpo (콜드스타트 無) | **0.18** | 0.137 | 0.219 | 0.205 |
+| base→GDPO (콜드스타트 無) | **0.165** | 0.137 | 0.190 | 0.19 |
+| *(참조) 콜드스타트 RL0%* | 0.22 | — | — | 0.32 |
+| *(참조) 콜드스타트+dr_grpo step600* | 0.38 | 0.358 | 0.400 | 0.425 |
+
+- AccMix 소폭 상승(0.42→0.48)은 관대 파서가 형식 없이 답만 잡은 것 — 형식·간결 학습은 실패. GDPO(0.165)도 dr_grpo(0.18)보다 낮다 — 보상별 정규화도 0 신호를 못 살린다.
+
+#### v2 콜드스타트 적합성 판단 (2026-07-08)
+
+*(구 `stage1_coldstart_assessment.md` §2 에서 옮김. 대상 = v2: RFT 727건 · 4 epoch · LoRA r16/a32)*
+
+> **적합하다 — 단 "최소 기능(minimum viable) 콜드스타트"로서 적합**하며, 최적은 아니다. 명분(RL 인에이블)은 달성·입증, 효율·선별편향·Stage-3 전이엔 개선 여지.
+
+**적합한 점**: ① 형식 주입 → RL 인에이블 → Stage-2 plateau 돌파(다운스트림 성공이 최종 검증) ② 1차 clevr_math(쉬움) 실패 후 DeepVision 자기 롤아웃으로 바꾼 판단 ③ 과적합 없음(val 평탄, token_acc 0.924).
+
+**미흡·위험한 점**:
+1. **4 epoch 과다** — val 이 epoch 1 에 이미 수렴(0.2149→0.2138). 1~2 epoch 충분(다만 ~5분이라 손실 미미). → v3 는 2 epoch.
+2. **"가장 짧은 정답" 선별 → 쉬운 문제 편향 가능성** — 필터가 `정답 AND 간결`이라 모델이 이미 잘 푸는 문제에 쏠릴 수 있다. 어려운 문제의 간결화 전이는 간접 증거(FormatThink 5배·홀드아웃 +47%)뿐이었다. → 이후 찍기 편향으로 확인됨(위 v2 결함).
+3. **727건·DeepVision 전용** — 규모 작고 도메인 단일. Stage-3(medix) 형식 전이 미검증. → v3 에서 의료 CoT 투입.
+4. **순가치 clean ablation 부재** — 홀드아웃 정비 후 비교가 없었다. → 위 ablation 으로 해소.
+
+권고(당시): 재학습 시 epoch 1~2 + 어려운 문제 비중 상향 + medix 형식 소량 혼합 검토. HealthBench 상세(instr +0.044, 평균 8.9K자, judge 파싱실패 9.9%→5.0%)는 [`stage3_and_eval.md`](stage3_and_eval.md#단계별-추적--healthbench-hard-n1000).
 
 ---

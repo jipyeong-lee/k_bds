@@ -1,7 +1,7 @@
 # 인수인계 (HANDOFF) — K-BDS 의료 멀티모달 파이프라인
 
 > **갱신 2026-08-14.** 다른 계정/사람이 **이어받아 실행**하기 위한 단일 문서.
-> 큰 그림·수치는 [`README.md`](README.md), 확장셋 재현(데이터 빌드)은 [`docs/stage2_methods_data.html` §5-1](docs/stage2_methods_data.html#5-1-빌드-런북).
+> 큰 그림·수치는 [`README.md`](README.md), 확장셋 재현(데이터 빌드)은 [`docs/stage2_design.html` §5-1](docs/stage2_design.html#5-1-빌드-런북).
 
 ---
 
@@ -302,8 +302,8 @@ configs/
 docs/
   stage2_mixed_run.html    🚨 붕괴 사후분석 rev.2 — 인수인계 시 먼저 읽을 것
   stage2_design.html          현재 설계의 근거
-  stage2_methods_data.html                   확장셋 데이터·빌드 런북(§5-1, 구 stage2_expansion_runbook)
-  stage3_eval.html · project_log.html · project_log.html
+  stage2_design.html                   확장셋 데이터·빌드 런북(§5-1, 구 stage2_expansion_runbook)
+  stage3_eval.html · ops_infra.html · ops_infra.html
 (루트) 사후분석 일회성 스크립트 — 레포 루트에서 실행. 붕괴 분석 재현용
   holdout_matrix.py · holdout_by_source.py · train_side.py · classify900.py · show_collapse.py
   ⚠️ 입력이 logs/ 와 work/checkpoints/ 다 → transfer_pull 에서 WITH_LOGS 를 끄면 돌지 않는다

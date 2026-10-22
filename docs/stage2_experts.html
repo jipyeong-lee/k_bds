@@ -132,8 +132,8 @@ li{margin:3px 0}
 <p>붕괴 전 체크포인트 중에서 holdout 점수가 가장 높은 것을 골랐다.</p>
 <table>
 <tr><th>도메인</th><th>후보</th><th>holdout (init → RL)</th><th>형식</th><th>글로벌 벤치</th><th>판정</th></tr>
-<tr><td rowspan="2">deepvision (n=972)</td><td>2192 (B200)</td><td class="n">35.8 → <b>67.4%</b><br><small>init: KISTI job 82983(최대 출력 8192) · RL: job 76330</small></td><td class="n">0.978</td><td class="n"><b>57.52%</b></td><td class="ok">채택</td></tr>
-<tr><td>2700 (KISTI 이어학습, <code>v2-20261014-111314/checkpoint-2700</code>)</td><td class="n">35.8 → 55.6%</td><td class="n">0.765</td><td class="n">54.07%</td><td class="ng">탈락</td></tr>
+<tr><td rowspan="2">deepvision (n=972)</td><td>2192 (B200)</td><td class="n">35.19 → <b>67.39%</b><br><small>같은 시기 측정쌍(job 76330). 10월 init 재측정(job 82983)은 35.8%</small></td><td class="n">0.978</td><td class="n"><b>57.52%</b></td><td class="ok">채택</td></tr>
+<tr><td>2700 (KISTI 이어학습, <code>v2-20261014-111314/checkpoint-2700</code>)</td><td class="n">35.19 → 55.6%</td><td class="n">0.765</td><td class="n">54.07%</td><td class="ng">탈락</td></tr>
 <tr><td rowspan="2">mmk12 (n=400)</td><td>350</td><td class="n">47.0 → <b>60.75%</b></td><td class="n">1.000</td><td class="n"><b>52.77%</b></td><td class="ok">채택</td></tr>
 <tr><td>400</td><td class="n">47.0 → 58.25%</td><td class="n">0.978</td><td class="n">—</td><td class="ng">탈락</td></tr>
 <tr><td>pmcvqa (n=400)</td><td>4896</td><td class="n">56.5 → 58.0%</td><td class="n">1.000</td><td class="n"><b>51.67%</b></td><td class="ok">채택</td></tr>
@@ -141,7 +141,7 @@ li{margin:3px 0}
 <ul>
 <li>deepvision 2700 은 응답이 길어져(평균 8,469자) 최대 출력에서 잘렸다. 형식 점수가 0.765 로 떨어졌다. 3428 붕괴의 초입으로 본다(추정).</li>
 <li>평가 환경: holdout 은 KISTI A100(최대 출력 8192 토큰). 글로벌은 KISTI A100 또는 kgpu RTX 5090(dv2700, mm350).</li>
-<li>deepvision 2192 의 9월 init 값은 35.19%(+32.20pp)였다. 이 값은 측정 조건이 달라 위 표와 비교하지 않는다.</li>
+<li>deepvision 의 init 기준선은 같은 시기 측정쌍인 35.19% 로 통일한다. 10월 재측정(job 82983, 최대 출력 8192)은 35.8% 다. 이 기준으로는 2192 가 +31.6pp, 2700 이 +19.8pp 다.</li>
 </ul>
 <p>X6 holdout 평가는 2026-10-22 09:00 에 KISTI 에 job 5개로 제출했다. 모든 job 은 최대 출력 8192 토큰을 썼다.</p>
 <table>
@@ -163,7 +163,7 @@ li{margin:3px 0}
 <table>
 <tr><th>전문가</th><th>체크포인트</th><th>도메인 holdout (init → RL)</th><th>글로벌 벤치</th><th>MedXpertQA-MM</th><th>MMMU-H&amp;M</th></tr>
 <tr><td>SFT (기준)</td><td>—</td><td>—</td><td class="n">46.77%</td><td class="n">33.5%</td><td class="n">62.27%</td></tr>
-<tr><td><b>deepvision</b></td><td>2192</td><td class="n">35.8 → <b>67.4%</b> (+31.6pp)</td><td class="n"><b>57.52%</b></td><td class="n">40.35%</td><td class="n">77.57%</td></tr>
+<tr><td><b>deepvision</b></td><td>2192</td><td class="n">35.19 → <b>67.39%</b> (+32.20pp)</td><td class="n"><b>57.52%</b></td><td class="n">40.35%</td><td class="n">77.57%</td></tr>
 <tr><td>mmk12</td><td>350</td><td class="n">47.0 → 60.75% (+13.75pp)</td><td class="n">52.77%</td><td class="n">35.9%</td><td class="n">72.49%</td></tr>
 <tr><td>pmcvqa</td><td>4896</td><td class="n">56.5 → 58.0% (+1.5pp)</td><td class="n">51.67%</td><td class="n">34.1%</td><td class="n">72.2%</td></tr>
 </table>

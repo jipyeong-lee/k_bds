@@ -283,15 +283,15 @@ sbatch          --dependency=afterok:$JID3 scripts/40_eval.slurm                
 | [`docs/stage1_coldstart.html`](docs/stage1_coldstart.html) | Stage-1 상세. v3 설계, 학습 곡선, 홀드아웃 평가, ablation |
 | [`docs/stage2_mixed_run.html`](docs/stage2_mixed_run.html) | 구 혼합 학습 붕괴 사후분석(rev.2). 3분할로 전환한 계기 |
 | [`docs/stage2_mixed_run.html`](docs/stage2_mixed_run.html) | 구 혼합 학습 중간 점검. 학습 곡선, 홀드아웃 추세, 검정력 분석 |
-| [`docs/stage2_methods_data.html`](docs/stage2_methods_data.html) | Stage-2 실험. plateau 진단. GRPO 계열 5종 clean A/B |
-| [`docs/stage2_methods_data.html`](docs/stage2_methods_data.html) | Stage-2 데이터. 소스 스크리닝, 혼합 비율, 빌드 파이프라인과 빌드 런북(§5-1) |
+| [`docs/stage2_design.html`](docs/stage2_design.html) | Stage-2 실험. plateau 진단. GRPO 계열 5종 clean A/B |
+| [`docs/stage2_design.html`](docs/stage2_design.html) | Stage-2 데이터. 소스 스크리닝, 혼합 비율, 빌드 파이프라인과 빌드 런북(§5-1) |
 | [`docs/stage2_design.html`](docs/stage2_design.html) | RLVR 하이퍼파라미터. 외부 관행 대조. epoch 정책 |
 | [`docs/stage3_eval.html`](docs/stage3_eval.html) | Stage-3 의료 RL(RaR 루브릭, judge). HealthBench 추적 |
 | [`docs/stage3_eval.html`](docs/stage3_eval.html) | 의료 보상 스펙 |
 | [`docs/ops_infra.html`](docs/ops_infra.html) | 환경, 베이스 모델, LoRA, 보상 설계, 논문 레퍼런스 |
 | [`docs/ops_infra.html`](docs/ops_infra.html) | 자원·운영 정책. 데이터 소스. 홀드아웃 분리(누수 차단) |
-| [`docs/project_log.html`](docs/project_log.html) | 진행 이력, 핵심 의사결정, 날짜별 기록, TODO |
-| [`docs/project_log.html`](docs/project_log.html) | 일별 상세 로그(2026-06-15 ~ 07-01, 날짜별 절) |
+| [`docs/ops_infra.html`](docs/ops_infra.html) | 진행 이력, 핵심 의사결정, 날짜별 기록, TODO |
+| [`docs/ops_infra.html`](docs/ops_infra.html) | 일별 상세 로그(2026-06-15 ~ 07-01, 날짜별 절) |
 | [`docs/experiments_all_stages.html`](docs/experiments_all_stages.html) | 전 단계 실험 정리(대표 개요, 2026-10-22 기준) |
 | [`docs/stage2_experts.html`](docs/stage2_experts.html) | Stage-2 도메인 전문가: 학습·체크포인트 확정, 10월 붕괴 원인 추적(X1~X6), 전문가 통합(merging) |
 | [`docs/kbds_2026-1_result_summary_draft.html`](docs/kbds_2026-1_result_summary_draft.html) | 결과보고서(연구요약서) 초안 |

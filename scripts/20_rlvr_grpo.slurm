@@ -11,7 +11,7 @@
 #   기본값이 바뀜: INIT = v3 콜드스타트 병합본(sft_mixed_merged), DATA = 확장셋.
 #   재현: 데이터 빌드 = scripts/{13_build_stage2_expanded.slurm, build_stage2_mix.py}
 #         런처       = scripts/launch_stage2_expanded.sh (env 세팅 + 제출)
-#         상세       = docs/stage2_methods_data.html §5-1 (빌드 런북)
+#         상세       = docs/stage2_design.html §5-1 (빌드 런북)
 #   구 경로(DeepVision 단일·base init)로 돌리려면:
 #     INIT_MODEL=$BASE_MODEL DATASET_FILE=$DATA_DIR/deepvision103k_train.jsonl sbatch ...
 # =============================================================================

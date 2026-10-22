@@ -1,7 +1,7 @@
 # 인수인계 (HANDOFF) — K-BDS 의료 멀티모달 파이프라인
 
 > **갱신 2026-08-14.** 다른 계정/사람이 **이어받아 실행**하기 위한 단일 문서.
-> 큰 그림·수치는 [`README.md`](README.md), 확장셋 재현(데이터 빌드)은 [`docs/stage2_data.md` §5-1](docs/stage2_data.md#5-1-빌드-런북).
+> 큰 그림·수치는 [`README.md`](README.md), 확장셋 재현(데이터 빌드)은 [`docs/stage2_methods_data.html` §5-1](docs/stage2_methods_data.html#5-1-빌드-런북).
 
 ---
 
@@ -54,7 +54,7 @@ max_completion 8192 (KISTI 6144 는 잘림 기록) · clipped_ratio 1.3~1.8% 로
 
 > 이 둘은 **직교하는 두 축**이다(`loss_type` = 손실 정규화, `scale_rewards` = advantage 정규화).
 > 붕괴 실행이 `RECIPE=dr_grpo SCALE_REWARDS=gdpo` 였던 것은 "섞은" 게 아니라 각 축에서 하나씩 고른 것이고,
-> [사후분석 §4-2(a)](docs/stage2_run73924_postmortem.md)가 구현을 직접 읽고 **GDPO 무죄**를 판정했다(형식 재가중 최대 **±15%**,
+> [사후분석 §4-2(a)](docs/stage2_mixed_run.html)가 구현을 직접 읽고 **GDPO 무죄**를 판정했다(형식 재가중 최대 **±15%**,
 > 배치 전역 whitening 때문에 절대 크기는 안 커짐 — 초판의 "2.3배 증폭" 주장은 철회됨).
 
 **1 epoch 규모** (프롬프트/step = 7 기준):
@@ -123,7 +123,7 @@ max_completion 8192 (KISTI 6144 는 잘림 기록) · clipped_ratio 1.3~1.8% 로
 - **개시 원인은 미규명**이고 **28/28 동일 조건 재현 실패** → 결정론적 원인이 아니다. 원인 규명은 **포기**했고 증폭 경로 차단으로 방향을 틀었다.
 - 붕괴 후 **13h35m(109 GPU-h)을 더 돌았다** — 볼 장치가 없었기 때문. 그래서 지금은 `WATCHDOG=1` 이 기본이다.
 - ⚠️ **재개하지 말 것.** 재시작점 step 700 권고는 폐기됐다. `sft_mixed_merged` 에서 새로 시작한다.
-- 전량 근거 → [`docs/stage2_run73924_postmortem.md`](docs/stage2_run73924_postmortem.md) (rev.2 에서 초판 3건을 정정했다)
+- 전량 근거 → [`docs/stage2_mixed_run.html`](docs/stage2_mixed_run.html) (rev.2 에서 초판 3건을 정정했다)
 
 **같이 확인된 것**: 의료(pmcvqa)는 RL 여섯 지점 전부 무변화(p>0.5). 붕괴와 무관하게 성립하고, **Stage-3 의 존재 이유를 굳힌다.**
 
@@ -222,7 +222,7 @@ ENV_MODE=container bash scripts/...                      # apptainer 복구 후 
 
 ## 4. Stage-2 도메인 전문가 — 실행 절차 (현재 경로)
 
-설계 근거 → [재설계](docs/stage2_redesign_2026.md) · [DeepSeek-V4 채택](docs/deepseek_v4_pipeline_adoption.md) · [서베이](docs/rlvr_survey_2026.md)
+설계 근거 → [재설계](docs/stage2_design.html) · [DeepSeek-V4 채택](docs/stage2_design.html) · [서베이](docs/stage2_design.html)
 
 ```bash
 # 0) 확장셋 → 소스별 3분할 (이미지 경로 기준, 미분류 시 즉시 실패)
@@ -300,10 +300,10 @@ configs/
   accuracy.py                      accuracy_mix + 단계형 format_think 보상
   medical_reward.py                Stage-3 RaR clinical_judge
 docs/
-  stage2_run73924_postmortem.md    🚨 붕괴 사후분석 rev.2 — 인수인계 시 먼저 읽을 것
-  stage2_redesign_2026.md          현재 설계의 근거
-  stage2_data.md                   확장셋 데이터·빌드 런북(§5-1, 구 stage2_expansion_runbook)
-  medical_reward_spec.md · progress_log.md · worklog_2026-06.md
+  stage2_mixed_run.html    🚨 붕괴 사후분석 rev.2 — 인수인계 시 먼저 읽을 것
+  stage2_design.html          현재 설계의 근거
+  stage2_methods_data.html                   확장셋 데이터·빌드 런북(§5-1, 구 stage2_expansion_runbook)
+  stage3_eval.html · project_log.html · project_log.html
 (루트) 사후분석 일회성 스크립트 — 레포 루트에서 실행. 붕괴 분석 재현용
   holdout_matrix.py · holdout_by_source.py · train_side.py · classify900.py · show_collapse.py
   ⚠️ 입력이 logs/ 와 work/checkpoints/ 다 → transfer_pull 에서 WITH_LOGS 를 끄면 돌지 않는다

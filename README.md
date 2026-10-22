@@ -173,9 +173,9 @@ KISTI 에서 deepvision 이어학습을 시도했으나 즉시 크래시했습�
 - 소스별 LoRA 는 같은 rank(16)를 사용합니다. 나중에 어댑터 산술로 통합할 수 있습니다(계단 0).
 
 근거와 대안 비교는 다음 문서에 있습니다.
-- [DeepSeek-V4 방법론 채택](docs/deepseek_v4_pipeline_adoption.md)
-- [Stage-2 재설계](docs/stage2_redesign_2026.md)
-- [서베이](docs/rlvr_survey_2026.md)
+- [DeepSeek-V4 방법론 채택](docs/stage2_design.html)
+- [Stage-2 재설계](docs/stage2_design.html)
+- [서베이](docs/stage2_design.html)
 
 ### 구 혼합 학습 경로 (73924/73925)
 
@@ -185,7 +185,7 @@ KISTI 에서 deepvision 이어학습을 시도했으나 즉시 크래시했습�
 - step ~900 에서 형식이 붕괴했습니다.
 - 의료(pmcvqa)는 여섯 지점 모두에서 개선을 검출하지 못했습니다(+0.75pp, p>0.5).
 
-분석 전문: [사후분석](docs/stage2_run73924_postmortem.md) · [중간 점검](docs/stage2_run73924_progress.md)
+분석 전문: [사후분석](docs/stage2_mixed_run.html) · [중간 점검](docs/stage2_mixed_run.html)
 
 ---
 
@@ -203,7 +203,7 @@ KISTI 에서 deepvision 이어학습을 시도했으나 즉시 크래시했습�
 - glibc 가 2.17 입니다. 컨테이너 스택이 필요합니다. 현재는 loader 우회를 사용합니다.
 - 로그인 노드에서 vLLM 이 동작하지 않습니다. 모든 GPU 작업을 컴퓨트 노드에서 실행하십시오.
 
-상세: [기술 레퍼런스](docs/tech_reference.md)
+상세: [기술 레퍼런스](docs/ops_infra.html)
 
 ---
 
@@ -277,21 +277,21 @@ sbatch          --dependency=afterok:$JID3 scripts/40_eval.slurm                
 | [`HANDOFF.md`](HANDOFF.md) | 인수인계 단일 문서. 계정 이식, 환경 함정, 실행 절차 |
 | [`CLAUDE.md`](CLAUDE.md) | 실행 환경 가이드. KISTI 와 B200 두 클러스터의 검증된 절차와 함정 전체 |
 | [`b200/README.md`](b200/README.md) | B200 실행 스크립트. deepvision 학습 결론(완료) |
-| [`docs/deepseek_v4_pipeline_adoption.md`](docs/deepseek_v4_pipeline_adoption.md) | DeepSeek-V4 방법론 채택. 현재 도메인 3분할 구조의 근거. 통합(계단 0~2) 설계 |
-| [`docs/stage2_redesign_2026.md`](docs/stage2_redesign_2026.md) | Stage-2 재설계. 서베이 기반 설정 변경 A~G |
-| [`docs/rlvr_survey_2026.md`](docs/rlvr_survey_2026.md) | 최근 중국·한국 모델 테크리포트 서베이. 8종 학습 단계. 공통 패턴 7가지 |
-| [`docs/stage1_coldstart.md`](docs/stage1_coldstart.md) | Stage-1 상세. v3 설계, 학습 곡선, 홀드아웃 평가, ablation |
-| [`docs/stage2_run73924_postmortem.md`](docs/stage2_run73924_postmortem.md) | 구 혼합 학습 붕괴 사후분석(rev.2). 3분할로 전환한 계기 |
-| [`docs/stage2_run73924_progress.md`](docs/stage2_run73924_progress.md) | 구 혼합 학습 중간 점검. 학습 곡선, 홀드아웃 추세, 검정력 분석 |
-| [`docs/stage2_experiments.md`](docs/stage2_experiments.md) | Stage-2 실험. plateau 진단. GRPO 계열 5종 clean A/B |
-| [`docs/stage2_data.md`](docs/stage2_data.md) | Stage-2 데이터. 소스 스크리닝, 혼합 비율, 빌드 파이프라인과 빌드 런북(§5-1) |
-| [`docs/rlvr_hparams_external.md`](docs/rlvr_hparams_external.md) | RLVR 하이퍼파라미터. 외부 관행 대조. epoch 정책 |
-| [`docs/stage3_and_eval.md`](docs/stage3_and_eval.md) | Stage-3 의료 RL(RaR 루브릭, judge). HealthBench 추적 |
-| [`docs/medical_reward_spec.md`](docs/medical_reward_spec.md) | 의료 보상 스펙 |
-| [`docs/tech_reference.md`](docs/tech_reference.md) | 환경, 베이스 모델, LoRA, 보상 설계, 논문 레퍼런스 |
-| [`docs/ops_data.md`](docs/ops_data.md) | 자원·운영 정책. 데이터 소스. 홀드아웃 분리(누수 차단) |
-| [`docs/progress_log.md`](docs/progress_log.md) | 진행 이력, 핵심 의사결정, 날짜별 기록, TODO |
-| [`docs/worklog_2026-06.md`](docs/worklog_2026-06.md) | 일별 상세 로그(2026-06-15 ~ 07-01, 날짜별 절) |
+| [`docs/stage2_design.html`](docs/stage2_design.html) | DeepSeek-V4 방법론 채택. 현재 도메인 3분할 구조의 근거. 통합(계단 0~2) 설계 |
+| [`docs/stage2_design.html`](docs/stage2_design.html) | Stage-2 재설계. 서베이 기반 설정 변경 A~G |
+| [`docs/stage2_design.html`](docs/stage2_design.html) | 최근 중국·한국 모델 테크리포트 서베이. 8종 학습 단계. 공통 패턴 7가지 |
+| [`docs/stage1_coldstart.html`](docs/stage1_coldstart.html) | Stage-1 상세. v3 설계, 학습 곡선, 홀드아웃 평가, ablation |
+| [`docs/stage2_mixed_run.html`](docs/stage2_mixed_run.html) | 구 혼합 학습 붕괴 사후분석(rev.2). 3분할로 전환한 계기 |
+| [`docs/stage2_mixed_run.html`](docs/stage2_mixed_run.html) | 구 혼합 학습 중간 점검. 학습 곡선, 홀드아웃 추세, 검정력 분석 |
+| [`docs/stage2_methods_data.html`](docs/stage2_methods_data.html) | Stage-2 실험. plateau 진단. GRPO 계열 5종 clean A/B |
+| [`docs/stage2_methods_data.html`](docs/stage2_methods_data.html) | Stage-2 데이터. 소스 스크리닝, 혼합 비율, 빌드 파이프라인과 빌드 런북(§5-1) |
+| [`docs/stage2_design.html`](docs/stage2_design.html) | RLVR 하이퍼파라미터. 외부 관행 대조. epoch 정책 |
+| [`docs/stage3_eval.html`](docs/stage3_eval.html) | Stage-3 의료 RL(RaR 루브릭, judge). HealthBench 추적 |
+| [`docs/stage3_eval.html`](docs/stage3_eval.html) | 의료 보상 스펙 |
+| [`docs/ops_infra.html`](docs/ops_infra.html) | 환경, 베이스 모델, LoRA, 보상 설계, 논문 레퍼런스 |
+| [`docs/ops_infra.html`](docs/ops_infra.html) | 자원·운영 정책. 데이터 소스. 홀드아웃 분리(누수 차단) |
+| [`docs/project_log.html`](docs/project_log.html) | 진행 이력, 핵심 의사결정, 날짜별 기록, TODO |
+| [`docs/project_log.html`](docs/project_log.html) | 일별 상세 로그(2026-06-15 ~ 07-01, 날짜별 절) |
 | [`docs/experiments_all_stages.html`](docs/experiments_all_stages.html) | 전 단계 실험 정리(대표 개요, 2026-10-22 기준) |
 | [`docs/experiments_2026-10.html`](docs/experiments_2026-10.html) | 10월 붕괴 원인 추적 실험(X1~X6) |
 | [`docs/merging_experiments_2026-10-22.html`](docs/merging_experiments_2026-10-22.html) | 전문가 통합(모델 merging) 실험 |

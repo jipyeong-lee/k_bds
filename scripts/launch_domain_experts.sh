@@ -3,7 +3,7 @@
 # launch_domain_experts.sh — 도메인 전문가 3종 동시 제출 (DeepSeek-V4 구조)
 # -----------------------------------------------------------------------------
 #  구조: sft_mixed_merged 를 공통 base 로 두고 도메인별 LoRA 전문가를 따로 키운 뒤
-#        나중에 통합한다. → docs/deepseek_v4_pipeline_adoption.md
+#        나중에 통합한다. → docs/stage2_design.html
 #
 #        sft_mixed_merged ─┬→ [E1] deepvision 40,000
 #                          ├→ [E2] mmk12      15,204

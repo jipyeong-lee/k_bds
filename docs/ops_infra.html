@@ -1,0 +1,284 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>운영·인프라 레퍼런스</title>
+<style>
+:root{--bg:#fff;--fg:#1d1d1f;--mute:#5f6368;--line:#d0d4da;--grid:#eceef1;--card:#f6f7f9;--acc:#2563eb;--acc-bg:rgba(37,99,235,.10);--warn:#b45309;--warn-bg:rgba(180,83,9,.10);--bad:#b91c1c;--good:#15803d;--gray:#8a9099}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#16181c;--fg:#e8eaed;--mute:#9aa0a6;--line:#3c4048;--grid:#262a31;--card:#1e2127;--acc:#60a5fa;--acc-bg:rgba(96,165,250,.14);--warn:#f59e0b;--warn-bg:rgba(245,158,11,.12);--bad:#f87171;--good:#4ade80;--gray:#7d848e}}
+:root[data-theme="dark"]{--bg:#16181c;--fg:#e8eaed;--mute:#9aa0a6;--line:#3c4048;--grid:#262a31;--card:#1e2127;--acc:#60a5fa;--acc-bg:rgba(96,165,250,.14);--warn:#f59e0b;--warn-bg:rgba(245,158,11,.12);--bad:#f87171;--good:#4ade80;--gray:#7d848e}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.65 -apple-system,"Segoe UI","Apple SD Gothic Neo","Noto Sans KR",sans-serif}
+main{max-width:900px;margin:0 auto;padding:32px 16px 80px}
+h1{font-size:27px;margin:0 0 4px}
+h2{font-size:21px;margin:48px 0 10px;padding-top:14px;border-top:2px solid var(--line)}
+h3{font-size:16px;margin:26px 0 8px}
+.meta{color:var(--mute);font-size:13px}
+nav{background:var(--card);border-radius:8px;padding:10px 16px;margin:16px 0;font-size:14px}
+nav a{color:var(--acc);text-decoration:none}
+table{border-collapse:collapse;width:100%;margin:10px 0 16px;font-size:13.5px;display:block;overflow-x:auto}
+th,td{border:1px solid var(--line);padding:6px 9px;text-align:left;vertical-align:top}
+th{background:var(--card)}
+td.n{text-align:right;font-variant-numeric:tabular-nums}
+code{font:12.5px ui-monospace,Consolas,monospace;background:var(--card);padding:1px 4px;border-radius:4px;word-break:break-all}
+.warn{border-left:4px solid var(--warn);background:var(--warn-bg);padding:10px 14px;margin:12px 0;border-radius:4px}
+.note{border-left:4px solid var(--acc);background:var(--acc-bg);padding:10px 14px;margin:12px 0;border-radius:4px}
+.key{border:1px solid var(--line);border-radius:8px;padding:10px 14px;margin:10px 0;background:var(--card)}
+figure{margin:16px 0 20px} figcaption{color:var(--mute);font-size:12.5px;margin-top:4px}
+svg{width:100%;height:auto;display:block} svg text{fill:var(--fg)} .q{fill:var(--mute)}
+.ok{color:var(--good);font-weight:600}.ng{color:var(--bad);font-weight:600}.run{color:var(--acc);font-weight:600}
+li{margin:3px 0}
+</style>
+<style>pre{background:var(--card);border-radius:6px;padding:10px 12px;overflow-x:auto;margin:10px 0 16px}pre code{background:none;padding:0;word-break:normal;white-space:pre}details{margin:10px 0}summary{cursor:pointer;font-weight:600}.stale{color:var(--warn);font-size:12.5px;font-weight:600}</style>
+<style>/* 좁은 화면 가로 넘침 방지 */pre{overflow-x:auto;max-width:100%;white-space:pre}img{max-width:100%;height:auto}main{overflow-wrap:anywhere}details{max-width:100%;overflow-x:auto}</style>
+</head>
+<body>
+<main>
+<h1>운영·인프라·기술 레퍼런스</h1>
+<div class="meta">예산 실적, 계획서 원안, 파티션 정책, K-BDS 데이터 경로, 컨테이너·ms-swift 인자, 논문 계보<br>
+원본: <code>docs/ops_data.md</code>, <code>docs/tech_reference.md</code> (2026-10-22 HTML 로 통합) · 두 원본은 <a href="../README.md"><code>README.md</code></a> 에서 분리한 상세 기록이다. 요약·현황은 README, 상세는 이 문서.</div>
+<div class="key">
+<b>요약</b>
+<ol>
+<li>KISTI K-BDS 계획서 노드는 <code>8gpu</code> 파티션(A100 80GB PCIe × 8, NVLink 없음)이다. 예산은 Track III 한도 5,000 노드시간이다.</li>
+<li>2026-07-21 기준 4,164.4 / 5,000 노드시간(83.3%)을 썼다. 2026-07-22 에 k252a02 계정으로 5,000 노드시간을 새로 확보했고, 07-27 에 이관을 끝냈다.</li>
+<li>Stage-2 holdout 수치는 이미지 중복 때문에 22% 상향편향이다. 상대 비교·순위는 유효하다.</li>
+<li>환경은 공식 ms-swift 4.1.3 Singularity 컨테이너(sandbox)다. 2026-07-27 부터 apptainer 가 고장 나서 <code>ENV_MODE=loader</code> 로 돈다.</li>
+<li>PCIe 환경의 all-reduce 병목 때문에 전 단계를 LoRA 로 학습한다. 기법 계보는 GRPO → DAPO/Dr.GRPO → GSPO/GDPO → RaR 이다.</li>
+</ol>
+</div>
+<nav>
+<b>목차</b> · <b>Part 1</b>:
+<a href="#자원--운영-정책-가이드">자원 &amp; 운영 정책</a> · <a href="#-예산-실적-2026-07-21-기준-sacct-실측">예산 실적</a> · <a href="#데이터-소스-확정--변환-검증">데이터</a> · <a href="#홀드아웃-분리-stage-2-평가-누수-차단">홀드아웃 분리</a> · <a href="#-미해결-홀드아웃-22-중복-2026-07-16-발견-기록만--재측정-보류">홀드아웃 22% 중복</a> · <a href="#디렉토리-트리">디렉토리 트리</a> · <a href="#사용-순서">사용 순서</a><br>
+<b>Part 2</b>:
+<a href="#환경-singularity-컨테이너-확정검증-완료">컨테이너</a> · <a href="#베이스-모델--ms-swift-4x-주의">베이스 모델 &amp; ms-swift 4.x</a> · <a href="#학습-방식-lora-하드웨어-제약-대응">LoRA</a> · <a href="#보상-설계-stage-2">보상 설계</a> · <a href="#논문-레퍼런스-전-링크-arxiv-원문-검증-완료">논문 레퍼런스</a> · <a href="#각-논문-무슨-문제를--어떤-방법으로-원문-요약">논문 계보</a>
+</nav>
+
+<!-- ============================================================ -->
+<h2 id="운영--데이터--홀드아웃">Part 1. 운영 · 데이터 · 홀드아웃</h2>
+<section id="운영--데이터">
+<p class="meta">원본 <code>docs/ops_data.md</code> · 절 "운영 · 데이터"</p>
+
+<h3 id="자원--운영-정책-가이드">자원 &amp; 운영 정책 (가이드)</h3>
+<table>
+<tr><th>항목</th><th>정책·실측</th></tr>
+<tr><td>계획서 노드</td><td><b>8×A100-80GB 노드</b> = <code>8gpu</code> 파티션. <code>bdata_user</code> 를 바로 쓴다. diba 는 필요 없다. <b>80GB 를 실측으로 확인</b>했다(파일럿 59.6GiB).</td></tr>
+<tr><td>파티션별 GPU 메모리</td><td><code>4gpu</code>·<code>8gpu</code> = 80GB, <code>1gpu</code>·<code>2gpu</code> = 40GB</td></tr>
+<tr><td>wall-clock 상한</td><td><b>5일(120h)</b>. 70h 단일 잡은 OK. <code>--resume_from_checkpoint</code> 를 권장한다.</td></tr>
+<tr><td>노드 점유</td><td><b>배타적 노드</b>(1노드 = 1작업)</td></tr>
+<tr><td>동시 제출</td><td><b>8gpu 최대 6개</b>(노드 3×2)</td></tr>
+<tr><td>노드시간 계산</td><td>8gpu = 8/h. 확인: <code>cat /scratch/account/kbds0754</code></td></tr>
+<tr><td>필수 지시어</td><td><code>#SBATCH --comment=pytorch</code></td></tr>
+</table>
+
+<h3 id="-예산-실적-2026-07-21-기준-sacct-실측">예산 실적 (2026-07-21 기준, <code>sacct</code> 실측)</h3>
+<p><b>4,164.4 / 5,000 노드시간 소진 (83.3%) → 잔여 ~836.</b> 계산은 계획서 방식(8gpu = ×8)을 따른다.</p>
+<table>
+<tr><th>실측 항목</th><th>노드시간</th></tr>
+<tr><td>8gpu 잡 40개 (Stage-2 GRPO 계열 대부분)</td><td class="n">4,112.3</td></tr>
+<tr><td>그 외 (4gpu 45.8 · 1gpu 3.2 · debug 2.6 · 2gpu 0.4 · cpu 0.1)</td><td class="n">52.1</td></tr>
+<tr><td><b>Stage-2 GRPO 1회</b> (70h×8)</td><td class="n"><b>490~560</b> ← k252a02(5,000h)에서 실행 중. MAX_STEPS=2,337 은 체인 4잡 ≈ <b>1,674~1,719</b></td></tr>
+<tr><td><b>SFT 1회</b> (12~39분)</td><td class="n"><b>2~5</b> ← 사실상 공짜</td></tr>
+<tr><td>Stage-3 (미시작, 계획서 핵심 산출물)</td><td class="n">~500 예상</td></tr>
+</table>
+<div class="warn"><b>2026-08-02 정정</b>: 위 2,337 step 은 <b>1 epoch 이 아니라 0.25 epoch</b> 이다(1 epoch = 74,787 ÷ 8 = 9,348 step). 비용 추정치는 step 기준이라 그대로 유효하다. 그러나 진짜 1 epoch 은 ≈6,694 노드시간 = <b>예산의 134%</b> 라서 실행할 수 없다. → <a href="stage2_mixed_run.html"><code>stage2_mixed_run.html</code></a> §3</div>
+<div class="note"><b>2026-07-22 예산 방향전환 → 07-27 이관 완료</b>: k252a02 에 5,000 노드시간을 확보했다. 그래서 Stage-2 풀확장과 Stage-3 를 둘 다 할 수 있다. <b>현재 이 레포가 그 계정</b>이다(<code>work/</code> 293G 전송·경로 치환 완료). → <a href="stage2_methods_data.html#0-풀확장-재설계-2026-07-2224-데이터--07-28-본실행-착수">Stage-2 풀확장</a> · <a href="../HANDOFF.md"><code>HANDOFF.md</code></a></div>
+<ul>
+<li>→ <b>콜드스타트 v3 재구축은 저렴하다(SFT+평가 ~15). 그러나 그 위에 Stage-2 를 다시 돌릴 여력은 없다.</b> 잔여 배분은 v3 SFT+평가 수치를 보고 정한다.</li>
+<li><i>Slurm 에는 하드 리밋이 없다 — <code>GrpTRESMins</code> 가 설정되지 않아서 잡이 거부되지 않는다. 한도는 계획서/보고 기준이다.</i></li>
+</ul>
+<details id="계획서-원안"><summary>계획서 원안 (4,960 / Track III 한도 5,000)</summary>
+<table>
+<tr><th>단계</th><th>스크립트</th><th>1회</th><th>반복</th><th>노드시간</th></tr>
+<tr><td>SFT</td><td><code>10_sft</code></td><td>24h×8</td><td>×5</td><td class="n">960</td></tr>
+<tr><td>범용 RLVR/GRPO</td><td><code>20_rlvr_grpo</code></td><td>70h×8</td><td>×6</td><td class="n">3,360</td></tr>
+<tr><td>평가</td><td><code>40_eval</code></td><td>10h×8</td><td>×8</td><td class="n">640</td></tr>
+<tr><td><b>합계</b></td><td></td><td></td><td></td><td class="n"><b>4,960</b></td></tr>
+</table>
+</details>
+
+<h3 id="데이터-소스-확정--변환-검증">데이터 (소스 확정 + 변환 검증)</h3>
+<table>
+<tr><th>단계</th><th>소스</th><th>비고</th></tr>
+<tr><td><b>Stage-1</b> (v3 혼합 콜드스타트)</td><td><code>neginb/OpenMedReason</code>(150,246 · CC-BY-4.0 · <b>게이트 auto</b>, 웹 동의 1회 필요) + <code>TIGER-Lab/VisualWebInstruct-verified</code>(97,295 · MIT) + <code>UCSC-VLAA/VLAA-Thinking</code>(126,413 · Apache-2.0)</td><td>전부 이미지 내장·다운로드 완료. 빌드 <code>build_mixed_coldstart.py</code> → <a href="stage1_coldstart.html#stage-1--콜드스타트-sft">Stage-1</a></td></tr>
+<tr><td><b>Stage-2</b> (풀확장, 의료 27%)</td><td><code>skylenage-ai/DeepVision-103K</code>(일반, 서브샘플 40K) + <code>FanqingM/MMK12</code>(순수 math 15K) + <code>xmcmic/PMC-VQA</code>(<b>의료 MC</b> 20K, 329K 중 서브샘플)</td><td>조립 = <code>build_stage2_mix.py</code>(bytehash dedup) → train <b>74,787</b> / holdout 1,772. 탈락(실측): Kvasir(degenerate) · SLAKE(이미지 450) · ThinkLite(노이즈) · PathVQA(절반 개방형). 상세 → <a href="stage2_methods_data.html"><code>stage2_methods_data.html</code></a>. <code>DeepMath-103K</code>(텍스트)와 혼동하지 말 것.</td></tr>
+<tr><td><b>Stage-3</b></td><td><code>MBZUAI/medix-rl-data</code>(51K, 개방형 의료 멀티모달)</td><td>(DeepVision·medix) 둘 다 <code>work/hf_cache</code> 다운로드 완료 · 게이트 없음</td></tr>
+</table>
+<div class="warn"><b>VLAA 이미지 누락</b>: <code>vg</code>(38,242) · <code>coco</code>(8,727) = <b>46,969건의 이미지 tar 이 레포에 없다</b> → 해당 서브셋을 제외했다(Visual Genome·COCO 를 따로 구하면 복귀 가능). 보유 tar: allava_laion · arxivqa · chartqa · clevr_math · docvqa · geoqa170k · synthesis · vizwiz(총 26.2GB).</div>
+<div class="warn"><b>medix 는 assistant 가 비어 있다</b>(prompt+solution 만) → 의료 추론 트레이스가 없다. 정답도 <code>&lt;MODALITY&gt;\n자유서술</code>(중앙값 47자)이라 정확매칭이 불가능하다 = Stage-3 가 RaR judge 를 쓰는 이유.</div>
+<table>
+<tr><th>K-BDS 항목</th><th>경로</th></tr>
+<tr><td>공개데이터</td><td><code>/kobic/ICECAP/DataStation/</code></td></tr>
+<tr><td>매핑표</td><td><code>/scratch/database/KBDSMAP/</code></td></tr>
+<tr><td>업로드</td><td><code>kbds-dm.kisti.re.kr</code></td></tr>
+</table>
+<p>출력 포맷:</p>
+<pre><code>{"messages":[{"role":"user","content":"&lt;image&gt;...질문"}], "images":["/abs.png"], "solution":"정답"}</code></pre>
+<details id="다운로드--변환-워크플로"><summary>다운로드 → 변환 워크플로 (컨테이너 내, 로그인노드)</summary>
+<pre><code>SB=work/images/ms-swift-413-sandbox
+DV=$(ls -d work/hf_cache/hub/datasets--skylenage-ai--DeepVision-103K/snapshots/*/)
+singularity exec --bind $PWD/work --env HF_HUB_OFFLINE=1 $SB python scripts/convert_to_swift.py \
+  skylenage-ai/DeepVision-103K --parquet "${DV}math-77k.parquet" "${DV}visual_logic-26k.parquet" \
+  --out work/data/deepvision103k_train.jsonl --images-dir work/data/images/deepvision
+MX=$(ls -d work/hf_cache/hub/datasets--MBZUAI--medix-rl-data/snapshots/*/)
+singularity exec --bind $PWD/work --env HF_HUB_OFFLINE=1 $SB python scripts/convert_to_swift.py \
+  MBZUAI/medix-rl-data --parquet "${MX}data/train-*.parquet" \
+  --out work/data/medix_rl_train.jsonl --images-dir work/data/images/medix</code></pre>
+<div class="warn">parquet <code>List</code> feature 가 datasets 구버전과 충돌한다 → 변환기는 <b>pyarrow 스트리밍</b>을 쓴다. 전체 변환은 이미지 ~154K개를 추출한다(디스크·inode 사용량이 크다).</div>
+</details>
+
+<h3 id="홀드아웃-분리-stage-2-평가-누수-차단">홀드아웃 분리 (Stage-2 평가 누수 차단)</h3>
+<ol>
+<li>스크립트: <code>scripts/make_holdout.py</code>.</li>
+<li>DeepVision 에는 카테고리 라벨이 없다 → <b>정답유형 프록시</b>(math = 수치/수식, visual-logic = 객관식 MC)로 각 <b>1%</b> 층화한다.</li>
+<li>출력: <code>deepvision_holdout.jsonl</code>(972) / <code>deepvision103k_trainonly.jsonl</code>(102,531).</li>
+<li>학습은 trainonly, 평가는 holdout 으로 한다. 평가 스크립트 <code>eval_compare.py</code> 는 math/vl 층을 나눠 보고한다.</li>
+</ol>
+
+<h3 id="-미해결-홀드아웃-22-중복-2026-07-16-발견-기록만--재측정-보류">미해결: 홀드아웃 22% 중복 (2026-07-16 발견, 기록만 — 재측정 보류)</h3>
+<table>
+<tr><th>검사</th><th>결과</th></tr>
+<tr><td>홀드아웃 972건 중 (질문+<b>이미지 경로</b>)가 trainonly 와 같은 것</td><td><b>0건</b> ← 분리 로직 자체는 정상</td></tr>
+<tr><td>홀드아웃 972건 중 (질문+<b>이미지 바이트해시</b>)가 trainonly 와 같은 것</td><td><b>214건 (22.0%)</b></td></tr>
+<tr><td>↳ 그중 <b>정답까지 같은 것</b>(= 완전중복)</td><td><b>214건</b> (정답 불일치 0)</td></tr>
+</table>
+<ul>
+<li><b>원인</b>: DeepVision 은 질문 중복이 많다(102,531행 → 고유 82,198, 중복 20,333). 또 <b>같은 그림이 다른 경로에 중복 저장</b>돼 있다. <code>make_holdout.py</code> 는 경로 기준으로 dedup 해서 이를 걸러내지 못했다.</li>
+<li><b>영향</b>: 보고된 모든 홀드아웃 수치(base 0.15 / 콜드스타트 0.22 / dr_grpo 0.380 / GDPO 0.390 / GSPO 0.290 / ablation 0.18 · 0.165)는 <b>22% 만큼 상향편향</b>이다. 다만 clean 3종이 <b>같은 22%</b>를 공유하므로 <b>상대비교·순위·판정 결론은 유효</b>하다(GDPO≈dr_grpo 동률, GSPO 열위). "clean vs 오염(DAPO · baseline 0.415)" 대비는 서술보다 약하다 — clean 쪽도 22% 는 외운 문제다.</li>
+<li><b>대응(합의)</b>: 지금은 <b>기록만</b> 하고 재측정을 보류한다(GPU 예산 83% 소진). 향후 홀드아웃을 재구성할 때는 <b>이미지 바이트해시 기준 dedup</b> 이 필수다.</li>
+</ul>
+
+<details id="디렉토리-트리"><summary>디렉토리 트리 <span class="stale">(낡음)</span></summary>
+<p class="meta">(낡음) 2026-07 시점 구조다. 이후 추가된 <code>b200/</code>·<code>kgpu/</code> 등이 없다. docs 파일명은 HTML 통합본 이름으로 바꿔 적었다.</p>
+<pre><code>kbds_project/
+├── README.md · HANDOFF.md · plan.hwp
+├── configs/
+│   ├── accuracy.py          # Stage-2 보상 accuracy_mix + format_think
+│   ├── medical_reward.py    # Stage-3 RaR 루브릭 보상 clinical_judge(AsyncORM)
+│   └── ds_zero{2,3,3_offload}.json
+├── scripts/                             # (총 49개 — 아래는 주요 스크립트)
+│   ├── 00_common.sh                     # 공통 경로/환경/실행 래퍼
+│   ├── 10_sft.slurm / 20_rlvr_grpo.slurm / 30_medical_rl.slurm / 40_eval.slurm  # 단계별 뼈대
+│   │
+│   │  # ── Stage-1 콜드스타트 v3 ──
+│   ├── 11_build_coldstart.slurm         # 데이터 빌드 (cpu32 잡)
+│   ├── build_mixed_coldstart.py         # 일반+의료 혼합, format_think==1.0 게이트
+│   ├── 12_merge_mixed.slurm             # LoRA 병합 + 형식/길이 프로브
+│   ├── 50_eval_v3.slurm / eval_v3_holdout.py   # 병합+홀드아웃 채점(strict format_think·층별·pred 덤프)
+│   ├── 52_eval_v2_baseline.slurm        # v2 동일조건 재측정(A/B 확정용)
+│   ├── plot_sft_curve.py                # SFT 학습곡선 → docs/assets/
+│   │
+│   │  # ── Stage-2 RLVR ──
+│   ├── 21_rlvr_grpo_adv.slurm           # A/B(dapo/gspo/dr_grpo, RESUME/MAX_STEPS)
+│   ├── make_holdout.py                  # 층화 홀드아웃 분리
+│   ├── 41_eval_compare.slurm / eval_compare.py            # base vs 학습 벤치
+│   ├── eval_midtrain.slurm              # 중간 홀드아웃 벤치(RL 25%)
+│   ├── 46_eval_gdpo_ab.slurm / 47_eval_ablation.slurm     # GDPO 판정 · 콜드스타트 ablation
+│   ├── 48_eval_gspo_holdout.slurm / 49_eval_contaminated.slurm  # GSPO 홀드아웃 · 오염 참고치
+│   ├── plot_grpo_multi.py / plot_grpo_compare.py / plot_grpo_trend.py  # 기법 성능 plot
+│   ├── merge_drgrpo.slurm / launch_stage3.sh / launch_gspo_ab.sh       # 오케스트레이터
+│   │
+│   │  # ── Stage-3 의료 RL ──
+│   ├── judge_server.sh / 31_judge_smoke.slurm / 33_judge_probe.slurm   # judge 서빙·검증
+│   ├── 34_rubric_compare.slurm / judge_compare_rubric.py  # 정적 vs 인스턴스 루브릭 비교
+│   ├── 35_stage3_smoke.slurm            # 배선 end-to-end 스모크
+│   ├── test_medical_reward.py           # 보상 유닛테스트(29)
+│   │
+│   │  # ── HealthBench / 공통 ──
+│   ├── 45_healthbench_smoke.slurm / run_healthbench.py    # HealthBench Hard 하니스(n=1000 실측)
+│   ├── _archive/                        # 폐기 스크립트(v1·v2 빌더 등, 이력 보존)
+│   └── convert_to_swift.py / download_{model,dataset}.py
+├── docs/ (stage3_eval.html · project_log.html) · logs/</code></pre>
+</details>
+
+<h3 id="사용-순서">사용 순서 <span class="stale">(낡음)</span></h3>
+<p class="meta">(낡음) 계획서 원안의 4단계 직렬 체인이다. 실제 Stage-2 는 이후 도메인 전문가·B200·kgpu 경로로 바뀌었다.</p>
+<pre><code># 0) 환경(1회, 로그인노드): bash env/build_image.sh  → work/images/ms-swift-413-sandbox
+# 1) 경로/모델 확인: scripts/00_common.sh 상단 변수
+# 2) 단계별 제출 (의존성 체이닝)
+JID1=$(sbatch --parsable scripts/10_sft.slurm)
+JID2=$(sbatch --parsable --dependency=afterok:$JID1 scripts/20_rlvr_grpo.slurm)
+JID3=$(sbatch --parsable --dependency=afterok:$JID2 scripts/30_medical_rl.slurm)
+sbatch          --dependency=afterok:$JID3 scripts/40_eval.slurm</code></pre>
+</section>
+
+<!-- ============================================================ -->
+<h2 id="기술-레퍼런스--환경모델학습방식보상논문">Part 2. 기술 레퍼런스 — 환경·모델·학습방식·보상·논문</h2>
+<section id="기술-레퍼런스">
+<p class="meta">원본 <code>docs/tech_reference.md</code> · 절 "기술 레퍼런스"</p>
+
+<h3 id="환경-singularity-컨테이너-확정검증-완료">환경: Singularity 컨테이너 (확정·검증 완료)</h3>
+<ul>
+<li>노드 OS 는 <b>CentOS 7.9 / glibc 2.17</b> 이다 → 최신 ML 패키지(특히 vLLM·xformers)를 pip/conda 로 설치할 수 없다 → <b>공식 ms-swift 컨테이너</b>를 쓴다.</li>
+<li>이미지: <code>...modelscope:ubuntu22.04-cuda12.9.1-py312-torch2.10.0-vllm0.19.1-modelscope1.35.4-swift4.1.3</code> (Gemma4 지원 = swift ≥ 4.0.4).</li>
+<li><b>계산노드 검증</b>(드라이버 550 = CUDA 12.4): swift 4.1.3 / torch 2.10+cu129 / vllm 0.19.1(<code>vllm._C</code> OK) / transformers 5.6.2. CUDA <b>마이너 호환</b>(12.9 빌드를 12.4 드라이버에서)이 정상 동작한다.</li>
+<li>SIF 는 실행마다 추출이 느리다 → <b>sandbox(디렉토리)</b>로 변환해 쓴다(<code>work/images/ms-swift-413-sandbox</code>).</li>
+<li>최신 swift 4.2.3 은 CUDA 13 을 요구한다 → 이 드라이버에서는 불가. 대안 이미지: swift 3.8.3 / cuda 12.6.3, swift 3.6.4 / cuda 12.4.0.</li>
+</ul>
+<div class="warn"><b>2026-07-27 부터 apptainer 파손 → <code>00_common.sh</code> 기본값이 <code>ENV_MODE=loader</code></b>(구 기본값 <code>container</code>).
+<ol>
+<li>원인: 클러스터 공용 apptainer 1.4.5 가 <code>libsubid.so.3</code> 부재 + GLIBC_2.28 요구(호스트 2.17)로 실행되지 않는다. 로그인·계산 노드 공통이다.</li>
+<li><b>이미지는 정상</b>이다. 그래서 재빌드는 무의미하다(빌드도 불가).</li>
+<li>우회: sandbox 안의 <b>glibc 2.35 로더</b>로 sandbox python 을 직접 구동한다(<code>runc.sh</code> + <code>bin/python</code> shim).</li>
+<li>GPU 검증: torch 2.10+cu129 <code>cuda_avail True</code> · vllm 0.19.1 · GRPO 8GPU 5 step 완주(job 72832).</li>
+<li><b>apptainer 가 복구되면 <code>ENV_MODE=container</code> 로 원복</b>한다. → <a href="../HANDOFF.md"><code>HANDOFF.md</code></a> §3</li>
+</ol></div>
+
+<h3 id="베이스-모델--ms-swift-4x-주의">베이스 모델 &amp; ms-swift 4.x 주의</h3>
+<ul>
+<li><b><code>Qwen/Qwen3.5-9B</code></b>(멀티모달, <code>MODEL_TYPE=qwen3_5</code>). config <code>qwen3_5</code> / processor <code>Qwen3VLProcessor</code>. 게이트 없음. <code>work/hf_cache</code> 에 캐시(<code>HF_HUB_OFFLINE=1</code> 오프라인).</li>
+<li class="ng">Gemma 4 12B 불가: 실제 <code>model_type=gemma4_unified</code> + transformers 5.10.dev + CUDA 13 이미지가 필요하다 → 드라이버 550 에서 구동 불가(다운로드본 정리함).</li>
+</ul>
+<table>
+<tr><th>swift 3.x</th><th>swift 4.x</th></tr>
+<tr><td><code>--train_type</code></td><td><b><code>--tuner_type</code></b></td></tr>
+<tr><td><code>--reward_funcs_plugin X</code> (폐지)</td><td><b><code>--reward_funcs ... X</code></b> 로 직접 나열</td></tr>
+<tr><td colspan="2">보상 plugin 은 <code>swift.rewards</code>(<code>ORM</code> / <code>AsyncORM</code> / <code>orms</code>) API 를 쓴다.</td></tr>
+</table>
+
+<h3 id="학습-방식-lora-하드웨어-제약-대응">학습 방식: LoRA (하드웨어 제약 대응)</h3>
+<ol>
+<li><b>NVLink 없음</b>(실측): 8gpu = A100 80GB <b>PCIe</b>. <code>nvidia-smi topo -m</code> 이 전부 PHB → GPU P2P 차단 → NCCL 이 <b>SHM(호스트 RAM)으로 폴백</b>한다.</li>
+<li>결과: <b>full-FT 멀티GPU 는 18GB gradient all-reduce 가 병목</b>이다 → 9B · 짧은 시퀀스인데도 <b>375~660초/step</b>. 하이퍼바이저 ACS 때문에 고칠 수 없다.</li>
+<li><b>대응 = 전 단계 LoRA</b>: adapter grad(수십 MB)만 통신한다 → <b>~128s/step(GRPO) · ~5s/step(SFT)</b> = ~5~75배 빠름. base 가 동결이라 <b>DeepSpeed 없이 DDP</b> 로 충분하다.
+<ul>
+<li>cold-start LoRA → <code>swift export --merge_lora</code> 로 병합 → 다음 단계 <code>INIT_MODEL</code>.</li>
+<li>LR 기본값: SFT lora <code>1e-4</code> / full <code>1e-5</code>, GRPO lora <code>1e-5</code> / full <code>1e-6</code>. <code>LR=</code> 로 override.</li>
+</ul></li>
+</ol>
+
+<h3 id="보상-설계-stage-2">보상 설계 (Stage-2)</h3>
+<ul>
+<li><b>출력 형식</b>: <code>&lt;think&gt;간결 추론&lt;/think&gt;&lt;answer&gt;최종답&lt;/answer&gt;</code> (<code>\boxed{}</code> 미사용).</li>
+<li><b><code>accuracy_mix</code></b>(<code>configs/accuracy.py</code>): 내장 <code>accuracy</code> 는 객관식 letter("B")·기호를 파싱하지 못한다 → DeepVision ~48% 가 letter 라서 보상 절반이 사라진다 → 커스텀 분기: <b>수식 = math_verify / letter·문자열 = 정규화 일치</b>. 가중치 <code>accuracy_mix 1.0 : format_think 0.2 : soft_overlong 0.2</code>.</li>
+<li><b>vLLM colocate</b>: <code>--vllm_mode colocate</code> · <code>--vllm_mm_processor_cache_gb 0</code>(mm_hash AssertionError 회피) · <code>--sleep_level 1</code>.</li>
+</ul>
+
+<h3 id="논문-레퍼런스-전-링크-arxiv-원문-검증-완료">논문 레퍼런스 (전 링크 arXiv 원문 검증 완료)</h3>
+<table>
+<tr><th>기법</th><th>논문 제목</th><th>저자·발표</th><th>arXiv</th></tr>
+<tr><td><b>GRPO</b></td><td>DeepSeekMath: Pushing the Limits of Mathematical Reasoning in Open Language Models</td><td>DeepSeek, 2024-02</td><td><a href="https://arxiv.org/abs/2402.03300">2402.03300</a></td></tr>
+<tr><td><b>DAPO</b></td><td>DAPO: An Open-Source LLM Reinforcement Learning System at Scale</td><td>ByteDance, 2025-03</td><td><a href="https://arxiv.org/abs/2503.14476">2503.14476</a></td></tr>
+<tr><td><b>Dr.GRPO</b></td><td>Understanding R1-Zero-Like Training: A Critical Perspective</td><td>Sea AI Lab, 2025-03</td><td><a href="https://arxiv.org/abs/2503.20783">2503.20783</a></td></tr>
+<tr><td><b>GSPO</b></td><td>Group Sequence Policy Optimization</td><td>Alibaba/Qwen, 2025-07</td><td><a href="https://arxiv.org/abs/2507.18071">2507.18071</a></td></tr>
+<tr><td><b>GDPO</b></td><td>GDPO: Group reward-Decoupled Normalization Policy Optimization for Multi-reward RL</td><td>NVIDIA, 2026-01</td><td><a href="https://arxiv.org/abs/2601.05242">2601.05242</a></td></tr>
+<tr><td><b>RaR</b> (Stage-3)</td><td>Rubrics as Rewards: Reinforcement Learning Beyond Verifiable Domains</td><td>2025-07</td><td><a href="https://arxiv.org/abs/2507.17746">2507.17746</a></td></tr>
+</table>
+
+<h3 id="각-논문-무슨-문제를--어떤-방법으로-원문-요약">각 논문: 무슨 문제를 → 어떤 방법으로 (원문 요약)</h3>
+<p>시간순 계보: <b>GRPO(기반) → DAPO/Dr.GRPO(GRPO 결함 보수) → GSPO/GDPO(직교 확장) → RaR(검증불가 도메인 확장)</b>. 핵심은 각 논문이 <b>직전 방법의 어떤 한계</b>를 겨냥했는가이다.</p>
+<table>
+<tr><th>논문</th><th>겨냥한 문제 (직전 방법의 한계)</th><th>도입한 방법 (해결책)</th></tr>
+<tr><td><b>GRPO</b></td><td>PPO 는 정책망과 맞먹는 크기의 <b>가치망(critic)</b>을 따로 학습한다 → 메모리·연산 부담↑, 토큰별 가치추정 불안정</td><td>critic <b>제거</b>. 한 프롬프트에 여러 응답(그룹)을 뽑아 <b>그룹 내 보상 상대값</b>(평균 빼고 ÷std)을 advantage 로 쓴다 → 그룹평균이 baseline 역할, 메모리↓·안정</td></tr>
+<tr><td><b>DAPO</b></td><td>대규모 LLM RL 의 <b>엔트로피 붕괴</b>(조기수렴) · <b>후반 gradient 소실</b> · <b>길이 폭주/잘림 노이즈</b> + SOTA 레시피 비공개</td><td><b>4기법</b>: Clip-Higher(탐색 보존 → 붕괴 억제) · Dynamic Sampling(std=0 그룹 폐기·재샘플) · Token-level PG Loss(길이 정규화 편향 제거) · Overlong Shaping(초과길이 패널티/필터)</td></tr>
+<tr><td><b>Dr.GRPO</b></td><td>GRPO 의 <b>두 최적화 편향</b>: ① ÷시퀀스길이 → <b>응답 길이 편향</b>(오답이 길어짐) ② ÷그룹std → <b>난이도 편향</b>(문제 가중 왜곡)</td><td>두 정규화 <b>삭제</b> — 손실은 길이가 아닌 <b>상수 정규화</b>, advantage <b>÷std 제거</b> → unbiased 추정, 토큰효율↑ · 성능 유지</td></tr>
+<tr><td><b>GSPO</b></td><td>GRPO/PPO 의 <b>토큰 단위 IS</b> 는 긴 시퀀스에서 비율 <b>분산이 누적</b>되고 클립이 증폭한다 → 불안정(MoE · 장문 붕괴)</td><td>IS 를 <b>시퀀스(응답) 단위</b>로 정의(시퀀스 우도 비율 · 길이 정규화) + 클립·보상·최적화도 시퀀스 단위 → 분산 억제, MoE 안정(Qwen3)</td></tr>
+<tr><td><b>GDPO</b></td><td><b>다중 보상</b>을 가중합한 뒤 통째로 정규화 → 서로 다른 조합이 <b>같은 advantage 로 붕괴(collapse)</b>, 보상 간 상대차 소실</td><td>결합 <b>전에 각 보상 함수를 그룹 내에서 개별 정규화(z-score)</b>한 뒤 결합 → 각 보상의 상대크기·특성 보존(멀티리워드 균형)</td></tr>
+<tr><td><b>RaR</b> (Stage-3)</td><td>RLVR 은 수학·코딩 등 <b>검증이 명확한 도메인</b>에 강하다. 그러나 의료·과학처럼 <b>다기준 미묘 판단</b>이 필요한 개방형 도메인에는 맞지 않는다</td><td><b>루브릭 체크리스트</b>를 구조화 보상으로 쓴다 — judge 가 기준별로 채점한 뒤 <b>가중 집계해 복합(부분점수) 보상</b>을 만든다 → 총체적 품질 최적화 (원논문 = 인스턴스별, 우리 = <b>정적 통일</b> 채택)</td></tr>
+</table>
+<div class="note"><b>우리 파이프라인 대응</b>: <b>Stage-2 = Dr.GRPO 채택</b>(길이·난이도 편향이 우리 plateau 의 직접 원인) + GSPO/GDPO clean A/B 추가 검증 · <b>Stage-3 = RaR</b>(의료 VQA = 검증불가 도메인). 채택 근거·A/B 결과 → <a href="stage2_methods_data.html#2-기법-통합-비교--grpo-계열-5종-clean-ab">Stage-2 통합 비교</a> · <a href="stage3_eval.html#stage-3--의료-rl-rar-루브릭-보상">Stage-3</a></div>
+</section>
+</main>
+</body>
+</html>

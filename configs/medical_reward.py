@@ -5,7 +5,7 @@ ms-swift GRPO 의 --external_plugins 로 로드되어 'clinical_judge' 보상을
 실행: swift rlhf ... --external_plugins configs/medical_reward.py \
                      --reward_funcs format_think clinical_judge
 
-설계(상세 docs/medical_reward_spec.md §4):
+설계(상세 docs/stage3_eval.html §4):
   - 판정을 단일 스칼라가 아니라 **가중 다기준 체크리스트(RaR)** 로 분해.
     judge 가 항목별 0/1 → explicit 집계 r = Σ wⱼcⱼ / Σ wⱼ ∈ [0,1].
   - medix 는 단답 VQA(정답≈1사실) → **LLM 루브릭 생성 불필요**, 참조답을 Essential 기준에 템플릿 주입.

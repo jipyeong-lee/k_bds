@@ -35,7 +35,20 @@ li{margin:3px 0}
 <main>
 <h1>의료 멀티모달 교차추론 — 전 단계 실험 정리</h1>
 <div class="meta">기준 2026-10-22 · 대상 기간 2026-06 ~ 10 · 작성 방식 ASD-STE100(한 문장에 한 사실, 능동문, 주의 사항을 먼저, 번호 절차)<br>
-상세 부록: <code>docs/experiments_2026-10.html</code>(붕괴 원인 추적) · <code>docs/merging_experiments_2026-10-22.html</code>(전문가 통합) · 단계별 원 기록은 <code>docs/stage*.md</code></div>
+이 문서는 전체 요약이다. 단계별 상세는 아래 문서 지도의 문서에 있다.</div>
+<table>
+<tr><th>단계</th><th>상세 문서</th><th>내용</th></tr>
+<tr><td>1</td><td><a href="stage1_coldstart.html">stage1_coldstart.html</a></td><td>콜드스타트 v1~v3, ablation, 적합성 판단</td></tr>
+<tr><td>2 설계</td><td><a href="stage2_design.html">stage2_design.html</a></td><td>외부 연구 조사, 하이퍼파라미터 관행, 재설계, DeepSeek-V4 식 전문가+통합 구조</td></tr>
+<tr><td>2-A · 2-B</td><td><a href="stage2_methods_data.html">stage2_methods_data.html</a></td><td>데이터 구축·빌드 런북, GRPO 변형 A/B</td></tr>
+<tr><td>2-B</td><td><a href="stage2_mixed_run.html">stage2_mixed_run.html</a></td><td>혼합 확장 실행(73924) 사후 분석과 중간 점검</td></tr>
+<tr><td>2-C · 2-D</td><td><a href="experiments_2026-10.html">experiments_2026-10.html</a></td><td>10월 실험: 붕괴 원인 추적(E1/E1c)</td></tr>
+<tr><td>2-E</td><td><a href="merging_experiments_2026-10-22.html">merging_experiments_2026-10-22.html</a></td><td>전문가 통합(모델 merging)</td></tr>
+<tr><td>3 · 4</td><td><a href="stage3_eval.html">stage3_eval.html</a></td><td>의료 RL(RaR) 보상 설계, HealthBench 평가</td></tr>
+<tr><td>운영</td><td><a href="ops_infra.html">ops_infra.html</a></td><td>예산·자원, 데이터 경로, 컨테이너·ms-swift 레퍼런스</td></tr>
+<tr><td>기록</td><td><a href="project_log.html">project_log.html</a></td><td>날짜별 진행 기록과 6~7월 일지</td></tr>
+<tr><td>보고</td><td><a href="kbds_2026-1_result_summary_draft.html">kbds_2026-1_result_summary_draft.html</a></td><td>K-BDS 결과보고서(연구요약서) 초안</td></tr>
+</table>
 <nav>
 <b>목차</b> ·
 <a href="#s0">0. 요약</a> · <a href="#s1">1. Stage-1 SFT</a> · <a href="#s2a">2-A. Stage-2 방법론</a> · <a href="#s2b">2-B. 혼합 확장 실행</a> · <a href="#s2c">2-C. 도메인 전문가</a> · <a href="#s2d">2-D. 붕괴 원인</a> · <a href="#s2e">2-E. 전문가 통합</a> · <a href="#s3">3. Stage-3 준비</a> · <a href="#s4">4. 평가 체계</a> · <a href="#s5">5. 실행 환경</a> · <a href="#s6">6. 다음 단계</a>
@@ -177,7 +190,7 @@ li{margin:3px 0}
 <li>의료(pmcvqa)는 여섯 지점 모두에서 개선을 검출하지 못했다(+0.75pp, p &gt; 0.5).</li>
 <li>2,337 step 은 0.25 epoch 였다. 소스별 노출은 0.09 epoch 에 그쳤다.</li>
 </ul>
-<div class="note"><b>결정(2026-08-13).</b> 혼합 학습을 폐기했다. DeepSeek-V4 구조로 바꿨다: 도메인별 전문가를 따로 학습하고 나중에 통합한다. 도메인 전용 학습은 같은 step 에서 소스를 1.7~4.9배 더 노출한다. 근거: <code>docs/deepseek_v4_pipeline_adoption.md</code>.</div>
+<div class="note"><b>결정(2026-08-13).</b> 혼합 학습을 폐기했다. DeepSeek-V4 구조로 바꿨다: 도메인별 전문가를 따로 학습하고 나중에 통합한다. 도메인 전용 학습은 같은 step 에서 소스를 1.7~4.9배 더 노출한다. 근거: <code>docs/stage2_design.html</code>.</div>
 
 <!-- ============================================================ -->
 <h2 id="s2c">2-C. Stage-2 · 도메인 전문가 3종</h2>

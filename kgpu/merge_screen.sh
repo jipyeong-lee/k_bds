@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # merge_screen.sh — kgpu pod 1장에서 전문가 3종 병합 후보를 차례로 만들고 축소 평가셋으로 선별한다.
 # 왜: 계단 0(가중치 merging) 기법이 10종이라 전량 평가(5,484문항)는 비싸다 → 축소셋(holdout 600 + 글로벌 600)으로
-#     고른 뒤 상위만 전량 평가. 판정 = 도메인별 전문가 대비 90% 보존 + 글로벌 SFT 대비 향상(docs/deepseek_v4_pipeline_adoption.md §8).
+#     고른 뒤 상위만 전량 평가. 판정 = 도메인별 전문가 대비 90% 보존 + 글로벌 SFT 대비 향상(docs/stage2_design.html §8).
 # 전제(~/files = /root/files): kbds/{code.tgz, setup_venv.sh, merge_experts.py, sft_mixed_merged/, holdout.tar,
 #        global_bench.tar, ckpt_{dv,mm,pmc}.tar, merge_configs.tar}
 # env: CANDS="sft exp_dv ta_w1 ties_d05 ..." — sft·exp_* 는 기준선(병합 없음), 나머지는 configs/merge/<이름>.yaml

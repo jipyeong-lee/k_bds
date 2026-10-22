@@ -10,7 +10,7 @@
 #     - init 을 현재 런 기준 v3 `sft_mixed_merged` 로 교체(구 `sft_rft_coldstart_merged` 아님)
 #     - MID_CKPT 미지정 시 grpo_expanded_gdpo 의 최신 checkpoint 자동 선택 + 스냅샷
 #     - `singularity exec` 직접호출 → `run_serve`/`run_py` 로 교체. apptainer 파손(07-27~)
-#       환경에서 종전 코드는 반드시 실패했다. 상세 = docs/stage2_run73924_progress.md
+#       환경에서 종전 코드는 반드시 실패했다. 상세 = docs/stage2_mixed_run.html
 #     - EVAL_STAGES / TRAINED_TAG 추가 + 임시경로·결과파일을 잡별로 분리 → 병렬 제출 가능.
 #       추세 평가 예: 이미 측정한 base·init 은 건너뛰고 체크포인트만 여러 잡으로 동시에.
 #         for S in 400 500; do

@@ -3,7 +3,7 @@
 
   W = W_base + Σ wᵢ·ΔWᵢ,   ΔWᵢ = Bᵢ·Aᵢ·(αᵢ/rᵢ)            (--method linear)
   TIES(--method ties): τᵢ = wᵢ·ΔWᵢ 를 텐서별 상위 density 만 남기고, 부호 다수결(sign Σ τᵢ)과 같은 부호인
-  값만 평균한다(Yadav et al. 2023). 근거·판정 기준 = docs/deepseek_v4_pipeline_adoption.md §8.
+  값만 평균한다(Yadav et al. 2023). 근거·판정 기준 = docs/stage2_design.html §8.
 
 base 의 safetensors shard 를 하나씩 읽고 LoRA 가 걸린 텐서만 고쳐 같은 이름으로 쓴다 → 모델 클래스를
 불러오지 않으므로 Qwen3.5 VL 의 비전 타워·processor 파일이 그대로 보존된다. ΔW 는 모듈 단위로 만들고 버린다

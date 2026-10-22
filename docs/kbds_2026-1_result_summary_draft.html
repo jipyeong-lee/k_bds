@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>K-BDS 연구요약서 초안</title>
+<style>
+:root{--bg:#fff;--fg:#1d1d1f;--mute:#5f6368;--line:#c9ced6;--head:#eef1f5;--todo:#b45309;--todo-bg:rgba(180,83,9,.10)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#16181c;--fg:#e8eaed;--mute:#9aa0a6;--line:#3c4048;--head:#22262d;--todo:#f59e0b;--todo-bg:rgba(245,158,11,.12)}}
+:root[data-theme="dark"]{--bg:#16181c;--fg:#e8eaed;--mute:#9aa0a6;--line:#3c4048;--head:#22262d;--todo:#f59e0b;--todo-bg:rgba(245,158,11,.12)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:14.5px/1.6 "Malgun Gothic","Apple SD Gothic Neo","Noto Sans KR",sans-serif}
+main{max-width:900px;margin:0 auto;padding:28px 16px 80px}
+h1{font-size:22px;text-align:center;margin:0 0 4px}
+.meta{color:var(--mute);font-size:12.5px;text-align:center;margin-bottom:18px}
+table{border-collapse:collapse;width:100%;margin:0 0 14px}
+th,td{border:1px solid var(--line);padding:7px 10px;vertical-align:top;text-align:left}
+th{background:var(--head);white-space:nowrap;width:120px}
+td table{margin:6px 0;font-size:13px}
+td table th{width:auto;white-space:normal}
+ul,ol{margin:2px 0 6px;padding-left:20px} li{margin:2px 0}
+.h{font-weight:700;margin:8px 0 2px}
+.todo{color:var(--todo);background:var(--todo-bg);padding:0 4px;border-radius:3px;font-weight:600}
+.note{color:var(--mute);font-size:12.5px}
+code{font:12.5px Consolas,monospace}
+</style>
+</head>
+<body>
+<main>
+<h1>연구 요약서</h1>
+<div class="meta">K-BDS 분석 인프라 활용지원 프로그램(2026년 1차, Track III) · 초안 2026-10-22 · <span class="todo">주황</span> = 확정 전 / 기입 필요</div>
+
+<table>
+<tr><th>연구 제목<br>(Title)</th><td>의료 및 바이오 도메인 특화 멀티 모달 교차 추론 인공지능 모델 개발<br><span class="note">(Development of a Multimodal Cross-Domain Reasoning Model Specialized for Medical and Bio Domains)</span></td></tr>
+<tr><th>연구 책임자</th><td><span class="todo">[성명]</span></td></tr>
+<tr><th>책임자 소속</th><td><span class="todo">[소속 기관 · 부서 · 직위]</span></td></tr>
+
+<tr><th>연구 목적</th><td>
+<ul>
+<li>멀티 모달 대형 언어 모델(Qwen3.5-9B 기반)에 강화학습을 적용하여 시각 인지와 단계적 추론 능력을 높임.</li>
+<li>범용 멀티모달 추론 데이터(DeepVision-103K)와 의료 멀티모달 데이터로 학습하여, 의료 글로벌 벤치마크(MedXpertQA-MM, MMMU-H&amp;M)에서 SFT 모델 대비 성능 향상을 정량 입증함.</li>
+<li>K-BDS 8gpu(A100 80GB) 노드에서 재현 가능한 강화학습 파이프라인(데이터 전처리 → SFT → RLVR → 전문가 통합 → 평가)을 구축하고 공개함.</li>
+</ul>
+</td></tr>
+
+<tr><th>시스템<br>활용 효과</th><td>
+<ul>
+<li><b>대형 모델 강화학습의 실행 가능성 확보</b>: GRPO 는 정책 모델, 참조 모델, vLLM 롤아웃 엔진을 동시에 메모리에 올림. A100 40GB 단일 GPU 에서는 메모리 부족(OOM)으로 학습이 불가능함을 실측함. 8gpu(A100 80GB × 8) 노드에서만 9B 모델 학습이 가능했음.</li>
+<li><b>학습 시간 단축</b>: 8gpu 노드에서 GRPO 1 step 은 약 213초임(KISTI 실측). 도메인 전문가 1종(pmcvqa, 4,896 step, 1 epoch)을 완주함. 계획서 기준 단일 GPU 환경의 1 epoch 예상 소요 시간은 300시간 이상임.</li>
+<li><b>대용량 데이터 상주</b>: 원본·전처리 데이터 약 305GB 를 K-BDS 스토리지에 두고 반복 실험(전문가 3종 학습, 체크포인트별 평가)을 수행함. 외부 반출 없이 데이터를 재사용함.</li>
+<li><b>사용 자원</b>: <span class="todo">[노드시간: 활용지원포털 사용량 기입. 할당 5,000 노드시간 대비 사용률]</span></li>
+</ul>
+</td></tr>
+
+<tr><th>연구 내용<br>및 결과</th><td>
+<div class="h">1. 데이터 구축 및 등록</div>
+<ul>
+<li>범용 멀티모달 추론 데이터 DeepVision-103K(10.3만 건, 10GB) 및 의료 멀티모달 데이터 medix-rl-data(5.1만 건, 24GB)를 K-BDS 에 등록함(등록번호 10.23220/KBDSC_20260306133407_2096, 10.23220/KBDSC_20260306133400_2097).</li>
+<li>강화학습용으로 도메인을 3개로 나눔: 시각 추론 deepvision 40,000건, 수학 추론 mmk12 15,204건, 의료 VQA pmcvqa 19,583건. 평가용 holdout 1,772건을 분리함.</li>
+</ul>
+
+<div class="h">2. 콜드스타트 SFT</div>
+<ul>
+<li><code>&lt;think&gt;</code>(추론)·<code>&lt;answer&gt;</code>(답) 형식을 학습시킨 SFT 모델을 만듦. 형식 준수율 0.185 → 0.909.</li>
+</ul>
+
+<div class="h">3. 도메인 전문가 강화학습(RLVR, GRPO)</div>
+<ul>
+<li>계획 변경: 세 도메인을 한 모델에 섞어 학습하면 약 900 step 에서 출력 형식이 무너짐(형식 붕괴). 그래서 DeepSeek-V4 구조(도메인 전문가 개별 학습 → 통합)로 바꿈.</li>
+<li>알고리즘: GRPO(dr_grpo 손실, gdpo 보상 정규화), LoRA(r=16), 정확도·형식·길이 복합 보상.</li>
+</ul>
+<table>
+<tr><th>전문가</th><th>체크포인트</th><th>도메인 holdout (SFT → RL)</th><th>글로벌 벤치 (SFT 46.77%)</th></tr>
+<tr><td>시각 추론 (deepvision)</td><td>step 2192</td><td>35.8% → <b>67.4%</b> (+31.6pp)</td><td><b>57.52%</b> (+10.75pp)</td></tr>
+<tr><td>수학 추론 (mmk12)</td><td>step 350</td><td>47.0% → <b>60.75%</b> (+13.75pp)</td><td><b>52.77%</b> (+6.00pp)</td></tr>
+<tr><td>의료 VQA (pmcvqa)</td><td>step 4896</td><td>56.5% → 58.0% (+1.5pp)</td><td><b>51.67%</b> (+4.90pp)</td></tr>
+</table>
+<ul>
+<li>세 전문가 모두 의료 글로벌 벤치마크(MedXpertQA-MM + MMMU-H&amp;M, 3,712문항)에서 SFT 대비 향상함. 계획서 목표 3 을 충족함.</li>
+<li>범용 추론 학습(시각·수학)이 의료 벤치마크로 전이됨. 시각 추론 전문가가 MMMU-H&amp;M 에서 62.27% → 77.57% 로 가장 크게 향상함.</li>
+</ul>
+
+<div class="h">4. 학습 붕괴 원인 분석</div>
+<ul>
+<li>장기 학습 시 형식 붕괴가 생김(mmk12 약 450 step, deepvision 3,428 step). 붕괴 응답의 96% 이상이 추론 종료 태그 전에 응답을 끝냄.</li>
+<li>붕괴 전에 학습 엔진과 롤아웃 엔진(vLLM)의 확률 불일치가 먼저 커짐을 발견함(log-ppl 차이 0.04 → 0.82).</li>
+<li>통제 실험(동일 체크포인트, 보정 유무만 다름): 토큰 단위 중요도 보정(TIS)은 붕괴를 약 20 step 늦추고 붕괴 폭을 줄이나 막지는 못함. 붕괴 직전 체크포인트를 전문가로 선택하는 기준을 세움.</li>
+</ul>
+
+<div class="h">5. 전문가 통합(모델 가중치 병합)</div>
+<ul>
+<li>세 전문가의 가중치 변화량(task vector)이 거의 직교함을 측정함(코사인 유사도 +0.01 ~ +0.11). 추가 학습 없는 산술 병합이 가능함을 확인함.</li>
+<li>mergekit 기반 병합 기법 10종(Task Arithmetic, TIES, DARE, DELLA, Breadcrumbs, Model Stock, RAM 등)을 비교함.</li>
+<li>선별 결과(축소 평가셋): Task Arithmetic 병합 모델이 세 도메인 모두에서 각 전문가 성능의 97~108% 를 유지함. 글로벌 벤치는 SFT 대비 약 +7pp 임. <span class="todo">[전체 평가셋 본평가 후 최종 수치로 교체]</span></li>
+<li>결과: 세 도메인 능력을 하나로 합친 통합 모델 1종을 확보함(추론 비용은 단일 모델과 같음).</li>
+</ul>
+
+<div class="h">6. 의료 개방형 강화학습(복합 보상) 준비</div>
+<ul>
+<li>정확도·의미 일치·형식을 섞은 복합 보상 함수와 LLM 심판(LLM-as-a-judge) 루브릭을 구현하고 단위 시험(29/29)을 통과함.</li>
+<li>심판 모델 후보를 비교 평가하여 선정함. 외부 GPU 환경에서 학습 스모크 시험을 통과함.</li>
+<li>본 학습(medix-rl-data, 통합 모델 기반)은 후속 과제에서 수행함. K-BDS 계산 노드는 외부망이 없어 외부 심판 API 를 호출할 수 없었음.</li>
+</ul>
+</td></tr>
+
+<tr><th>성과<br>(발생시)</th><td>
+<ul>
+<li><span class="todo">[학술 성과 없음 / 논문 투고 준비 중: 제목·학회 기입]</span></li>
+<li>핵심 결과(논문화 예정): ① 범용 멀티모달 RL 의 의료 벤치마크 전이(+10.75pp) ② 학습↔롤아웃 불일치를 선행 신호로 하는 형식 붕괴 분석 ③ 직교 task vector 기반 무학습 전문가 통합.</li>
+</ul>
+</td></tr>
+</table>
+
+<table>
+<tr><th colspan="4" style="text-align:center">연구산출물(데이터, 분석도구, 파이프라인 등) 공유 사항</th></tr>
+<tr><th>분류</th><th>목적 및 정보</th><th>환경구성</th><th>비고</th></tr>
+<tr><td>분석도구<br>(모델)</td>
+<td>목적: 멀티모달 의료·범용 교차 추론 모델 재현 및 후속 연구<br>정보: 통합 모델 1종(9B, safetensors), 도메인 전문가 LoRA 3종(r=16), SFT 모델</td>
+<td>Hugging Face 형식 가중치, vLLM 0.19.1 로 추론 가능</td>
+<td>마켓플레이스 등록</td></tr>
+<tr><td>파이프라인</td>
+<td>목적: 후속 연구자의 방법론 응용 지원<br>정보: GRPO/RLVR 학습 스크립트(Slurm), 복합 보상 함수, 전문가 병합 스크립트 및 mergekit 설정, 평가 스크립트(holdout · 글로벌 벤치)</td>
+<td>Python 3.12, PyTorch 2.10(CUDA 12.9), ms-swift 4.1.3, vLLM 0.19.1, Apptainer 컨테이너</td>
+<td>코드 저장소 + 컨테이너 정의</td></tr>
+<tr><td>데이터</td>
+<td>목적: 학습·평가용 중간 산출 데이터 공유<br>정보: 도메인별 RL 학습셋 3종(74,787건), holdout 1,772건, 글로벌 벤치 평가셋 3,712건</td>
+<td>JSONL + 이미지</td>
+<td>K-BDS 표준 등록 지침 준수</td></tr>
+</table>
+<p class="note">※ 계획서 대비 변경: 학습 환경을 Python 3.10/DeepSpeed 에서 Python 3.12/ms-swift(vLLM 연동)로 바꿈. 의료 개방형 RL 본 학습은 후속 과제로 넘김.</p>
+</main>
+</body>
+</html>

@@ -42,7 +42,7 @@ li{margin:3px 0}
 
 <!-- ============================================================ -->
 <h2 id="summary">요약</h2>
-<p>전문가 3종의 학습과 확정은 끝났다. 추가 학습 없이 세 전문가를 통합 모델 1개로 합쳤다. 통합 상위 2개의 본평가(전체셋)를 K-BDS 에서 끝냈다. 최종 통합 모델 선택안은 ta_w07 이다.</p>
+<p>전문가 3종의 학습과 확정은 끝났다. 추가 학습 없이 세 전문가를 통합 모델 1개로 합쳤다. 통합 상위 2개의 본평가(전체셋)를 K-BDS 에서 끝냈다. 최종 통합 모델은 ta_w07 로 확정했다.</p>
 <ol>
 <li>전문가 3종을 확정했다: deepvision 2192(B200), mmk12 350, pmcvqa 4896. deepvision 2700 과 mmk12 400 은 탈락시켰다.</li>
 <li>세 전문가는 모두 글로벌 의료 벤치에서 SFT 를 넘었다. 최고는 deepvision 2192 의 57.52%(SFT 46.77%)다.</li>
@@ -52,7 +52,7 @@ li{margin:3px 0}
 <li>세 전문가의 가중치 변화량(task vector)은 거의 직교한다. 코사인 유사도는 +0.01 ~ +0.11 이다.</li>
 <li>선별 1위는 task arithmetic, 가중치 0.7(<code>ta_w07</code>)이다. 세 도메인에서 전문가 성능의 97~109% 를 지켰다. 2위는 <code>breadcrumbs_d09</code> 다. 10개 중 9개가 판정 기준을 통과했다.</li>
 <li>부호 충돌을 다루는 기법(TIES 등)은 단순 합산보다 낫지 않았다.</li>
-<li>본평가(K-BDS, 전체셋): ta_w07 은 holdout 63.32%(SFT 42.67%), 글로벌 56.22%(SFT 46.77%)다. breadcrumbs_d09 는 holdout 63.71%, 글로벌 56.90% 다. 짝지은 검정에서 차이가 유의하지 않아 더 단순한 ta_w07 을 최종 모델로 제안한다. kgpu 본평가는 플랫폼 장애로 결과 없이 끝났다(<a href="#fulleval">C.6</a>).</li>
+<li>본평가(K-BDS, 전체셋): ta_w07 은 holdout 63.32%(SFT 42.67%), 글로벌 56.22%(SFT 46.77%)다. breadcrumbs_d09 는 holdout 63.71%, 글로벌 56.90% 다. 짝지은 검정에서 차이가 유의하지 않아 더 단순한 ta_w07 을 최종 모델로 확정했다. kgpu 본평가는 플랫폼 장애로 결과 없이 끝났다(<a href="#fulleval">C.6</a>).</li>
 </ol>
 <table id="terms">
 <tr><th>용어</th><th>뜻</th></tr>
@@ -72,7 +72,7 @@ li{margin:3px 0}
 <p>세 전문가 모두 글로벌 의료 벤치에서 SFT 를 넘었다. 붕괴 전 체크포인트 중에서 holdout 점수가 가장 높은 것을 전문가로 골랐다.</p>
 
 <h3 id="pipeline">A.1 전체 파이프라인과 현재 위치</h3>
-<p>현재 위치는 "통합 완료"다. 최종 통합 모델 선택안은 ta_w07 이다. Stage-3 는 2차에서 이 모델로 시작한다.</p>
+<p>현재 위치는 "통합 완료"다. 최종 통합 모델은 ta_w07 로 확정했다. Stage-3 는 2차에서 이 모델로 시작한다.</p>
 <figure>
 <svg viewBox="0 0 820 300" role="img" aria-label="파이프라인: 전문가 확정이 끝나고 통합 본평가가 현재 위치">
 <defs><marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="var(--gray)"/></marker></defs>
@@ -408,7 +408,7 @@ li{margin:3px 0}
 <li>ta_w07 은 세 도메인에서 전문가 성능의 95~108% 를 지켰다. 선별(97~109%)과 같은 결론이다. 형식 준수율은 99.7% 다.</li>
 <li>전체셋에서 통합 모델의 글로벌 점수는 가장 강한 단일 전문가보다 1.30pp 낮다(56.22 대 57.52). 선별(축소셋)에서는 둘이 같았다(59.2 대 59.3).</li>
 <li>breadcrumbs_d09 는 holdout(+0.39pp)과 글로벌(+0.68pp) 모두 ta_w07 보다 조금 높다. 같은 문항끼리 짝지어 비교(McNemar)하면 차이가 유의하지 않다: holdout 은 한쪽만 맞힌 문항이 138 대 131(p=0.72), 글로벌은 234 대 209(p=0.25)다.</li>
-<li><b>최종 모델 선택안은 ta_w07 이다.</b> 두 후보의 차이가 유의하지 않으므로 더 단순한 레시피(가중 합산, 인자 1개)를 고른다. 결과보고서·기탁 패키지는 ta_w07 기준이다. breadcrumbs_d09 는 패키지의 대안 레시피(<code>merge.sh … bc_d09</code>)로 남긴다.</li>
+<li><b>최종 모델은 ta_w07 로 확정했다.</b> 두 후보의 차이가 유의하지 않으므로 더 단순한 레시피(가중 합산, 인자 1개)를 고른다. 결과보고서·기탁 패키지는 ta_w07 기준이다. breadcrumbs_d09 는 패키지의 대안 레시피(<code>merge.sh … bc_d09</code>)로 남긴다.</li>
 <li>기탁 패키지의 <code>merge.sh</code> 로 공개 Qwen3.5-9B 에서 ta_w07 을 다시 만들었다(job 83057). bf16 텐서 712개가 평가 모델과 비트 단위로 같다. 나머지 48개(<code>linear_attn.A_log</code>, <code>linear_attn.norm.weight</code>)는 공개 모델의 fp32 값이 남는다. bf16 으로 바꾸면 같다.</li>
 </ul>
 
@@ -477,7 +477,7 @@ li{margin:3px 0}
 <h2 id="next">진행 중과 다음 단계</h2>
 <p>본평가는 KISTI 에서 끝났다(<a href="#fulleval">C.6</a>). 결과보고서 초안(<a href="kbds_2026-1_result_summary_draft.html"><code>docs/kbds_2026-1_result_summary_draft.html</code></a>)에는 ta_w07 수치를 넣었다.</p>
 <ol>
-<li>최종 모델 선택안은 ta_w07 이다(<a href="#fulleval">C.6</a>). breadcrumbs_d09 holdout 은 job 83070 에서 끝났다. 앞의 두 번(83041·83058)은 vLLM 기동이 600초 대기 한도를 넘어 결과 없이 끝났다. 한도를 늘렸다(<code>EVAL_READY_TRIES</code>).</li>
+<li>최종 모델은 ta_w07 로 확정했다(<a href="#fulleval">C.6</a>). breadcrumbs_d09 holdout 은 job 83070 에서 끝났다. 앞의 두 번(83041·83058)은 vLLM 기동이 600초 대기 한도를 넘어 결과 없이 끝났다. 한도를 늘렸다(<code>EVAL_READY_TRIES</code>).</li>
 <li>모델, 코드, 데이터를 K-BDS 마켓플레이스에 기탁한다. 기탁 패키지는 LoRA 4개와 <code>merge.sh</code> 로 통합 모델을 재구성한다(가중치 18G 는 넣지 않는다).</li>
 <li>2차: 통합 모델로 Stage-3 를 kgpu 에서 시작한다.</li>
 </ol>

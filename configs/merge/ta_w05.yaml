@@ -1,0 +1,12 @@
+# task arithmetic, w=0.5 — 선별에서 w=0.7 이 w=1.0 보다 나아 더 낮춰 본다
+merge_method: task_arithmetic
+base_model: /root/w/base
+dtype: bfloat16
+models:
+  - model: /root/w/exp_dv
+    parameters: {weight: 0.5}
+  - model: /root/w/exp_mm
+    parameters: {weight: 0.5}
+  - model: /root/w/exp_pmc
+    parameters: {weight: 0.5}
+parameters: {normalize: false, lambda: 1.0}

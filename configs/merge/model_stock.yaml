@@ -1,0 +1,8 @@
+# Model Stock: task vector 코사인으로 보간 비율을 자동 계산(인자 없음)
+merge_method: model_stock
+base_model: /root/w/base
+dtype: bfloat16
+models:
+  - model: /root/w/exp_dv
+  - model: /root/w/exp_mm
+  - model: /root/w/exp_pmc

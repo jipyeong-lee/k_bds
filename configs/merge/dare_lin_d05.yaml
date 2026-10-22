@@ -1,0 +1,12 @@
+# DARE linear: 50% 무작위 제거 후 2배 복원, 부호 다수결 없음
+merge_method: dare_linear
+base_model: /root/w/base
+dtype: bfloat16
+models:
+  - model: /root/w/exp_dv
+    parameters: {weight: 1.0, density: 0.5}
+  - model: /root/w/exp_mm
+    parameters: {weight: 1.0, density: 0.5}
+  - model: /root/w/exp_pmc
+    parameters: {weight: 1.0, density: 0.5}
+parameters: {normalize: false, lambda: 1.0}

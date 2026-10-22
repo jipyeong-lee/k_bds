@@ -17,6 +17,8 @@ if [ ! -x "$VENV/bin/swift" ]; then
   uv pip install --python "$VENV/bin/python" --prerelease=allow "nvidia-cutlass-dsl==4.5.0.dev0" 2>&1 | tail -2
 fi
 PY=$VENV/bin/python
+# fastapi 0.159 는 vLLM 의 prometheus_fastapi_instrumentator 7.1.0 과 안 맞아 모든 요청이 500(_IncludedRouter.path) → KISTI 핀으로
+$PY -c "import fastapi,sys;sys.exit(fastapi.__version__!='0.136.1')" || uv pip install --python "$PY" fastapi==0.136.1 2>&1 | tail -1
 # flashinfer 가 Blackwell 커널을 JIT 할 때 nvrtc.h 를 venv 휠에서 찾게 한다(B200 함정 ④와 같은 대응)
 NVRTC=$VENV/lib/python3.12/site-packages/nvidia/cuda_nvrtc
 export CPATH="$NVRTC/include${CPATH:+:$CPATH}" LIBRARY_PATH="$NVRTC/lib${LIBRARY_PATH:+:$LIBRARY_PATH}" \

@@ -1,0 +1,12 @@
+# TIES: 상위 50% 만 남기고 부호 다수결
+merge_method: ties
+base_model: /root/w/base
+dtype: bfloat16
+models:
+  - model: /root/w/exp_dv
+    parameters: {weight: 1.0, density: 0.5}
+  - model: /root/w/exp_mm
+    parameters: {weight: 1.0, density: 0.5}
+  - model: /root/w/exp_pmc
+    parameters: {weight: 1.0, density: 0.5}
+parameters: {normalize: false, lambda: 1.0}

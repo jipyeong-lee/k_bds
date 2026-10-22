@@ -1,0 +1,12 @@
+# DELLA: 크기 기반 확률로 행마다 제거(density±epsilon) + 부호 다수결
+merge_method: della
+base_model: /root/w/base
+dtype: bfloat16
+models:
+  - model: /root/w/exp_dv
+    parameters: {weight: 1.0, density: 0.5, epsilon: 0.1}
+  - model: /root/w/exp_mm
+    parameters: {weight: 1.0, density: 0.5, epsilon: 0.1}
+  - model: /root/w/exp_pmc
+    parameters: {weight: 1.0, density: 0.5, epsilon: 0.1}
+parameters: {normalize: false, lambda: 1.0}

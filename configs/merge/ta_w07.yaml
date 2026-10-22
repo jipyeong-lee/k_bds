@@ -1,0 +1,12 @@
+# task arithmetic, w=0.7 — 합산이 과하면(노름 증가) 줄인 쪽이 낫다
+merge_method: task_arithmetic
+base_model: /root/w/base
+dtype: bfloat16
+models:
+  - model: /root/w/exp_dv
+    parameters: {weight: 0.7}
+  - model: /root/w/exp_mm
+    parameters: {weight: 0.7}
+  - model: /root/w/exp_pmc
+    parameters: {weight: 0.7}
+parameters: {normalize: false, lambda: 1.0}

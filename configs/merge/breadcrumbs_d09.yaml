@@ -1,0 +1,12 @@
+# Breadcrumbs+TIES: 최대 1%(gamma)와 작은 값을 함께 제거, 90% 유지
+merge_method: breadcrumbs_ties
+base_model: /root/w/base
+dtype: bfloat16
+models:
+  - model: /root/w/exp_dv
+    parameters: {weight: 1.0, density: 0.9, gamma: 0.01}
+  - model: /root/w/exp_mm
+    parameters: {weight: 1.0, density: 0.9, gamma: 0.01}
+  - model: /root/w/exp_pmc
+    parameters: {weight: 1.0, density: 0.9, gamma: 0.01}
+parameters: {normalize: false, lambda: 1.0}

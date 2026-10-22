@@ -1,0 +1,12 @@
+# task arithmetic, w=1/3 = 세 전문가의 단순 평균(model soup)
+merge_method: task_arithmetic
+base_model: /root/w/base
+dtype: bfloat16
+models:
+  - model: /root/w/exp_dv
+    parameters: {weight: 0.3333}
+  - model: /root/w/exp_mm
+    parameters: {weight: 0.3333}
+  - model: /root/w/exp_pmc
+    parameters: {weight: 0.3333}
+parameters: {normalize: false, lambda: 1.0}

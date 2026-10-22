@@ -1,0 +1,12 @@
+# task arithmetic, 세 task vector 를 그대로 합산(w=1). 코사인≈0 이면 간섭이 작아 최선일 수 있다
+merge_method: task_arithmetic
+base_model: /root/w/base
+dtype: bfloat16
+models:
+  - model: /root/w/exp_dv
+    parameters: {weight: 1.0}
+  - model: /root/w/exp_mm
+    parameters: {weight: 1.0}
+  - model: /root/w/exp_pmc
+    parameters: {weight: 1.0}
+parameters: {normalize: false, lambda: 1.0}

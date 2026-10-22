@@ -1,0 +1,8 @@
+# RAM: 혼자 바꾼 값은 그대로 합산, 여럿이 바꾼 값은 평균
+merge_method: ram
+base_model: /root/w/base
+dtype: bfloat16
+models:
+  - model: /root/w/exp_dv
+  - model: /root/w/exp_mm
+  - model: /root/w/exp_pmc

@@ -46,7 +46,7 @@ deepvision 과 pmcvqa 는 끝났습니다. mmk12 는 방치 상태입니다.
 - 붕괴 없이 2,203/5,715 step(38.5%)까지 학습했습니다.
 - 자원을 회수해야 해서 학습을 중지했습니다.
 - 교정한 홀드아웃 재평가(job `76330`)로 효과를 확정했습니다. 이 평가는 `EVAL_MAXTOK` 를 2048 에서 8192 로 올렸습니다.
-- 정확도는 init **35.19%** 에서 **67.39%** 로 올랐습니다(**+32.20pp**, job `76330` 측정). 10월에 init 기준선만 다시 쟀습니다(KISTI job `82983`, `EVAL_MAXTOK` 8192). 그 기준으로는 init 35.8% → 67.4%(+31.6pp)입니다([merging 실험](docs/merging_experiments_2026-10-22.html) §2).
+- 정확도는 init **35.19%** 에서 **67.39%** 로 올랐습니다(**+32.20pp**, job `76330` 측정). 10월에 init 기준선만 다시 쟀습니다(KISTI job `82983`, `EVAL_MAXTOK` 8192). 그 기준으로는 init 35.8% → 67.4%(+31.6pp)입니다([Stage-2 전문가 문서](docs/stage2_experts.html#selection) A.3).
 - format 준수율은 91.3% 에서 **97.8%** 로 올랐습니다.
 - 이전 format 값 60.7% 는 착시였습니다. 출력이 2048 토큰에서 잘려서 생긴 값입니다.
 
@@ -293,8 +293,7 @@ sbatch          --dependency=afterok:$JID3 scripts/40_eval.slurm                
 | [`docs/project_log.html`](docs/project_log.html) | 진행 이력, 핵심 의사결정, 날짜별 기록, TODO |
 | [`docs/project_log.html`](docs/project_log.html) | 일별 상세 로그(2026-06-15 ~ 07-01, 날짜별 절) |
 | [`docs/experiments_all_stages.html`](docs/experiments_all_stages.html) | 전 단계 실험 정리(대표 개요, 2026-10-22 기준) |
-| [`docs/experiments_2026-10.html`](docs/experiments_2026-10.html) | 10월 붕괴 원인 추적 실험(X1~X6) |
-| [`docs/merging_experiments_2026-10-22.html`](docs/merging_experiments_2026-10-22.html) | 전문가 통합(모델 merging) 실험 |
+| [`docs/stage2_experts.html`](docs/stage2_experts.html) | Stage-2 도메인 전문가: 학습·체크포인트 확정, 10월 붕괴 원인 추적(X1~X6), 전문가 통합(merging) |
 | [`docs/kbds_2026-1_result_summary_draft.html`](docs/kbds_2026-1_result_summary_draft.html) | 결과보고서(연구요약서) 초안 |
 
 ---

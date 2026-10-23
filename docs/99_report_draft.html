@@ -60,7 +60,7 @@ td table{display:block;overflow-x:auto}
 <div class="h">1. 데이터 구축 및 등록</div>
 <ul>
 <li>범용 멀티모달 추론 데이터 DeepVision-103K(10.3만 건, 10GB)를 K-BDS 에 등록함(등록번호 10.23220/KBDSC_20260306133407_2096).</li>
-<li>의료 멀티모달 데이터 medix-rl-data(5.1만 건, 24GB)를 K-BDS 에 등록함(등록번호 10.23220/KBDSC_20260306133400_2097). 이 데이터는 의료 개방형 강화학습(6절)의 보상 함수 검증에 사용함.</li>
+<li>의료 멀티모달 데이터 medix-rl-data(5.1만 건, 24GB)를 K-BDS 에 등록함(등록번호 10.23220/KBDSC_20260306133400_2097). 이 데이터는 의료 개방형 강화학습(7절)의 보상 함수 검증에 사용함.</li>
 <li>공개 데이터셋 MMK12(수학 추론, 1.5만 건)와 PMC-VQA(의료 VQA, 2.0만 건)를 함께 활용함(K-BDS 미등록).</li>
 <li>강화학습 데이터를 3개 도메인으로 나눔: 시각 추론(deepvision) 40,000건, 수학 추론(mmk12) 15,204건, 의료 VQA(pmcvqa) 19,583건.</li>
 <li>평가용 holdout(학습에 쓰지 않은 평가 문항) 1,772건을 분리함. 이미지 해시로 학습 데이터와의 중복을 제거함.</li>
@@ -74,11 +74,29 @@ td table{display:block;overflow-x:auto}
 <li>SFT 없이 강화학습하면 holdout 정확도가 0.15 에서 0.18 로 오름. SFT 후 강화학습하면 0.22 에서 0.38 로 오름. 그러므로 이 조건에서 SFT 는 강화학습의 전제 조건임.</li>
 </ul>
 
-<div class="h">3. 도메인 전문가 강화학습</div>
+<div class="h">3. 강화학습 방법론 비교</div>
+<ul>
+<li>목적: 기본 GRPO 의 정체를 넘는 알고리즘을 고름. 기본 GRPO 는 학습 정확도 0.50 에서 정체함. 원인은 학습 신호가 0 인 그룹(응답이 모두 맞거나 모두 틀림)의 증가임(비율 0.24 → 0.33).</li>
+<li>설정: 시작 모델은 이전 버전 SFT(v2)임. 데이터는 DeepVision 학습 분할임. 각 변형을 600 step 학습함. 평가는 DeepVision holdout 200문항, 최대 출력 2,048 토큰임.</li>
+</ul>
+<table>
+<tr><th>변형</th><th>바꾼 요소</th><th>학습 정확도</th><th>holdout (step 600)</th><th>판정</th></tr>
+<tr><td>GRPO (기준)</td><td>—</td><td>0.500</td><td>—</td><td>정체</td></tr>
+<tr><td>DAPO</td><td>비대칭 클립(0.2 / 0.28)</td><td>0.465</td><td>—</td><td>정체를 넘지 못함</td></tr>
+<tr><td>Dr.GRPO</td><td>응답 길이·표준편차 정규화 제거</td><td>0.526</td><td>0.380</td><td>채택</td></tr>
+<tr><td>GDPO</td><td>Dr.GRPO + 보상 함수별 정규화</td><td>0.490</td><td>0.390</td><td>채택</td></tr>
+<tr><td>GSPO</td><td>시퀀스 단위 중요도 비율</td><td>0.500</td><td>0.290</td><td>일반화 실패</td></tr>
+</table>
+<ul>
+<li>Dr.GRPO 와 GDPO 의 차이(0.01)는 표준오차(±0.034) 안에 있음. 보상이 3개(정확도·형식·길이)이므로 보상별 정규화를 하는 GDPO 를 함께 씀. 이후 모든 강화학습은 dr_grpo 손실과 gdpo 보상 정규화를 씀.</li>
+<li>혼합 학습 실험: 세 도메인 데이터(74,787건)를 한 모델에 섞어 학습함. step 850 에서 holdout 정확도가 SFT 대비 8.18pp 오름(p&lt;0.0001). 약 900 step 에서 출력 형식이 무너짐(형식 붕괴). 의료 VQA 는 측정한 6개 지점에서 모두 개선이 없었음.</li>
+<li>계획 변경: 혼합 학습에서 각 도메인 데이터는 0.09 epoch 만 학습됨. 도메인별로 학습하면 같은 step 에서 각 도메인 데이터를 1.7~4.9배 더 학습함. 그래서 도메인별로 전문가를 따로 학습한 뒤 병합하는 구조(DeepSeek-V4 방식)로 바꿈.</li>
+</ul>
+
+<div class="h">4. 도메인 전문가 강화학습</div>
 <ul>
 <li>강화학습 방식은 검증 가능한 보상을 쓰는 강화학습(RLVR)임. 알고리즘은 GRPO 계열임.</li>
-<li>계획 변경: 세 도메인을 한 모델에 섞어 학습하면 약 900 step 에서 출력 형식이 무너짐(형식 붕괴). 그래서 도메인별로 전문가를 따로 학습한 뒤 병합하는 구조(DeepSeek-V4 방식)로 바꿈.</li>
-<li>GRPO 변형 5종(GRPO, DAPO, Dr.GRPO, GDPO, GSPO)을 비교함. 그 결과로 dr_grpo 손실과 gdpo 보상 정규화를 채택함.</li>
+<li>3절에서 정한 알고리즘(dr_grpo 손실 + gdpo 보상 정규화)과 학습 구조(도메인별 전문가)를 씀.</li>
 <li>학습은 LoRA(모델 가중치의 일부만 학습하는 방법, r=16)로 함. 보상은 정확도·형식·길이 점수의 합임.</li>
 </ul>
 <table>
@@ -92,7 +110,7 @@ td table{display:block;overflow-x:auto}
 <li>시각·수학 추론 학습이 글로벌 벤치마크 성능을 높임. 가장 크게 오른 것은 시각 추론 전문가의 MMMU-H&amp;M 점수임(62.27% → 77.57%).</li>
 </ul>
 
-<div class="h">4. 학습 붕괴 원인 분석</div>
+<div class="h">5. 학습 붕괴 원인 분석</div>
 <ul>
 <li>학습을 오래 하면 형식 붕괴가 생김(mmk12 약 450 step, deepvision 3,428 step).</li>
 <li>붕괴한 응답의 96% 이상은 추론 종료 태그 전에 끝남.</li>
@@ -101,7 +119,7 @@ td table{display:block;overflow-x:auto}
 <li>이 결과로 붕괴 직전 체크포인트를 전문가로 고르는 기준을 정함.</li>
 </ul>
 
-<div class="h">5. 전문가 병합</div>
+<div class="h">6. 전문가 병합</div>
 <ul>
 <li>세 전문가의 가중치 변화량(task vector)은 서로 거의 직교함(코사인 유사도 +0.01 ~ +0.11). 그러므로 추가 학습 없이 가중치를 더해 병합할 수 있음.</li>
 <li>mergekit 으로 병합 후보 11종을 설계함(Task Arithmetic, TIES, DARE, DELLA, Breadcrumbs, Model Stock, RAM 등).</li>
@@ -126,7 +144,7 @@ td table{display:block;overflow-x:auto}
 <li>결과: 세 도메인 능력을 가진 통합 모델 1종을 만듦. 모델 크기와 구조는 단일 9B 모델과 같음.</li>
 </ul>
 
-<div class="h">6. 의료 개방형 강화학습(복합 보상) 준비</div>
+<div class="h">7. 의료 개방형 강화학습(복합 보상) 준비</div>
 <ul>
 <li>복합 보상 함수를 구현함. 이 함수는 정확도·의미 일치·형식 점수를 합침.</li>
 <li>LLM 심판(LLM-as-a-judge) 루브릭을 구현함. 단위 시험 29개를 모두 통과함.</li>

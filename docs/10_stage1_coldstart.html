@@ -232,7 +232,7 @@ li{margin:3px 0}
 <li><b>정답률도 올랐다. 그러나 폭은 온건하고 vl 에 편중됐다.</b> v3 0.348 vs v2 0.295 = <b>+0.053(+18%)</b>. 이득은 전부 <b>vl(0.270→0.368)</b>에서 나온다. <b>math 는 동률</b>이다(혼합 데이터가 객관식 추론은 개선했고 수치계산은 바꾸지 않았다). 그럼에도 v3 는 <b>RL 없이 0.348</b> 이다. 이는 v2 가 풀 Stage-2 RL 로 도달한 0.380~0.390 에 근접한다 → Stage-2 한계효용 재검토는 유효하다.</li>
 <li><b>간결성이 실전 이점이다.</b> v3 1,982자 vs v2 4,824자(절반). 이것이 RL 롤아웃에서 잘림→형식0 을 만들지 않는 핵심이다.</li>
 </ol>
-<div class="warn"><b>⚠️ 오염 비대칭 — 이 비교는 v3 에게 보수적이다.</b> 홀드아웃 972건 중 <b>214건(22.0%)이 <code>trainonly</code> 와 완전중복</b>이다(질문+이미지 바이트해시+정답 동일 → <a href="ops_infra.html#홀드아웃-분리-stage-2-평가-누수-차단">알려진 한계</a>). 느슨한 기준(질문+정답만 일치)으로 재측정하면 <b>301건(31.0%)</b> 이다. 22% 는 검증된 하한이다. 31% 는 질문 수준 상한이다. 그런데 이 오염의 <b>"이득"은 DeepVision 을 학습한 모델에만</b> 돌아간다.</div>
+<div class="warn"><b>⚠️ 오염 비대칭 — 이 비교는 v3 에게 보수적이다.</b> 홀드아웃 972건 중 <b>214건(22.0%)이 <code>trainonly</code> 와 완전중복</b>이다(질문+이미지 바이트해시+정답 동일 → <a href="90_ops_infra.html#홀드아웃-분리-stage-2-평가-누수-차단">알려진 한계</a>). 느슨한 기준(질문+정답만 일치)으로 재측정하면 <b>301건(31.0%)</b> 이다. 22% 는 검증된 하한이다. 31% 는 질문 수준 상한이다. 그런데 이 오염의 <b>"이득"은 DeepVision 을 학습한 모델에만</b> 돌아간다.</div>
 <table>
 <tr><th>모델</th><th>DeepVision 학습 여부</th><th>22% 오염 이득</th></tr>
 <tr><td>Stage-2 GRPO (0.380 / 0.390)</td><td>✅ <code>trainonly</code> 전량</td><td><b>있음</b> (상향편향)</td></tr>
@@ -305,7 +305,7 @@ li{margin:3px 0}
 <li><b>727건·DeepVision 전용</b> — 규모가 작고 도메인이 단일이다. Stage-3(medix) 형식 전이는 미검증이다. → v3 에서 의료 CoT 를 투입했다.</li>
 <li><b>순가치 clean ablation 부재</b> — 홀드아웃 정비 후 비교가 없었다. → 위 ablation 으로 해소했다.</li>
 </ol>
-<p>권고(당시): 재학습 시 epoch 1~2 + 어려운 문제 비중 상향 + medix 형식 소량 혼합을 검토한다. HealthBench 상세(instr +0.044, 평균 8.9K자, judge 파싱실패 9.9%→5.0%)는 <a href="stage3_eval.html#단계별-추적--healthbench-hard-n1000"><code>stage3_eval.html</code></a> 에 있다.</p>
+<p>권고(당시): 재학습 시 epoch 1~2 + 어려운 문제 비중 상향 + medix 형식 소량 혼합을 검토한다. HealthBench 상세(instr +0.044, 평균 8.9K자, judge 파싱실패 9.9%→5.0%)는 <a href="30_stage3_medical_rl.html#단계별-추적--healthbench-hard-n1000"><code>30_stage3_medical_rl.html</code></a> 에 있다.</p>
 </main>
 </body>
 </html>

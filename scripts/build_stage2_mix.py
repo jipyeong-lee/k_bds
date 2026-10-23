@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """build_stage2_mix.py — Stage-2 풀확장 데이터 조립 + 소스별 클린 홀드아웃.
 
-구성 (2026-07-24, 의료 27% — docs/stage2_design.html):
+구성 (2026-07-24, 의료 27% — docs/21_stage2a_design.html):
   train   = DeepVision(서브샘플 DV_CAP) + MMK12(전량) + PMC-VQA(서브샘플 PMC_CAP)   ← ThinkLite 드롭
   holdout = DeepVision(972·기존) + MMK12(HOLD) + PMC-VQA(HOLD)
   · **전 소스 이미지 바이트해시 dedup**: DeepVision 도 홀드아웃 이미지해시를 train 서브샘플에서

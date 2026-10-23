@@ -13,7 +13,7 @@
 #     실측 확증: job 73924 step 627 에서 swift 가 epoch=0.06707 → 627×8/74,787 = 0.06706 일치.
 #  ⇒ MAX_STEPS=2337 은 1 epoch 이 아니라 **0.25 epoch**(확장셋의 25%만 노출).
 #     진짜 1 epoch(9,348 step)은 ≈837h · 6,694 노드시간 = 예산 5,000 의 134% 로 실행 불가.
-#     상세 = docs/stage2_mixed_run.html §3
+#     상세 = docs/22_stage2b_mixed_run.html §3
 #
 #  MAX_STEPS=2,337 (=0.25 epoch) ≈ 209h wall (322 s/it 실측, job 73924) ≈ 1,674 노드시간 (예산의 33%)
 #  잡당 walltime 70h ≈ 780 step → 4 잡이면 충분(280h 용량). MAX_STEPS 도달 후 잡은 자동 no-op.
@@ -28,7 +28,7 @@
 #     - 외부 문헌은 RLVR 장기학습에서 diversity collapse 경고(arXiv 2606.15455): 후반 구간은
 #       Pass@1 이득 없이 high-k Pass@k 를 깎는다. → **반드시 중간 체크포인트를 평가하고
 #       포화하면 조기중단**할 것. save_steps 50 이라 체크포인트는 촘촘히 남는다.
-#     상세 = docs/stage2_design.html
+#     상세 = docs/21_stage2a_design.html
 #
 #  사용:  bash scripts/launch_stage2_expanded_epoch.sh              # 2,337 step(0.25 epoch) 체인 4잡
 #         MAX_STEPS=1200 N_JOBS=2 bash scripts/launch_stage2_expanded_epoch.sh

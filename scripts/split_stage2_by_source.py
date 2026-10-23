@@ -2,7 +2,7 @@
 """split_stage2_by_source.py — Stage-2 확장셋을 도메인별로 분할(전문가 학습용).
 
 DeepSeek-V4 구조(도메인별 전문가 → 통합)로 가려면 학습셋부터 도메인별로 나뉘어야 한다.
-→ docs/stage2_design.html §2
+→ docs/21_stage2a_design.html §2
 
 **소스 판별 근거는 이미지 경로다.** 학습셋에 source 컬럼이 없다(키 = messages/images/solution).
 `scripts/train_source_trend.py:74` 의 `source_of()` 와 동일한 규칙을 쓴다 — 규칙이 갈라지면

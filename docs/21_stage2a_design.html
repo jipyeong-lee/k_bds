@@ -38,7 +38,7 @@ li{margin:3px 0}
 <h1>Stage-2 · 설계·데이터·방법론 (2-A) — 외부 조사, 하이퍼파라미터 관행, 재설계, 데이터 구축, GRPO 변형 A/B</h1>
 <div class="meta">기준 2026-10-22 · 원 문서 작성 2026-07-24 ~ 2026-08-13 · 작성 방식 ASD-STE100(원문 사실을 그대로 옮기고 구조만 바꿈)<br>
 원본: <code>docs/rlvr_survey_2026.md</code> · <code>docs/rlvr_hparams_external.md</code> · <code>docs/stage2_redesign_2026.md</code> · <code>docs/deepseek_v4_pipeline_adoption.md</code> (2026-10-22 HTML 로 통합)<br>
-관련: <a href="experiments_all_stages.html">experiments_all_stages.html</a>(전 단계 실험 정리) · <a href="stage2_experts.html">stage2_experts.html</a>(전문가 학습·통합)<br>5부·6부 = 구 <code>stage2_design.html</code>(데이터 구축·GRPO 변형 A/B, 2026-10-23 통합)</div>
+관련: <a href="00_overview.html">00_overview.html</a>(전 단계 실험 정리) · <a href="23_stage2ce_experts.html">23_stage2ce_experts.html</a>(전문가 학습·통합)<br>5부·6부 = 구 <code>21_stage2a_design.html</code>(데이터 구축·GRPO 변형 A/B, 2026-10-23 통합)</div>
 
 <h2 id="summary">요약 — 결론 먼저</h2>
 <div class="key">
@@ -180,8 +180,8 @@ li{margin:3px 0}
 <!-- ===== rlvr_hparams_external.md ===== -->
 <h2 data-part="2" id="rlvr-하이퍼파라미터--외부-관행-대조-2026-리포트-조사">2부 · RLVR 하이퍼파라미터 — 외부 관행 대조 (2026 리포트 조사)</h2>
 <div class="meta">원본: <code>docs/rlvr_hparams_external.md</code> (2026-10-22 HTML 로 통합)</div>
-<div class="warn"><p>⚠️ <b>낡은 내용</b>: 아래 표의 "이 프로젝트" 열(β 0.04 · 그룹 4 · temp 0.9)은 2026-07 구 혼합 실행 값이다. 도메인 전문가 실행은 <b>beta 0 · num_generations 8(KISTI/kgpu, B200 은 16) · temperature 1.0</b> 을 썼다 → <a href="../CLAUDE.md"><code>../CLAUDE.md</code></a> §3 · <a href="experiments_all_stages.html"><code>experiments_all_stages.html</code></a> 2-C. 외부 관행 대조·출처는 그대로 유효하다.</p></div>
-<div class="note"><p>목적: 이 프로젝트의 Stage-2 RLVR(GRPO/GDPO) 설정을 <b>외부에 알려진 관행</b>과 대조하고, 자원 제약으로 벌어진 지점과 실험 우선순위를 명시한다. 프로젝트 실측 근거는 <a href="../README.md"><code>../README.md</code></a>(Stage-2 · step600 포화)·<a href="../HANDOFF.md"><code>../HANDOFF.md</code></a>, 실행 절차는 <a href="../README.md"><code>../README.md</code></a> "빠른 실행" · 데이터 빌드는 <a href="stage2_design.html#5-1-빌드-런북"><code>stage2_design.html</code> §5-1</a>.</p></div>
+<div class="warn"><p>⚠️ <b>낡은 내용</b>: 아래 표의 "이 프로젝트" 열(β 0.04 · 그룹 4 · temp 0.9)은 2026-07 구 혼합 실행 값이다. 도메인 전문가 실행은 <b>beta 0 · num_generations 8(KISTI/kgpu, B200 은 16) · temperature 1.0</b> 을 썼다 → <a href="../CLAUDE.md"><code>../CLAUDE.md</code></a> §3 · <a href="00_overview.html"><code>00_overview.html</code></a> 2-C. 외부 관행 대조·출처는 그대로 유효하다.</p></div>
+<div class="note"><p>목적: 이 프로젝트의 Stage-2 RLVR(GRPO/GDPO) 설정을 <b>외부에 알려진 관행</b>과 대조하고, 자원 제약으로 벌어진 지점과 실험 우선순위를 명시한다. 프로젝트 실측 근거는 <a href="../README.md"><code>../README.md</code></a>(Stage-2 · step600 포화)·<a href="../HANDOFF.md"><code>../HANDOFF.md</code></a>, 실행 절차는 <a href="../README.md"><code>../README.md</code></a> "빠른 실행" · 데이터 빌드는 <a href="21_stage2a_design.html#5-1-빌드-런북"><code>21_stage2a_design.html</code> §5-1</a>.</p></div>
 <h3 id="0-조사-프레이밍-솔직한-한계">0. 조사 프레이밍 (솔직한 한계)</h3>
 <ul>
 <li><b>2026년 프런티어 리포트</b>(Qwen3.6·DeepSeek V4·Kimi K2.6·MiniMax M2 등)는 아키텍처는 자세히 공개해도 <b>RL 하이퍼파라미터 전체 표는 거의 공개하지 않는다.</b></li>
@@ -200,7 +200,7 @@ li{margin:3px 0}
 <li>표준 n=8 세팅에선 "<b>대부분의 업데이트가 추론경계엔 과학습</b>".</li>
 <li>기전: 문제 기여도 포화 → 이후 업데이트는 능력 확장이 아니라 <b>선호 궤적에 확률질량 집중 (policy sharpening) → 다양성 붕괴</b>.</li></ul></li>
 <li><b>프런티어 리포트는 에포크로 세지 않는다</b>: Magistral·MiniMax-M1은 대형 배치 + 신선한 롤아웃 + <b>길이 점증</b>(16k→24k→32k)으로 <b>스텝 단위</b>로 돌리고 평가곡선으로 멈춘다.</li></ul>
-<p><b>환산(이 프로젝트)</b> — *2026-08-02 정정*: GRPO 의 <code>per_device_train_batch_size</code> 는 프롬프트가 아니라 completion 을 센다. <code>generation_batch_size = 1 × 8gpu × accum4 = 32 completions</code> → <code>프롬프트/step = 32 ÷ num_generations(4) = 8</code>. 따라서 확장셋 74,787 ÷ 8 = <b>1 epoch = 9,348 step</b> (종전 표기 2,337 은 ÷ num_generations 누락). step600 = 4,800 prompt ≈ <b>0.064 epoch</b>, 계획한 2,337 step 도 <b>0.25 epoch</b> 에 그친다 → 포화는 에포크가 아니라 <b>스텝 수준에서</b> 온 것. 실측 확증·영향 = <a href="stage2_mixed_run.html"><code>stage2_mixed_run.html</code></a> §3.</p>
+<p><b>환산(이 프로젝트)</b> — *2026-08-02 정정*: GRPO 의 <code>per_device_train_batch_size</code> 는 프롬프트가 아니라 completion 을 센다. <code>generation_batch_size = 1 × 8gpu × accum4 = 32 completions</code> → <code>프롬프트/step = 32 ÷ num_generations(4) = 8</code>. 따라서 확장셋 74,787 ÷ 8 = <b>1 epoch = 9,348 step</b> (종전 표기 2,337 은 ÷ num_generations 누락). step600 = 4,800 prompt ≈ <b>0.064 epoch</b>, 계획한 2,337 step 도 <b>0.25 epoch</b> 에 그친다 → 포화는 에포크가 아니라 <b>스텝 수준에서</b> 온 것. 실측 확증·영향 = <a href="22_stage2b_mixed_run.html"><code>22_stage2b_mixed_run.html</code></a> §3.</p>
 <p><b>결론</b>: 에포크 상한을 늘리지 말 것. <b>≤1에포크, 50스텝마다 홀드아웃 평가, 포화 시 조기중단</b>이 정답.</p>
 <h3 id="3-실행-제언-우선순위">3. 실행 제언 (우선순위)</h3>
 <table><thead><tr><th>#</th><th>제언</th><th>방법</th><th>우선순위</th></tr></thead><tbody><tr><td>1</td><td><b>그룹 4 → 8</b> 재고</td><td><code>NUM_GEN=8 bash scripts/launch_stage2_expanded.sh</code> (길이예산·메모리 트레이드오프 측정)</td><td>중</td></tr><tr><td>2</td><td><b>롤아웃 temp 0.9 → 1.0</b> A/B</td><td><code>TEMPERATURE=1.0 …</code> (문헌 다수설)</td><td>중</td></tr><tr><td>3</td><td><b>KL β 0.04 → 0.01</b> 탐색 여지 확대</td><td><code>BETA=0.01 …</code> (초기 붕괴 없으면)</td><td>낮</td></tr><tr><td>4</td><td><b>에포크 상한 유지</b> — 늘리지 말 것</td><td>지금 계획(≤1ep·조기중단) 그대로</td><td>—</td></tr></tbody></table>
@@ -219,8 +219,8 @@ li{margin:3px 0}
 <!-- ===== stage2_redesign_2026.md ===== -->
 <h2 data-part="3" id="stage-2-재실행-실험-설계">3부 · Stage-2 재실행 실험 설계</h2>
 <div class="meta">원본: <code>docs/stage2_redesign_2026.md</code> (2026-10-22 HTML 로 통합)</div>
-<div class="warn"><p>⚠️ <b>낡은 내용</b>: 항목 <b>D</b>(<code>scale_rewards</code> gdpo → none)와 <b>§5</b>(checkpoint-850 에서 재개)는 실행되지 않았다. 도메인 전문가 3종은 <b><code>scale_rewards=gdpo</code></b> 로, <b><code>sft_mixed_merged</code> 에서 새로</b> 시작했다(<a href="../HANDOFF.md"><code>../HANDOFF.md</code></a> §0·§1, <a href="experiments_all_stages.html"><code>experiments_all_stages.html</code></a> 2-C). §6 의 <code>beta=0.04</code>·<code>num_generations=4</code> 유지도 바뀌었다(beta 0, num_gen 8/16).</p></div>
-<div class="note"><p>작성 2026-08-13 · 근거 = <a href="#2026년-중국한국-모델-학습-단계-조사-2026-05--08-중심">2026년 모델 서베이</a> + <a href="stage2_mixed_run.html">붕괴 사후분석 rev.2</a> 대상 = job 73924/73925 붕괴 이후의 Stage-2 재실행 설정</p>
+<div class="warn"><p>⚠️ <b>낡은 내용</b>: 항목 <b>D</b>(<code>scale_rewards</code> gdpo → none)와 <b>§5</b>(checkpoint-850 에서 재개)는 실행되지 않았다. 도메인 전문가 3종은 <b><code>scale_rewards=gdpo</code></b> 로, <b><code>sft_mixed_merged</code> 에서 새로</b> 시작했다(<a href="../HANDOFF.md"><code>../HANDOFF.md</code></a> §0·§1, <a href="00_overview.html"><code>00_overview.html</code></a> 2-C). §6 의 <code>beta=0.04</code>·<code>num_generations=4</code> 유지도 바뀌었다(beta 0, num_gen 8/16).</p></div>
+<div class="note"><p>작성 2026-08-13 · 근거 = <a href="#2026년-중국한국-모델-학습-단계-조사-2026-05--08-중심">2026년 모델 서베이</a> + <a href="22_stage2b_mixed_run.html">붕괴 사후분석 rev.2</a> 대상 = job 73924/73925 붕괴 이후의 Stage-2 재실행 설정</p>
 <p><b>설계 원칙</b>: 서베이에서 가져온 것과 우리 로그에서 잰 것을 섞지 않는다. 각 항목에 <b>근거 출처</b>와 <b>실측 효과</b>를 따로 적는다. 실측이 없는 항목은 그렇다고 적는다.</p></div>
 <h3 id="0-재현-실험이-바꾼-전제">0. 재현 실험이 바꾼 전제</h3>
 <p>먼저 짚어야 할 것 — <b>개시 원인을 찾는 일은 끝났다.</b></p>
@@ -356,13 +356,13 @@ soft_overlong   0.2   min( −(len − 4096) / 2048 , 0 )      ← rewards/orm.p
 <p><b>문제는 퇴화 구간에서 일어나는 통제권 이양이다.</b> 정확도가 그룹 내에서 균일해지면 (4생성 전부 같은 점수) 정확도의 advantage 기여가 <b>정확히 0</b> 이 되고, 부수적이어야 할 형식·길이가 <b>목적함수 전체</b>가 된다. 개시 시점에 그런 그룹이 <b>13.8% → 54.2%</b> 로 4배가 되고, <b>그때 정책을 이끄는 건 길이다.</b></p>
 <div class="warn"><p>🚨 <b>0.2 라는 가중치는 4.3% 점유일 때 안전하도록 고른 값이지, 목적함수 전체를 맡으라고 고른 값이 아니다.</b></p></div>
 <h4 id="-발견-⑦--그룹은-끝까지-건강했다는-판정을-정정해야-한다">🚨 발견 ⑦ — "그룹은 끝까지 건강했다"는 판정을 정정해야 한다</h4>
-<p><a href="stage2_mixed_run.html">사후분석</a>과 <a href="../README.md">README</a>는 <code>num_generations=4</code> 부족 가설을 <b><code>frac_reward_zero_std</code> 평균 0.0106</b> 을 근거로 기각했다. 그런데 그 지표는 <b>총보상</b>의 그룹 내 SD 가 0 인 비율이다. 형식·길이가 동점을 깨주므로 <b>정확도 신호가 죽어도 총보상은 여전히 varied 로 보인다.</b></p>
+<p><a href="22_stage2b_mixed_run.html">사후분석</a>과 <a href="../README.md">README</a>는 <code>num_generations=4</code> 부족 가설을 <b><code>frac_reward_zero_std</code> 평균 0.0106</b> 을 근거로 기각했다. 그런데 그 지표는 <b>총보상</b>의 그룹 내 SD 가 0 인 비율이다. 형식·길이가 동점을 깨주므로 <b>정확도 신호가 죽어도 총보상은 여전히 varied 로 보인다.</b></p>
 <table><thead><tr><th>지표</th><th>붕괴전</th><th>개시</th></tr></thead><tbody><tr><td><code>frac_reward_zero_std</code> (총보상 기준)</td><td class="n">0.0106</td><td class="n">~0</td></tr><tr><td><b>정확도만의 그룹 균일 비율</b></td><td class="n"><b>13.8%</b></td><td class="n"><b>54.2%</b></td></tr></tbody></table>
 <p><b>둘은 다른 것을 재고 있었다.</b> 총보상은 끝까지 varied 였지만 <b>정확도는 그렇지 않았다.</b> <code>num_generations=4</code> 기각의 근거를 정정한다 — <b>기각은 유지하되</b>(붕괴전 13.8% 는 정상 범위), <b>근거는 <code>frac_reward_zero_std</code> 가 아니라 정확도 균일도여야 한다.</b></p>
 <h4 id="발견-⑧--정확도-균일도는-붕괴보다-50-step-앞선다후보">발견 ⑧ — 정확도 균일도는 붕괴보다 <b>50 step 앞선다</b>(후보)</h4>
 <table><thead><tr><th>구간</th><th>정확도 균일%</th><th>FormatThink</th><th>정확도 그룹SD</th></tr></thead><tbody><tr><td>751-800</td><td class="n">10.0%</td><td class="n">0.969</td><td class="n">0.406</td></tr><tr><td>801-850</td><td class="n">9.8%</td><td class="n">0.945</td><td class="n">0.408</td></tr><tr><td><b>851-880</b></td><td class="n"><b>22.5%</b></td><td class="n">0.892</td><td class="n">0.352</td></tr><tr><td>891-898</td><td class="n">23.4%</td><td class="n">0.813</td><td class="n">0.349</td></tr><tr><td>899-904</td><td class="n"><b>62.5%</b></td><td class="n">0.198</td><td class="n">0.172</td></tr></tbody></table>
 <p><b>형식이 아직 0.89 일 때 균일도는 이미 2배가 됐다.</b> KL·grad_norm 이 오르는 구간(850~899)과 일치한다.</p>
-<div class="warn"><p>⚠️ <b>아직 검증된 규칙이 아니다.</b> <a href="stage2_mixed_run.html">§1-5-1</a> 에서 KL 이 오프라인으로는 선행하는데 온라인 규칙으로는 1 step 밖에 못 벌었던 전례가 있다. <b>감시자에 넣기 전에 같은 오경보 스윕을 통과해야 한다.</b> 다만 기저(751-850 에서 10%)가 안정적이라 KL 보다 조건이 낫다.</p></div>
+<div class="warn"><p>⚠️ <b>아직 검증된 규칙이 아니다.</b> <a href="22_stage2b_mixed_run.html">§1-5-1</a> 에서 KL 이 오프라인으로는 선행하는데 온라인 규칙으로는 1 step 밖에 못 벌었던 전례가 있다. <b>감시자에 넣기 전에 같은 오경보 스윕을 통과해야 한다.</b> 다만 기저(751-850 에서 10%)가 안정적이라 KL 보다 조건이 낫다.</p></div>
 <h4 id="발견-⑨--균일도가-소스마다-크게-다르다--전문가별-num_generations">발견 ⑨ — 균일도가 소스마다 크게 다르다 → 전문가별 <code>num_generations</code></h4>
 <p>붕괴 전 구간(751-898) 기준:</p>
 <table><thead><tr><th>소스</th><th>그룹수</th><th>정확도 균일</th><th>전원 오답</th><th>평균 정답률</th></tr></thead><tbody><tr><td>deepvision</td><td class="n">801</td><td class="n">13.5%</td><td class="n">12.0%</td><td class="n">0.418</td></tr><tr><td><b>mmk12</b></td><td class="n">192</td><td class="n"><b>25.0%</b></td><td class="n">15.6%</td><td class="n">0.508</td></tr><tr><td><b>pmcvqa</b></td><td class="n">191</td><td class="n"><b>3.7%</b></td><td class="n">1.6%</td><td class="n">0.488</td></tr></tbody></table>
@@ -396,13 +396,13 @@ soft_overlong   0.2   min( −(len − 4096) / 2048 , 0 )      ← rewards/orm.p
 <p><b>자체 문서</b></p>
 <ul>
 <li><a href="#2026년-중국한국-모델-학습-단계-조사-2026-05--08-중심">2026년 모델 서베이</a> — 이 설계의 외부 근거</li>
-<li><a href="stage2_mixed_run.html">붕괴 사후분석 rev.2</a> — C·D 항목의 실측 근거</li>
+<li><a href="22_stage2b_mixed_run.html">붕괴 사후분석 rev.2</a> — C·D 항목의 실측 근거</li>
 <li><code>scripts/probe_answer_fallback.py</code> — A·B 항목의 실측 도구</li></ul>
 
 <!-- ===== deepseek_v4_pipeline_adoption.md ===== -->
 <h2 data-part="4" id="deepseek-v4-파이프라인-도입안--도메인별-전문가--통합">4부 · DeepSeek-V4 파이프라인 도입안 — 도메인별 전문가 + 통합</h2>
 <div class="meta">원본: <code>docs/deepseek_v4_pipeline_adoption.md</code> (2026-10-22 HTML 로 통합)</div>
-<div class="warn"><p>⚠️ <b>낡은 내용</b>: §2 의 "Stage-3 = E3-b(E3-a 위 2차 학습)" 와 §6·§9 의 전문가당 step 수(1,000 / 600)는 바뀌었다. Stage-3 는 <b>전문가 3종 통합 모델</b>에서 시작하고, 실제 채택 체크포인트는 deepvision 2192 · mmk12 350 · pmcvqa 4896 이다 → <a href="experiments_all_stages.html"><code>experiments_all_stages.html</code></a> · <a href="stage2_experts.html"><code>stage2_experts.html</code></a>. §8 계단식 통합 설계는 유효하다.</p></div>
+<div class="warn"><p>⚠️ <b>낡은 내용</b>: §2 의 "Stage-3 = E3-b(E3-a 위 2차 학습)" 와 §6·§9 의 전문가당 step 수(1,000 / 600)는 바뀌었다. Stage-3 는 <b>전문가 3종 통합 모델</b>에서 시작하고, 실제 채택 체크포인트는 deepvision 2192 · mmk12 350 · pmcvqa 4896 이다 → <a href="00_overview.html"><code>00_overview.html</code></a> · <a href="23_stage2ce_experts.html"><code>23_stage2ce_experts.html</code></a>. §8 계단식 통합 설계는 유효하다.</p></div>
 <div class="note"><p>작성 2026-08-13 · <b>rev.2</b> — 도메인 분리 학습으로 전면 개정 근거 = <a href="https://arxiv.org/html/2606.19348v1">DeepSeek-V4 (arXiv 2606.19348)</a> · <a href="https://arxiv.org/abs/2607.24653">Kimi K3 (arXiv 2607.24653)</a> · <a href="#2026년-중국한국-모델-학습-단계-조사-2026-05--08-중심">2026년 모델 서베이</a> · ms-swift 4.13 설치본 소스 직접 확인</p>
 <p>🚨 <b>rev.1 정정</b>: 초판은 "전문가 A = 기존 혼합 실행(ck-850)"으로 잡았다. <b>그건 DeepSeek-V4 구조가 아니다.</b> 혼합 학습된 모델은 도메인 전문가가 아니라 그냥 혼합 모델이다. 이 개정판은 <b>Stage-2 자체를 도메인별로 쪼갠다.</b> 대가도 함께 적는다 — ck-850 을 공짜 전문가로 쓰던 이점이 사라진다.</p></div>
 <h3 id="0-리포트에서-확인된-것과-안-된-것">0. 리포트에서 확인된 것과 안 된 것</h3>
@@ -421,7 +421,7 @@ soft_overlong   0.2   min( −(len − 4096) / 2048 , 0 )      ← rewards/orm.p
 <p><b>수학은 의료와 완전히 같은 0.09 epoch 노출로 +9.25pp 를 얻었다.</b> 따라서 "노출 부족"은 의료 실패의 <b>충분한 설명이 아니다.</b> 경쟁 가설:</p>
 <ul>
 <li><b>여유 폭 차이</b> — 의료는 init 57.25% 로 셋 중 가장 높다. 남은 오답이 더 어렵다.</li>
-<li><b>지식 결손 대 추론 결손</b> — RLVR 은 <b>있는 능력을 끌어내지 없는 지식을 넣지 못한다.</b> 의료 오답이 지식 부족이면 의료 RL 을 아무리 해도 안 오른다. (<a href="stage3_eval.html">Stage-3 문서 §base 프로파일</a>: 맥락인지 0.10·완결성 0.24 — 이게 RaR 이 겨냥하는 결함)</li></ul>
+<li><b>지식 결손 대 추론 결손</b> — RLVR 은 <b>있는 능력을 끌어내지 없는 지식을 넣지 못한다.</b> 의료 오답이 지식 부족이면 의료 RL 을 아무리 해도 안 오른다. (<a href="30_stage3_medical_rl.html">Stage-3 문서 §base 프로파일</a>: 맥락인지 0.10·완결성 0.24 — 이게 RaR 이 겨냥하는 결함)</li></ul>
 <div class="note"><p><b>결론: 도메인 분리는 옳다. 다만 "이걸 하면 의료가 오른다"고 약속할 수 없다.</b> 3.8배 노출은 <b>가설을 제대로 검정할 기회</b>를 주는 것이지 결과를 보장하지 않는다. 지금은 노출이 너무 적어 <b>의료 RL 이 안 듣는 건지 덜 한 건지 구분조차 안 된다.</b></p></div>
 <h4 id="kimi-k3-의-경고--너무-잘게-쪼개지-말-것">Kimi K3 의 경고 — 너무 잘게 쪼개지 말 것</h4>
 <div class="note"><p>"Rather than training specialized RL models for individual tasks, we scale RL across <b>three broad domains</b>." — <a href="https://arxiv.org/abs/2607.24653">Kimi K3</a></p></div>
@@ -527,7 +527,7 @@ with torch.no_grad(), disable_gradient_checkpointing(...):
 <h4 id="그대로-두는-것">그대로 두는 것</h4>
 <table><thead><tr><th>항목</th><th>판단</th></tr></thead><tbody><tr><td><code>lora_alpha=32</code> (= 2r)</td><td>표준. 유지</td></tr><tr><td><code>target_modules=all-linear</code></td><td>실제 해석이 <code>model.language_model.*</code> 로 정확히 의도대로다. 유지</td></tr><tr><td><code>freeze_vit=True</code></td><td><a href="https://arxiv.org/abs/2607.24653">Kimi K3</a> 가 비전 타워 최적화 불안정(gradient norm 스파이크)을 보고했다. RL 에서 여는 건 별도 실험</td></tr><tr><td><code>lora_dtype=None</code></td><td>bf16 을 따라간다. 유지</td></tr></tbody></table>
 <h3 id="7-2-베이스-모델--sft_mixed_merged-인가-raw-base-인가">7-2. 베이스 모델 — <code>sft_mixed_merged</code> 인가 raw base 인가</h3>
-<p><b>이미 실험한 기록이 있다.</b> <a href="stage1_coldstart.html"><code>stage1_coldstart.html</code> §콜드스타트 Ablation</a> (2026-07-09) — 절제변수 = 콜드스타트 init 유무, 나머지(데이터·dr_grpo·LoRA·보상·하이퍼) 전부 통제.</p>
+<p><b>이미 실험한 기록이 있다.</b> <a href="10_stage1_coldstart.html"><code>10_stage1_coldstart.html</code> §콜드스타트 Ablation</a> (2026-07-09) — 절제변수 = 콜드스타트 init 유무, 나머지(데이터·dr_grpo·LoRA·보상·하이퍼) 전부 통제.</p>
 <table><thead><tr><th>DeepVision 홀드아웃</th><th>RL 無</th><th>RL 有</th><th>RL 효과</th></tr></thead><tbody><tr><td><b>콜드스타트 無</b> (raw base)</td><td>0.15</td><td>base→RL 200step <b>0.18</b></td><td><b>+0.03</b></td></tr><tr><td><b>콜드스타트 有</b></td><td>0.22</td><td>+RL 600step <b>0.38</b></td><td><b>+0.16</b></td></tr></tbody></table>
 <p>관찰된 실패 양상:</p>
 <ul>
@@ -559,7 +559,7 @@ with torch.no_grad(), disable_gradient_checkpointing(...):
 <table><thead><tr><th>리포트</th><th>검증가능·루브릭을 어떻게 배치하나</th></tr></thead><tbody><tr><td><a href="https://arxiv.org/abs/2607.24653"><b>Kimi K3</b></a></td><td><b>한 RL 안에서 섞는다.</b> 도메인별 RL 하나에 검증가능 답 + Agentic GRM 루브릭 판정이 공존</td></tr><tr><td><a href="https://arxiv.org/abs/2608.04505"><b>K-EXAONE 2.0</b></a></td><td><b>한 단계 안에서 섞는다.</b> 선호학습 ①에 "수학·코딩 검증가능 보상 <b>and</b> 지식 태스크 LLM-judge"</td></tr><tr><td><a href="https://arxiv.org/html/2601.03286v1"><b>HyperCLOVA X 32B Think</b></a></td><td><b>검증가능끼리는 순차</b>(도메인통합 → 길이제어 → 멀티턴 → 지시따르기), 마지막에 PPO 정렬</td></tr><tr><td><a href="https://arxiv.org/abs/2506.22403"><b>HyperCLOVA X THINK</b></a></td><td>🔴 순차에서 <b>합동으로 옮겼다</b> — "RLVR 과 RLHF 를 <b>동시에</b> 학습하는 합동 전략이 <b>양쪽의 성능 이득을 모두 보존</b>하면서 단계를 통합한다"</td></tr></tbody></table>
 <div class="note"><p>🔴 <b>갈리는 지점이 명확하다.</b> <b>같은 보상 계열 안에서의 순차는 흔하다</b>(HyperCLOVA X 의 RLVR 4단). 그러나 <b>검증가능 ↔ 선호/루브릭 경계를 순차로 넘는 것</b>은 다르다 — 그 경계에서 Naver 는 <b>합동으로 옮겼고, 이유를 "양쪽 이득 보존"이라고 적었다.</b> 순차가 이득을 <b>보존하지 못했다</b>는 뜻이다.</p></div>
 <h4 id="우리-경우의-구체적-위험--두-보상이-반대-방향을-당긴다">우리 경우의 구체적 위험 — 두 보상이 반대 방향을 당긴다</h4>
-<table><thead><tr><th></th><th>E3-a <code>pmcvqa</code> RLVR</th><th>E3-b <code>medix</code> RaR</th></tr></thead><tbody><tr><td>정답 형태</td><td>객관식 letter 1자</td><td>단답 서술(중앙값 46자)</td></tr><tr><td>보상이 미는 방향</td><td><b>간결·단정</b></td><td><b>완결성·시각근거</b>(<a href="stage3_eval.html">루브릭 c1~c4</a>)</td></tr><tr><td>채점</td><td>정확 일치</td><td>judge 항목별 0/1 가중합</td></tr></tbody></table>
+<table><thead><tr><th></th><th>E3-a <code>pmcvqa</code> RLVR</th><th>E3-b <code>medix</code> RaR</th></tr></thead><tbody><tr><td>정답 형태</td><td>객관식 letter 1자</td><td>단답 서술(중앙값 46자)</td></tr><tr><td>보상이 미는 방향</td><td><b>간결·단정</b></td><td><b>완결성·시각근거</b>(<a href="30_stage3_medical_rl.html">루브릭 c1~c4</a>)</td></tr><tr><td>채점</td><td>정확 일치</td><td>judge 항목별 0/1 가중합</td></tr></tbody></table>
 <p><b>루브릭은 더 길고 근거를 다는 출력을 보상한다. MCQ 는 letter 하나를 보상한다.</b> E3-b 가 E3-a 의 간결함을 체계적으로 되돌릴 수 있고, <b>길이 폭주는 우리가 이미 한 번 당한 실패다.</b></p>
 <h4 id="-더-근본적인-문제--e3-a-는-아직-가설이다">🔴 더 근본적인 문제 — E3-a 는 아직 <b>가설</b>이다</h4>
 <p>의료는 혼합 학습 여섯 지점 전부 미검출이었다(+0.75pp, p&gt;0.5). E3-a 는 "노출을 4.5배로 올리면 달라지는가"를 <b>검정하는 실험</b>이지 검증된 토대가 아니다. <b>토대가 아닌 것 위에 다음 단계를 쌓는 계획을 지금 확정할 이유가 없다.</b></p>
@@ -589,7 +589,7 @@ with torch.no_grad(), disable_gradient_checkpointing(...):
 <h3 id="9-실행-순서와-결정-사항">9. 실행 순서와 결정 사항</h3>
 <pre><code>[1] 전문가 학습 설정 확정 — 도메인별 데이터 분할 + stable recipe 적용
       · stage2_expanded_train.jsonl 을 소스별 3개로 분할 (이미지 경로 기준, 스크립트 필요)
-      · docs/stage2_design.html 의 A~G 를 그대로 적용
+      · docs/21_stage2a_design.html 의 A~G 를 그대로 적용
 [2] 스모크 1잡 (MAX_STEPS=5 ×3 arm) — 인자·분할·지표 확인
 [3] E1·E2·E3-a 동시 제출 (가능하면 3노드 병렬)
 [4] E3-b: medix RaR 을 E3-a 위에 (judge 서버 필요)
@@ -603,8 +603,8 @@ with torch.no_grad(), disable_gradient_checkpointing(...):
 <li><a href="https://maximelabonne.substack.com/p/deepseek-v4-ten-teachers-one-student">DeepSeek V4: ten teachers, one student</a> — 2차 정리 (C등급)</li>
 <li><a href="#2026년-중국한국-모델-학습-단계-조사-2026-05--08-중심">2026년 모델 서베이</a> §2-⑤ — 이 구조가 관행이 된 경위</li>
 <li><a href="#stage-2-재실행-실험-설계">Stage-2 재실행 실험 설계</a> — 전문가 학습에 적용할 설정 A~G</li>
-<li><a href="stage3_eval.html">Stage-3 · 의료 RL</a> — E3-b 의 루브릭·judge 설계</li>
-<li><a href="stage2_mixed_run.html">붕괴 사후분석 rev.2</a> — ck-850 기준선의 근거</li>
+<li><a href="30_stage3_medical_rl.html">Stage-3 · 의료 RL</a> — E3-b 의 루브릭·judge 설계</li>
+<li><a href="22_stage2b_mixed_run.html">붕괴 사후분석 rev.2</a> — ck-850 기준선의 근거</li>
 <li>ms-swift 설치본: <code>work/images/ms-swift-413-sandbox/.../swift/rlhf_trainers/gkd_trainer.py</code></li></ul>
 <!-- ===== stage2_methods_data (2026-10-23 통합) ===== -->
 <h2 data-part="5" id="stage-2-데이터-rlvr-풀확장--정리">5부 · Stage-2 데이터 (RLVR 풀확장) — 구축과 빌드 런북</h2>
@@ -683,7 +683,7 @@ for ds in skylenage-ai/DeepVision-103K MBZUAI/medix-rl-data FanqingM/MMK12 xmcmi
     &quot;$SB&quot; python scripts/download_dataset.py &quot;$ds&quot;
 done</code></pre>
 <p>⚠️ 무인증이면 rate-limit 로 큰 parquet 이 멈출 수 있음 → <code>HF_TOKEN</code> 필수. (겪은 이슈: MMK12 train-00000 정체 → 토큰으로 해결.)</p>
-<p><b>2) 변환 → swift jsonl (CPU 잡, 컨테이너 불필요)</b> — DeepVision·medix 는 컨테이너 변환 워크플로가 <a href="ops_infra.html"><code>ops_infra.html</code></a> 에 있다. 신규 2종은 CPU 잡으로:</p>
+<p><b>2) 변환 → swift jsonl (CPU 잡, 컨테이너 불필요)</b> — DeepVision·medix 는 컨테이너 변환 워크플로가 <a href="90_ops_infra.html"><code>90_ops_infra.html</code></a> 에 있다. 신규 2종은 CPU 잡으로:</p>
 <pre><code>sbatch scripts/13_build_stage2_expanded.slurm     # conda swift env(pyarrow+PIL) 로 MMK12 변환
 #   ⚠️ 계정 이식 시 BUILD_PY 지정 필요: export BUILD_PY=&lt;pyarrow+PIL 있는 python&gt;
 # 산출: work/data/mmk12_train.jsonl + work/data/images/mmk12</code></pre>
@@ -705,7 +705,7 @@ sbatch scripts/50_eval_v3.slurm                   # 병합(sft_mixed_merged) + �
 <pre><code>SMOKE=1 bash scripts/launch_stage2_expanded.sh    # 배선 확인(max_steps 5)
 bash scripts/launch_stage2_expanded_epoch.sh      # 2,337 step(=0.25 epoch) 체인 4잡 ≈209h
 #   단발(≤70h): MAX_STEPS=600 bash scripts/launch_stage2_expanded.sh · RECIPE=dr_grpo 선택 가능 · 체인 중단 시 4개 job 전부 scancel</code></pre>
-<ul><li>런처는 <code>21_rlvr_grpo_adv.slurm</code> 를 제출(20 아님) — <code>dynamic_sample</code>+<code>overlong_filter</code>+<code>beta 0.04</code> 는 21 에만 있었다. 산출 <code>work/checkpoints/grpo_expanded_gdpo</code>. 이 경로는 step ~900 에서 붕괴했다 → <a href="stage2_mixed_run.html">사후분석</a>.</li></ul>
+<ul><li>런처는 <code>21_rlvr_grpo_adv.slurm</code> 를 제출(20 아님) — <code>dynamic_sample</code>+<code>overlong_filter</code>+<code>beta 0.04</code> 는 21 에만 있었다. 산출 <code>work/checkpoints/grpo_expanded_gdpo</code>. 이 경로는 step ~900 에서 붕괴했다 → <a href="22_stage2b_mixed_run.html">사후분석</a>.</li></ul>
 <p><b>6) 평가 (확장 홀드아웃)</b> — 병합 후 vLLM serve → <code>stage2_expanded_holdout.jsonl</code> 채점(<code>EVAL_DATA=work/data/stage2_expanded_holdout.jsonl</code>, <code>50_eval_v3.slurm</code>·<code>eval_midtrain.slurm</code> 패턴). <code>_source</code>·<code>_stratum</code> 별 분리 리포트.</p>
 <h3 id="6-학습-연결-stage-2-gdpo">6. 학습 연결 (Stage-2 GDPO)</h3>
 <ul><li><b>init</b> = v3 <code>sft_mixed_merged</code>, <b>레시피</b> = GDPO (<code>--loss_type dr_grpo --scale_rewards gdpo</code>)</li><li>⚠️ 반드시 <b><code>21_rlvr_grpo_adv.slurm</code></b> 경유 — plateau 돌파 핵심(<code>dynamic_sample</code>+<code>overlong_filter</code>+<code>beta 0.04</code>)이 거기만 있음. <code>launch_stage2_expanded.sh</code>가 자동 라우팅.</li><li>보상: <code>accuracy_mix 1.0 + format_think 0.2 + soft_overlong 0.2</code></li><li>평가: 확장 홀드아웃을 <b>소스별(<code>_source</code>) 분리 리포트</b> → 의료(PMC-VQA)에서 v3 대비 상승 + DeepVision 유지 확인.</li></ul>
@@ -718,7 +718,7 @@ bash scripts/launch_stage2_expanded_epoch.sh      # 2,337 step(=0.25 epoch) 체�
 <div class="note"><p style="margin:4px 0"><b>요약 (Stage-2 방법론 실험 완료)</b>: baseline GRPO 에서 <b>Acc plateau</b> 진단 → GRPO 파생기법 5종 <b>clean A/B</b> → <b>dr_grpo 승자</b>(plateau 돌파, 홀드아웃 +73%). 최신기법 <b>GSPO·GDPO</b>도 검증: <b>GDPO 홀드아웃 동률</b>(0.390 vs 0.380, Stage-3용 채택 권고), <b>GSPO는 on-policy 동률이나 홀드아웃 열위</b>(0.290=일반화 실패, 미채택). step600 홀드아웃 <b>~0.38–0.39 포화</b>. <b>Stage-2 방법론 확정</b>.</p></div>
 <h4 id="0-풀확장-재설계-2026-07-2224-데이터--07-28-본실행-착수">0) 풀확장 재설계 (2026-07-22~24 데이터 · 07-28 본실행 착수)</h4>
 <p><b>동기</b>: v3 콜드스타트 A/B 에서 <b>math 가 v2 와 동률(0.3245)</b> — vl 은 올렸으나 수치계산은 못 올림. 게다가 프로젝트 목표는 <b>의료</b>인데 Stage-2 가 일반 전용이었음. → <b>DeepVision 단일 → math(MMK12) + 의료(PMC-VQA) 추가</b>. (예산: 2026-07-27 <b>k252a02 로 이관 완료</b> — 신규 5,000 노드시간에서 2,337 step ≈1,674~1,719(33~34%) 집행, 나머지는 Stage-3 유보.)</p>
-<ul><li><b>데이터</b>: DeepVision 40,000 + MMK12 15,204 + PMC-VQA 19,583 = <b>74,787</b>(일반53/math20/의료26), 홀드아웃 1,772(이미지 바이트해시 dedup, 누수 0). 스크리닝·혼합비·빌드 → <a href="#stage-2-데이터-rlvr-풀확장--정리"><code>stage2_design.html</code></a> (빌드 런북 §5-1).</li><li><b>실행</b>: init = v3 <code>sft_mixed_merged</code> · 레시피 GDPO(<code>21_rlvr_grpo_adv</code> 경유) · 체인 job 73924~73927(73312~73315 는 구 체인) · <code>MAX_STEPS=2,337</code>(= <b>0.25 epoch</b>, 1 epoch = 9,348 step). 경과·홀드아웃·붕괴(step ~900) → <a href="stage2_mixed_run.html"><code>stage2_mixed_run.html</code></a> · <a href="stage2_mixed_run.html">사후분석</a>. 하이퍼파라미터 외부 대조 → <a href="stage2_design.html"><code>stage2_design.html</code></a>.</li><li><b>학습량 결정(이 문서에만 있던 근거)</b>: 구 데이터셋에선 step600 포화였으나 <b>확장셋은 MMK12·PMC-VQA 가 새로 들어가 포화점이 다를 수 있어</b> 학습량을 늘렸다. <code>MAX_STEPS</code> 를 처음부터 목표치로 지정해야 LR 이 매끄럽게 감쇠(600→2337 로 늘리면 불연속).</li><li>이후 이 혼합 경로는 폐기되고 도메인 전문가 3종 + 통합으로 바뀌었다 → <a href="experiments_all_stages.html"><code>experiments_all_stages.html</code></a> 2-B·2-C.</li></ul>
+<ul><li><b>데이터</b>: DeepVision 40,000 + MMK12 15,204 + PMC-VQA 19,583 = <b>74,787</b>(일반53/math20/의료26), 홀드아웃 1,772(이미지 바이트해시 dedup, 누수 0). 스크리닝·혼합비·빌드 → <a href="#stage-2-데이터-rlvr-풀확장--정리"><code>21_stage2a_design.html</code></a> (빌드 런북 §5-1).</li><li><b>실행</b>: init = v3 <code>sft_mixed_merged</code> · 레시피 GDPO(<code>21_rlvr_grpo_adv</code> 경유) · 체인 job 73924~73927(73312~73315 는 구 체인) · <code>MAX_STEPS=2,337</code>(= <b>0.25 epoch</b>, 1 epoch = 9,348 step). 경과·홀드아웃·붕괴(step ~900) → <a href="22_stage2b_mixed_run.html"><code>22_stage2b_mixed_run.html</code></a> · <a href="22_stage2b_mixed_run.html">사후분석</a>. 하이퍼파라미터 외부 대조 → <a href="21_stage2a_design.html"><code>21_stage2a_design.html</code></a>.</li><li><b>학습량 결정(이 문서에만 있던 근거)</b>: 구 데이터셋에선 step600 포화였으나 <b>확장셋은 MMK12·PMC-VQA 가 새로 들어가 포화점이 다를 수 있어</b> 학습량을 늘렸다. <code>MAX_STEPS</code> 를 처음부터 목표치로 지정해야 LR 이 매끄럽게 감쇠(600→2337 로 늘리면 불연속).</li><li>이후 이 혼합 경로는 폐기되고 도메인 전문가 3종 + 통합으로 바뀌었다 → <a href="00_overview.html"><code>00_overview.html</code></a> 2-B·2-C.</li></ul>
 <h4 id="1-baseline--acc-plateau-진단-job-57249-step-1000-완주">1) baseline → Acc plateau 진단 (job 57249, step 1000 완주)</h4>
 <p>RFT 콜드스타트 init + LoRA-DDP + max_completion 6144. 100-step 구간평균:</p>
 <table>

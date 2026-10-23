@@ -35,7 +35,7 @@ li{margin:3px 0}
 <main>
 <h1>Stage-2 · 도메인 전문가와 통합 (2-C~2-E) — 전문가 학습, 형식 붕괴 원인, 모델 통합</h1>
 <div class="meta">기준 2026-10-22 14:30 · 대상 기간 2026-10-15 ~ 10-22(pmcvqa 는 8월 완료분 참고) · 작성 방식 ASD-STE100(한 문장에 한 사실, 능동문, 주의 사항을 먼저, 번호 절차)<br>
-이 문서는 10월 실험 정리(X1~X6)와 전문가 통합(merging) 실험 정리를 합친 것이다. 전 단계 요약은 <a href="experiments_all_stages.html">experiments_all_stages.html</a> 에 있다.</div>
+이 문서는 10월 실험 정리(X1~X6)와 전문가 통합(merging) 실험 정리를 합친 것이다. 전 단계 요약은 <a href="00_overview.html">00_overview.html</a> 에 있다.</div>
 <nav><b>목차</b> ·
 <a href="#summary">요약</a> · <a href="#partA">A. 전문가 학습과 확정</a> · <a href="#partB">B. 형식 붕괴 원인 추적</a> · <a href="#partC">C. 전문가 통합</a> · <a href="#impl">구현·실행 환경</a> · <a href="#next">진행 중과 다음 단계</a>
 </nav>
@@ -288,7 +288,7 @@ li{margin:3px 0}
 <p>추가 학습 없이 전문가 3종을 합쳐 통합 모델 1개를 만들었다. 단순 가중 합산(task arithmetic w=0.7)이 가장 좋았다.</p>
 
 <h3 id="merge-design">C.1 질문과 판정 기준</h3>
-<p>질문: 추가 학습 없이 세 전문가를 한 모델로 합칠 수 있는가? 판정 기준은 실행 전에 정했다(<a href="stage2_design.html"><code>docs/stage2_design.html</code></a> §8).</p>
+<p>질문: 추가 학습 없이 세 전문가를 한 모델로 합칠 수 있는가? 판정 기준은 실행 전에 정했다(<a href="21_stage2a_design.html"><code>docs/21_stage2a_design.html</code></a> §8).</p>
 <ol>
 <li>각 도메인에서 전문가 성능의 90% 이상을 지킨다.</li>
 <li>글로벌 벤치에서 SFT 보다 높다.</li>
@@ -475,7 +475,7 @@ li{margin:3px 0}
 
 <!-- ============================================================ -->
 <h2 id="next">진행 중과 다음 단계</h2>
-<p>본평가는 KISTI 에서 끝났다(<a href="#fulleval">C.6</a>). 결과보고서 초안(<a href="kbds_2026-1_result_summary_draft.html"><code>docs/kbds_2026-1_result_summary_draft.html</code></a>)에는 ta_w07 수치를 넣었다.</p>
+<p>본평가는 KISTI 에서 끝났다(<a href="#fulleval">C.6</a>). 결과보고서 초안(<a href="99_report_draft.html"><code>docs/99_report_draft.html</code></a>)에는 ta_w07 수치를 넣었다.</p>
 <ol>
 <li>최종 모델은 ta_w07 로 확정했다(<a href="#fulleval">C.6</a>). breadcrumbs_d09 holdout 은 job 83070 에서 끝났다. 앞의 두 번(83041·83058)은 vLLM 기동이 600초 대기 한도를 넘어 결과 없이 끝났다. 한도를 늘렸다(<code>EVAL_READY_TRIES</code>).</li>
 <li>모델, 코드, 데이터를 K-BDS 마켓플레이스에 기탁한다. 기탁 패키지는 LoRA 4개와 <code>merge.sh</code> 로 통합 모델을 재구성한다(가중치 18G 는 넣지 않는다).</li>

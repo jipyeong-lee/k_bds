@@ -60,7 +60,7 @@ EXTRA_ARGS="${EXTRA_ARGS:-}"
 
 # ---- 도메인 전문가 프리셋 (DOMAIN=deepvision|mmk12|pmcvqa) ------------------
 #  DeepSeek-V4 구조: 도메인별 전문가를 따로 키우고 나중에 통합한다.
-#  → docs/stage2_design.html
+#  → docs/21_stage2a_design.html
 #  데이터는 scripts/split_stage2_by_source.py 산출물.
 #
 #  ⚠️ **도메인별로 다른 값을 주는 게 이 구조의 핵심 이득이다.** 혼합 학습에서는 불가능했다.
@@ -119,13 +119,13 @@ LR="${LR:-1e-5}"
 
 # ---- 롤아웃 temperature (검증된 A/B 기본값 = ms-swift 기본 0.9) -------------
 #   외부 관행 다수설은 ~1.0(ORZ "T=1 best"). 기본은 재현성 위해 0.9 유지하고
-#   TEMPERATURE=1.0 로 A/B. 상세 = docs/stage2_design.html §1,§3.
+#   TEMPERATURE=1.0 로 A/B. 상세 = docs/21_stage2a_design.html §1,§3.
 TEMPERATURE="${TEMPERATURE:-0.9}"
 # ── 외부 관행 대조 A/B knob (전부 기본=검증값, override 시에만 변경) ──────────
 #   그룹크기:  NUM_GEN=8      (관행 8~16, 기본 4는 메모리 절충)
 #   KL 페널티: BETA=0.01      (관행은 0~0.01, 기본 0.04는 보수적)
 #   temp:      TEMPERATURE=1.0
-#   → 근거·판정표: docs/stage2_design.html
+#   → 근거·판정표: docs/21_stage2a_design.html
 
 # ---- RECIPE 별 GRPO 파생기법 인자 조립 -------------------------------------
 RECIPE="${RECIPE:-dapo}"
@@ -172,7 +172,7 @@ case "$RECIPE" in
     #      ⚠️ 보정(rollout_importance_sampling_mode)은 켜지 않는다 — 먼저 재고, 임계를
     #         넘는 게 확인되면 그때 token_mask 로 켠다. 같이 켜면 무엇 덕분인지 모른다.
     #   loss_type 은 dr_grpo 유지(길이정규화 편향 제거). sapo 는 grpo 계열 시퀀스 정규화를
-    #   쓰므로 그 편향이 되돌아와 보류했다 → docs/stage2_design.html §3-I
+    #   쓰므로 그 편향이 되돌아와 보류했다 → docs/21_stage2a_design.html §3-I
     CORE_ARGS="--dynamic_sample true --max_resample_times $DS_RESAMPLE --overlong_filter false"
     RECIPE_ARGS="--loss_type dr_grpo \
       --importance_sampling_level token \
@@ -185,7 +185,7 @@ case "$RECIPE" in
 esac
 
 echo "[grpo-adv] RECIPE=$RECIPE  INIT_MODEL=$INIT_MODEL"
-echo "[grpo-adv] knobs: NUM_GEN=${NUM_GEN:-4}  BETA=${BETA:-0.04}  TEMPERATURE=$TEMPERATURE  LR=$LR  (기본=검증값, 변경 시 clean A/B 깨짐 — docs/stage2_design.html)"
+echo "[grpo-adv] knobs: NUM_GEN=${NUM_GEN:-4}  BETA=${BETA:-0.04}  TEMPERATURE=$TEMPERATURE  LR=$LR  (기본=검증값, 변경 시 clean A/B 깨짐 — docs/21_stage2a_design.html)"
 echo "[grpo-adv] CORE=$CORE_ARGS"
 echo "[grpo-adv] RECIPE_ARGS=$RECIPE_ARGS"
 
@@ -195,7 +195,7 @@ OUTPUT_DIR="${OUTPUT_DIR:-$CKPT_DIR/grpo_general_adv_$RECIPE}"
 #  RESUME=1 → OUTPUT_DIR 하위 모든 버전에서 최신 checkpoint-N 자동 resume.
 #  MAX_STEPS=<n> → 그 step 에서 정지. 체인 잡들이 max_steps 도달 시 자동 no-op.
 #    ⚠️ step 은 epoch 이 아니다: 프롬프트/step = pdtbs×world×accum ÷ num_generations = 8.
-#       확장셋(74,787) 기준 1 epoch = 9,348 step. 상세 = docs/stage2_mixed_run.html §3
+#       확장셋(74,787) 기준 1 epoch = 9,348 step. 상세 = docs/22_stage2b_mixed_run.html §3
 #  RESUME_CKPT=<경로> → 그 체크포인트에서 명시적으로 재개(RESUME=1 자동탐색보다 우선).
 #    재현 실험용. 반드시 **새 OUTPUT_DIR** 과 함께 쓸 것 — 원본 디렉터리에 그대로 재개하면
 #    save_total_limit=5 때문에 새 저장이 원본 checkpoint-800/850 을 밀어낸다.

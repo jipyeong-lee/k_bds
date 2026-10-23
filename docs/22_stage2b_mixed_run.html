@@ -65,7 +65,7 @@ img{max-width:100%;height:auto} h4{font-size:15px;margin:22px 0 6px} h5{font-siz
 </ol>
 </div>
 <div class="note">
-<p>이 문서는 <strong>점검 보고서</strong>다. 진행 기록은 <a href="#stage-2-확장셋-gdpo-본실행--job-73924-중간-점검"><code>stage2_mixed_run.html</code></a> (이 문서의 2부),
+<p>이 문서는 <strong>점검 보고서</strong>다. 진행 기록은 <a href="#stage-2-확장셋-gdpo-본실행--job-73924-중간-점검"><code>22_stage2b_mixed_run.html</code></a> (이 문서의 2부),
 폭주 기전의 상세 규명은 그 문서 <a href="#8-i-데이터보상-구조-심층-분석--폭주-메커니즘-규명">§8-i</a> 에 있다. 여기서는 세 가지에 답한다 —
 <strong>① 어떻게 발견했나 ② 실제로 무엇이 들어갔나 ③ 실제로 어떤 파라미터였나</strong>, 그리고 <strong>④ 원인 식별</strong>.</p>
 </div>
@@ -1236,7 +1236,7 @@ gdpo 는 여기에 <code>0/(0+1e-8) = 0</code> 을 더할 뿐이다.
 <hr />
 <h2 id="5-기존-문서에-대한-정정">5. 기존 문서에 대한 정정</h2>
 <div class="note">
-<p>✅ <strong>아래 4건은 <a href="#stage-2-확장셋-gdpo-본실행--job-73924-중간-점검"><code>stage2_mixed_run.html</code></a>(2부) 본문에 직접 반영 완료</strong>(2026-08-05).
+<p>✅ <strong>아래 4건은 <a href="#stage-2-확장셋-gdpo-본실행--job-73924-중간-점검"><code>22_stage2b_mixed_run.html</code></a>(2부) 본문에 직접 반영 완료</strong>(2026-08-05).
 원 서술을 지우지 않고 정정 블록을 덧붙이는 방식 — 같은 오판을 다시 세우는 비용을 아끼기 위해서다.</p>
 </div>
 <table>
@@ -1646,14 +1646,14 @@ step400 대비 <strong>+2.48pp p=0.020</strong> — 즉 <strong>붕괴 직전까
 </ul>
 </div>
 <div class="note">
-<p>📄 <strong>사후분석 보고서 = <a href="#stage-2-gdpo-학습-붕괴-사후분석-보고서"><code>stage2_mixed_run.html</code></a>(이 문서의 1부)</strong> —
+<p>📄 <strong>사후분석 보고서 = <a href="#stage-2-gdpo-학습-붕괴-사후분석-보고서"><code>22_stage2b_mixed_run.html</code></a>(이 문서의 1부)</strong> —
 발견 경위 시간선, <strong>실제 투입 데이터·실행 파라미터 전량 점검(로그 검증)</strong>, 모델·하이퍼파라미터·데이터
 3축 원인 식별. <strong>이 문서의 4개 서술을 정정한다</strong>(보고서 <a href="#5-기존-문서에-대한-정정">§5</a>): <a href="#8-e-기각된-가설들">§8-e</a> 의 <code>max_grad_norm</code> 미발동,
 §2 의 KL NaN, <a href="#8-i-데이터보상-구조-심층-분석--폭주-메커니즘-규명">§8-i</a> ⑥ 의 소스 비율, <a href="#8-b-붕괴는-두-단계다">§8-b</a> 의 붕괴 서명 조건.</p>
 </div>
 <p>아래 §1~§7 은 붕괴를 발견하기 전(08-02~08-04 오전)의 점검 기록이며, 시간순으로 남긴다.
 <strong><a href="#6-d-전량-재측정--분해능-문제가-해결됐다-2026-08-04">§6-d</a> 의 &quot;400 이후 미검출&quot; 결론은 <a href="#8-g-그래서-step-850-이-최고점이다--그리고-6-d-의-미검출이-뒤집힌다">§8-g</a> 에서 뒤집혔고, §7 의 step 1200 판정은 실행되지 않았다.</strong>
-발표 시 주의 사항은 <a href="#부록-c-발표보고-시-주의">사후분석 부록 C</a>. 전 단계 요약은 <a href="experiments_all_stages.html"><code>experiments_all_stages.html</code></a>.</p>
+발표 시 주의 사항은 <a href="#부록-c-발표보고-시-주의">사후분석 부록 C</a>. 전 단계 요약은 <a href="00_overview.html"><code>00_overview.html</code></a>.</p>
 <hr />
 <h2 id="1-요약">1. 요약</h2>
 <table>
@@ -1874,7 +1874,7 @@ SoftOverlong 페널티가 −48.5% 에서 +15.5% 로 뒤집힌 것이 같은 사
 장문 제외 기준으로 남는 상승은 +0.8pp(t=0.64, 미검출) — 상세 <a href="#6-c-학습-로그도-더-학습하면-오르나에-답하지-못한다-2026-08-03">§6-c</a>.</p>
 </li>
 <li>
-<p><strong>엔트로피는 붕괴하지 않았다</strong> (0.538 → 0.523). 다양성 붕괴 징후 없음 — <code>docs/stage2_design.html</code> 의 경고 구간 미도달.</p>
+<p><strong>엔트로피는 붕괴하지 않았다</strong> (0.538 → 0.523). 다양성 붕괴 징후 없음 — <code>docs/21_stage2a_design.html</code> 의 경고 구간 미도달.</p>
 </li>
 <li>
 <p><strong>KL 은 765% 늘었지만 절대값 0.031 로 작다.</strong> β=0.04 제약이 살아 있고 clip_ratio 도 0.0009 수준이라 폭주 상태는 아니다.
@@ -3520,10 +3520,10 @@ n 을 2배로 해도 확률이 제곱되지는 않는다.</p>
 <h2 id="관련-문서">관련 문서</h2>
 <ul>
 <li><a href="../README.md"><code>README.md</code></a> — 현황 요약</li>
-<li><a href="stage2_design.html"><code>stage2_design.html</code></a> — Stage-2 실험 이력·A/B</li>
-<li><a href="stage2_design.html#5-1-빌드-런북"><code>stage2_data.md</code> §5-1</a> — 확장셋 재현 절차(구 <code>stage2_expansion_runbook.md</code>)</li>
-<li><a href="stage2_design.html"><code>stage2_design.html</code></a> — 하이퍼파라미터 외부 관행 대조</li>
-<li><a href="ops_infra.html"><code>ops_infra.html</code></a> — 자원·예산</li>
+<li><a href="21_stage2a_design.html"><code>21_stage2a_design.html</code></a> — Stage-2 실험 이력·A/B</li>
+<li><a href="21_stage2a_design.html#5-1-빌드-런북"><code>stage2_data.md</code> §5-1</a> — 확장셋 재현 절차(구 <code>stage2_expansion_runbook.md</code>)</li>
+<li><a href="21_stage2a_design.html"><code>21_stage2a_design.html</code></a> — 하이퍼파라미터 외부 관행 대조</li>
+<li><a href="90_ops_infra.html"><code>90_ops_infra.html</code></a> — 자원·예산</li>
 </ul>
 <h2 id="재생성">재생성</h2>
 <pre><code class="language-bash"># ① 학습 곡선 6패널 + 구간 대조표 — 체인 전체를 병합해 그린다.

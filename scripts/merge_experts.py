@@ -3,7 +3,7 @@
 
   W = W_base + Σ wᵢ·ΔWᵢ,   ΔWᵢ = Bᵢ·Aᵢ·(αᵢ/rᵢ)            (--method linear)
   TIES(--method ties): τᵢ = wᵢ·ΔWᵢ 를 텐서별 상위 density 만 남기고, 부호 다수결(sign Σ τᵢ)과 같은 부호인
-  값만 평균한다(Yadav et al. 2023). 근거·판정 기준 = docs/stage2_design.html §8.
+  값만 평균한다(Yadav et al. 2023). 근거·판정 기준 = docs/21_stage2a_design.html §8.
   breadcrumbs(--method breadcrumbs): mergekit breadcrumbs_ties(normalize false) 재현 — τᵢ 마다 크기 상위 gamma 와
   하위 (1-density-gamma) 를 지우고, 부호 다수결(합 ≥ 0 이면 +)과 같은 값만 **더한다**(평균 아님).
 

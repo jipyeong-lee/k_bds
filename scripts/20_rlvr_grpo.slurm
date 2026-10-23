@@ -11,7 +11,7 @@
 #   기본값이 바뀜: INIT = v3 콜드스타트 병합본(sft_mixed_merged), DATA = 확장셋.
 #   재현: 데이터 빌드 = scripts/{13_build_stage2_expanded.slurm, build_stage2_mix.py}
 #         런처       = scripts/launch_stage2_expanded.sh (env 세팅 + 제출)
-#         상세       = docs/stage2_design.html §5-1 (빌드 런북)
+#         상세       = docs/21_stage2a_design.html §5-1 (빌드 런북)
 #   구 경로(DeepVision 단일·base init)로 돌리려면:
 #     INIT_MODEL=$BASE_MODEL DATASET_FILE=$DATA_DIR/deepvision103k_train.jsonl sbatch ...
 # =============================================================================
@@ -36,7 +36,7 @@ INIT_MODEL="${INIT_MODEL:-$CKPT_DIR/sft_mixed_merged}"
 DATASET_FILE="${DATASET_FILE:-$DATA_DIR/stage2_expanded_train.jsonl}"
 EXTRA_ARGS="${EXTRA_ARGS:-}"            # 스모크 테스트: EXTRA_ARGS="--max_steps 3"
 # 롤아웃 temperature: 기본 = ms-swift 기본 0.9(검증값). 관행 ~1.0 A/B 는 TEMPERATURE=1.0.
-#   (그룹크기 NUM_GEN=8·KL BETA=0.01 도 override 로 실험 — docs/stage2_design.html)
+#   (그룹크기 NUM_GEN=8·KL BETA=0.01 도 override 로 실험 — docs/21_stage2a_design.html)
 TEMPERATURE="${TEMPERATURE:-0.9}"
 
 # ⚠️ 이 클러스터는 NVLink 없음(PCIe A100, NCCL→SHM) → full-FT 멀티GPU 통신병목(375~660s/step).

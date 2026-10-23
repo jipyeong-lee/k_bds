@@ -190,7 +190,7 @@ def plot(rows, out_path, window, max_steps, status="", draw_events=True):
         return ax.text(step[-1] * 1.015, sm[-1], fmt.format(sm[-1]), color=color,
                        fontsize=9, fontweight="600", va="center", zorder=4)
 
-    # 붕괴 사후분석(docs/stage2_mixed_run.html)에서 확정된 사건 위치.
+    # 붕괴 사후분석(docs/22_stage2b_mixed_run.html)에서 확정된 사건 위치.
     #  형식 붕괴(899~904)와 길이 폭주(905~)는 별개 사건이고 순서가 있다 — 같은 선으로 묶지 말 것.
     #  899 와 905 는 6 step 차라 라벨이 겹친다 → 높이를 계단식으로 어긋내고 전부 왼쪽으로 뽑는다.
     EVENTS = [(850, L["ev_best"], AQUA, 0.97),

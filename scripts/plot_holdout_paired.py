@@ -30,7 +30,7 @@ SRC_KO = {"deepvision": "deepvision (일반)", "mmk12": "mmk12 (수학)", "pmcvq
 SRC_EN = {"deepvision": "deepvision (general)", "mmk12": "mmk12 (math)", "pmcvqa": "pmcvqa (medical)"}
 SRCS = ("deepvision", "mmk12", "pmcvqa")
 
-# 사전등록 판정선 — docs/stage2_mixed_run.html §7-2b
+# 사전등록 판정선 — docs/22_stage2b_mixed_run.html §7-2b
 GATE_GO, GATE_STOP = 3.0, -1.0
 
 

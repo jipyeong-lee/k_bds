@@ -103,4 +103,4 @@ python3 b200/plot_progress.py b200/metrics_deepvision_entmask.csv b200/progress_
 **홀드아웃 궤적(구 혼합 학습 73924/73925, n=1,772)은 별개 실험이다** — 그때 확정된 것:
 RL은 init 대비 붕괴 전까지 유의하게 오른다(+8.18pp, p<0.0001)는 데는 도메인 간 격차가 있다
 (deepvision +10.80 · 수학 +9.25 · 의료 +0.75 미검출) → 상세는
-[`../docs/stage2_mixed_run.html`](../docs/stage2_mixed_run.html).
+[`../docs/22_stage2b_mixed_run.html`](../docs/22_stage2b_mixed_run.html).

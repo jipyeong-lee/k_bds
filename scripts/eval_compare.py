@@ -5,7 +5,7 @@ base vs 학습모델을 동일 조건(시스템프롬프트·생성설정)으로
 검증가능 정답(DeepVision solution)을 accuracy_mix(math/letter/문자열)로 자동 채점.
 env: EVAL_BASE_URL / EVAL_MODEL(served name) / EVAL_N(150) / EVAL_CONC(8) / SYSTEM_PROMPT / EVAL_TAG
 """
-import os, sys, json, base64, asyncio, statistics as st
+import os, sys, json, base64, asyncio, time, statistics as st
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'configs'))
 import accuracy as A  # accuracy_mix scorer  # noqa: E402
@@ -71,19 +71,24 @@ async def infer(row):
     content = [{'type': 'image_url', 'image_url': {'url': data_url(row['images'][0])}},
                {'type': 'text', 'text': q}]
     async with sem:
+        t0 = time.perf_counter()
         try:
             r = await cli.chat.completions.create(
                 model=MODEL,
                 messages=[{'role': 'system', 'content': SYSTEM}, {'role': 'user', 'content': content}],
                 temperature=0.0, max_tokens=int(os.environ.get('EVAL_MAXTOK', '4096')))
             m = r.choices[0].message
-            return (getattr(m, 'content', None) or getattr(m, 'reasoning_content', None) or '')
+            text = getattr(m, 'content', None) or getattr(m, 'reasoning_content', None) or ''
+            return text, r.usage.completion_tokens if r.usage else 0, time.perf_counter() - t0
         except Exception as e:
-            return f'__ERR__{type(e).__name__}'
+            return f'__ERR__{type(e).__name__}', 0, time.perf_counter() - t0
 
 
 async def main():
-    preds = await asyncio.gather(*[infer(r) for r in rows])
+    t0 = time.perf_counter()
+    outs = await asyncio.gather(*[infer(r) for r in rows])
+    wall = time.perf_counter() - t0
+    preds, toks, lats = [o[0] for o in outs], [o[1] for o in outs], [o[2] for o in outs]
     sols = [str(r['solution']) for r in rows]
     errs = sum(1 for p in preds if p.startswith('__ERR__'))
     # accuracy_mix 채점
@@ -95,6 +100,11 @@ async def main():
     fmt = sum(1 for p in preds if re.search(r'<answer>.*?</answer>', p, re.S)) / len(preds)
     mlen = st.mean(len(p) for p in preds)
     print(f"[eval:{TAG}] accuracy={acc:.4f}  format(<answer>)={fmt:.2f}  mean_chars={mlen:.0f}  errors={errs}/{len(preds)}")
+    # 추론 비용 — 지연은 동시 요청 수(EVAL_CONC)에 따라 달라진다. 같은 GPU·같은 CONC 끼리만 비교할 것
+    timing = {'conc': CONC, 'wall_s': round(wall, 1), 'mean_completion_tokens': round(st.mean(toks), 1),
+              'mean_latency_s': round(st.mean(lats), 2), 'p50_latency_s': round(st.median(lats), 2),
+              'gen_tokens_per_s': round(sum(toks) / wall, 1)}
+    print(f"[eval:{TAG}] timing {timing}")
     # 층(stratum)별 분리 보고 — 홀드아웃 라인의 _stratum (math / vl) 기준
     strata = {}
     for r, s in zip(rows, scores):
@@ -117,13 +127,14 @@ async def main():
     items_path = os.environ.get('EVAL_ITEMS')
     if items_path:
         with open(items_path, 'w') as f:
-            for r, s in zip(rows, scores):
+            for i, (r, s) in enumerate(zip(rows, scores)):
                 f.write(json.dumps({
                     'item_id': r.get('images', [None])[0] or r.get('id'),
                     'tag': TAG,
                     'source': r.get('_source', 'all'),
                     'stratum': r.get('_stratum', 'all'),
                     'score': s,
+                    'completion_tokens': toks[i], 'latency_s': round(lats[i], 3),
                 }) + '\n')
         print(f"[eval:{TAG}] per-item scores → {items_path} ({len(rows)} rows)")
 
@@ -132,6 +143,6 @@ async def main():
         f.write(json.dumps({'tag': TAG, 'model': MODEL, 'n': len(rows),
                             'accuracy': round(acc, 4), 'format': round(fmt, 3),
                             'mean_chars': round(mlen, 0), 'errors': errs,
-                            'per_stratum': per_stratum, 'per_source': per_source}) + '\n')
+                            'per_stratum': per_stratum, 'per_source': per_source, 'timing': timing}) + '\n')
 
 asyncio.run(main())

@@ -304,7 +304,7 @@ docs/
   21_stage2a_design.html          현재 설계의 근거
   21_stage2a_design.html                   확장셋 데이터·빌드 런북(§5-1, 구 stage2_expansion_runbook)
   30_stage3_medical_rl.html · 90_ops_infra.html · 90_ops_infra.html
-(루트) 사후분석 일회성 스크립트 — 레포 루트에서 실행. 붕괴 분석 재현용
+scripts/postmortem/  사후분석 일회성 스크립트 — 레포 루트에서 실행(python scripts/postmortem/<이름>.py). 붕괴 분석 재현용
   holdout_matrix.py · holdout_by_source.py · train_side.py · classify900.py · show_collapse.py
   ⚠️ 입력이 logs/ 와 work/checkpoints/ 다 → transfer_pull 에서 WITH_LOGS 를 끄면 돌지 않는다
 work/  (git 제외 — 재생성)          data·images·checkpoints·hf_cache·images/컨테이너

@@ -7,7 +7,7 @@
 import json, re, collections, pathlib
 
 #  구 계정 절대경로가 박혀 있었다(k252a02) → 이관 후 파일을 못 연다. __file__ 기준으로 바꾼다.
-LOG = pathlib.Path(__file__).parent / 'logs/probe_frag_samples_step900.jsonl'
+LOG = pathlib.Path(__file__).parents[2] / 'logs/probe_frag_samples_step900.jsonl'
 B = [json.loads(l) for l in open(LOG)]
 B = [d for d in B if d['temp'] == 0.0]
 bad = [d for d in B if d['fmt'] == 0.0 and not d['trunc']]

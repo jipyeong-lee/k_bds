@@ -7,7 +7,7 @@ v1 이 실제로 이어서 학습한 쪽이다(v0 replay 는 §8-e 에서 near-i
 import json, glob, statistics as st, pathlib
 
 #  구 계정 절대경로가 박혀 있었다(k252a02) → 이관 후 파일을 못 연다. __file__ 기준으로 바꾼다.
-_CK = pathlib.Path(__file__).parent / 'work/checkpoints/grpo_expanded_gdpo'
+_CK = pathlib.Path(__file__).parents[2] / 'work/checkpoints/grpo_expanded_gdpo'
 V = [str(_CK / 'v0-20260731-094532/logging.jsonl'),
      str(_CK / 'v1-20260803-074645/logging.jsonl')]
 

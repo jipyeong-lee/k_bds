@@ -3,7 +3,7 @@
 import json, collections, re, pathlib
 
 #  구 계정 절대경로가 박혀 있었다(k252a02) → 이관 후 파일을 못 연다. __file__ 기준으로 바꾼다.
-P = str(pathlib.Path(__file__).parent / 'logs/probe_frag_samples_step%s.jsonl')
+P = str(pathlib.Path(__file__).parents[2] / 'logs/probe_frag_samples_step%s.jsonl')
 
 
 def load(step):

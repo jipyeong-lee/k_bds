@@ -4,8 +4,8 @@
 #     고른 뒤 상위만 전량 평가. 판정 = 도메인별 전문가 대비 90% 보존 + 글로벌 SFT 대비 향상(docs/21_stage2a_design.html §8).
 # 전제(~/files = /root/files): kbds/{code.tgz, setup_venv.sh, merge_experts.py, sft_mixed_merged/, holdout.tar,
 #        global_bench.tar, ckpt_{dv,mm,pmc}.tar, merge_configs.tar}
-# env: CANDS="sft exp_dv ta_w1 ties_d05 ..." — sft·exp_* 는 기준선(병합 없음), 나머지는 configs/merge/<이름>.yaml
-#      본평가: HOLD_N=all GB_N=all RES_PREFIX=full · GB_N=0 이면 글로벌 생략
+# env: CANDS="sft exp_dv ta_w1 ties_d05 ..." — base(공개 Qwen3.5-9B)·sft·exp_* 는 기준선(병합 없음), 나머지는 configs/merge/<이름>.yaml
+#      본평가: HOLD_N=all GB_N=all RES_PREFIX=full · HOLD_N=0 / GB_N=0 이면 그 평가 생략
 set -uo pipefail
 F=/root/files/kbds; W=/root/w; VENV=/root/venv; MK=/root/mk
 mkdir -p "$W" "$F/logs"; exec > >(tee -a "$W/run.log") 2>&1
@@ -13,10 +13,12 @@ T0=$(date +%s); stamp(){ echo "[+$(( $(date +%s)-T0 ))s] $*"; }
 export HF_HOME=$W/hf UV_CACHE_DIR=$W/uv UV_HTTP_TIMEOUT=180 PIP_DISABLE_PIP_VERSION_CHECK=1
 SYS="You are a multimodal reasoning assistant. Carefully examine the image(s) and reason step by step INSIDE <think> </think>, keeping the reasoning concise. Then give ONLY the final answer INSIDE <answer> </answer>. For multiple-choice, put only the letter, e.g. <answer>A</answer>."
 nvidia-smi -L
+# 병합이 필요 없는 기준선(base·sft)만 돌릴 때는 전문가 병합·mergekit 설치를 건너뛴다
+NEED_MERGE=$(printf "%s\n" $CANDS | grep -vxE "base|sft" | head -1)
 
 stamp "1) code·base·data·ckpt → pod 로컬"
 tar xzf "$F/code.tgz" -C "$W" --no-same-owner || { echo "❌ code.tgz"; exit 1; }
-[ -d "$W/base" ] || cp -r "$F/sft_mixed_merged" "$W/base" || { echo "❌ base copy"; exit 1; }
+[ -z "$NEED_MERGE" ] && [[ " $CANDS " != *" sft "* ]] || [ -d "$W/base" ] || cp -r "$F/sft_mixed_merged" "$W/base" || { echo "❌ base copy"; exit 1; }
 mkdir -p "$W/hold" "$W/gb" "$W/ckpt" "$W/mcfg"
 for t in holdout:hold global_bench:gb merge_configs:mcfg; do
   tar xf "$F/${t%%:*}.tar" -C "$W/${t##*:}" --no-same-owner || { echo "❌ ${t%%:*}"; exit 1; }
@@ -27,7 +29,7 @@ cp "$F/merge_experts.py" "$W/merge_experts.py"     # ~/files 에서 바로 실�
 
 stamp "2) venv (+ mergekit 별도 venv — vLLM 핀을 건드리지 않게)"
 . "$F/setup_venv.sh"
-if [ ! -x "$MK/bin/mergekit-yaml" ]; then
+if [ -n "$NEED_MERGE" ] && [ ! -x "$MK/bin/mergekit-yaml" ]; then
   uv venv "$MK" --python 3.12 2>&1 | tail -1
   uv pip install --python "$MK/bin/python" torch==2.10.0+cu129 transformers==5.6.2 peft==0.19.1 \
     "mergekit @ https://github.com/arcee-ai/mergekit/archive/c91c787ff9293bda5d67bf59942700204f7ac2ba.tar.gz" \
@@ -36,7 +38,7 @@ fi
 
 stamp "3) 전문가 3종 → 완전 모델 (merge_experts --weights 1.0)"
 for e in dv mm pmc; do
-  [ -f "$W/exp_$e/merge_config.json" ] && continue
+  [ -z "$NEED_MERGE" ] || [ -f "$W/exp_$e/merge_config.json" ] && continue
   rm -rf "$W/ck_$e"; mkdir -p "$W/ck_$e"; tar xf "$F/ckpt_$e.tar" -C "$W/ck_$e" --no-same-owner || { echo "❌ ckpt_$e"; exit 1; }
   "$PY" "$W/merge_experts.py" --base "$W/base" --adapters "$(ls -d "$W"/ck_$e/checkpoint-*)" --weights 1.0 \
     --out "$W/exp_$e" || { echo "❌ expert $e"; exit 1; }
@@ -56,7 +58,7 @@ serve_eval() {  # $1=tag $2=model dir
   stamp "[$tag] READY"
   # 축소셋: EVAL_N 숫자 = _source 균등 층화(같은 seed → 후보 간 같은 문항). holdout 600=도메인별 200, 글로벌 600=벤치별 300
   local env=(SYSTEM_PROMPT="$SYS" EVAL_BASE_URL=http://127.0.0.1:8000/v1 EVAL_MODEL=evalmodel EVAL_CONC=16 EVAL_TAG="$tag")
-  env "${env[@]}" EVAL_DATA="$W/hold/stage2_expanded_holdout.jsonl" EVAL_N=${HOLD_N:-600} EVAL_MAXTOK=8192 \
+  [ "${HOLD_N:-600}" = 0 ] || env "${env[@]}" EVAL_DATA="$W/hold/stage2_expanded_holdout.jsonl" EVAL_N=${HOLD_N:-600} EVAL_MAXTOK=8192 \
     EVAL_RESULT="$F/logs/${RES_PREFIX:-screen}_${tag}_hold.jsonl" EVAL_ITEMS="$F/logs/${RES_PREFIX:-screen}_items_${tag}_hold.jsonl" \
     "$PY" "$W/scripts/eval_compare.py" || echo "❌ hold $tag"
   [ "${GB_N:-600}" = 0 ] || env "${env[@]}" EVAL_DATA="$W/gb/global_bench.jsonl" EVAL_N=${GB_N:-600} EVAL_MAXTOK=4096 \
@@ -68,6 +70,10 @@ serve_eval() {  # $1=tag $2=model dir
 for c in ${CANDS:?CANDS}; do
   case $c in
     sft)   stamp "4) [$c] 기준선"; serve_eval "$c" "$W/base" ;;
+    base)  stamp "4) [$c] 공개 Qwen3.5-9B"
+           "$PY" -c "from huggingface_hub import snapshot_download as d; d('Qwen/Qwen3.5-9B', revision='c202236235762e1c871ad0ccb60c8ee5ba337b9a', local_dir='$W/qwen')" \
+             || { echo "❌ download base"; continue; }
+           serve_eval "$c" "$W/qwen" ;;
     exp_*) stamp "4) [$c] 기준선"; serve_eval "$c" "$W/$c" ;;
     *)
       stamp "4) [$c] mergekit"

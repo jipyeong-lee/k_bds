@@ -132,20 +132,17 @@ td table{display:block;overflow-x:auto}
 </table>
 
 <table>
-<tr><th colspan="4" style="text-align:center">연구산출물(데이터, 분석도구, 파이프라인 등) 공유 사항</th></tr>
-<tr><th>분류</th><th>목적 및 정보</th><th>환경구성</th><th>비고</th></tr>
+<tr><th colspan="3" style="text-align:center">연구산출물(데이터, 분석도구, 파이프라인 등) 공유 사항</th></tr>
+<tr><th>분류</th><th>목적 및 정보</th><th>환경구성</th></tr>
 <tr><td>분석도구<br>(모델)</td>
-<td>목적: 멀티모달 의료·범용 교차 추론 모델 재현 및 후속 연구<br>정보: 도메인 전문가 LoRA 3종과 콜드스타트 SFT LoRA(r=16), 통합 모델 재구성 스크립트(<code>merge.sh</code>). 공개 Qwen3.5-9B 에서 통합 모델(9B)을 재구성함. 재구성본이 평가 모델과 비트 단위로 같음을 확인함.</td>
-<td>LoRA 가중치(safetensors), Python + PyTorch 로 병합, 병합본은 Hugging Face 형식이며 vLLM 0.19.1 로 추론 가능</td>
-<td>마켓플레이스 등록(통합 모델 가중치 18GB 는 재구성 방식으로 대체)</td></tr>
-<tr><td>파이프라인</td>
-<td>목적: 후속 연구자의 방법론 응용 지원<br>정보: GRPO/RLVR 학습 스크립트(Slurm), 복합 보상 함수, 형식 붕괴 감시 도구, 전문가 병합 스크립트, 평가 스크립트(holdout · 글로벌 벤치)</td>
-<td>Python 3.12, PyTorch 2.10(CUDA 12.9), ms-swift 4.1.3, vLLM 0.19.1, Slurm + 컨테이너 실행 스크립트</td>
-<td>마켓플레이스 등록(위 패키지에 포함), GitHub 저장소 공개</td></tr>
+<td>목적: 멀티모달 의료·범용 교차 추론 모델 재현 및 후속 연구<br>정보: 도메인 전문가 LoRA 3종과 콜드스타트 SFT LoRA(r=16), 통합 모델 재구성 스크립트(<code>merge.sh</code>). 공개 Qwen3.5-9B 에서 통합 모델(9B)을 재구성함. 재구성본이 평가 모델과 비트 단위로 같음을 확인함.<br>등록: 마켓플레이스 등록(통합 모델 가중치 18GB 는 재구성 방식으로 대체)</td>
+<td>LoRA 가중치(safetensors), Python + PyTorch 로 병합, 병합본은 Hugging Face 형식이며 vLLM 0.19.1 로 추론 가능</td></tr>
 <tr><td>데이터</td>
-<td>목적: 학습·평가용 중간 산출 데이터 공유<br>정보: 도메인별 RL 학습셋 3종(74,787건), 평가용 holdout 1,772건. 글로벌 벤치 문항은 원 벤치마크 라이선스 때문에 재배포하지 않고 평가 코드만 제공함.</td>
-<td>JSONL(이미지는 원 데이터셋 경로로 참조)</td>
-<td>원 데이터는 K-BDS 플랫폼 등록(2096, 2097), 가공 데이터는 마켓플레이스 등록</td></tr>
+<td>목적: 학습·평가용 중간 산출 데이터 공유<br>정보: 도메인별 RL 학습셋 3종(74,787건), 평가용 holdout 1,772건. 글로벌 벤치 문항은 원 벤치마크 라이선스 때문에 재배포하지 않고 평가 코드만 제공함.<br>등록: 원 데이터 중 DeepVision-103K·medix-rl-data 는 K-BDS 플랫폼에 등록(10.23220/KBDSC_20260306133407_2096, 10.23220/KBDSC_20260306133400_2097), 가공 데이터는 마켓플레이스 등록</td>
+<td>JSONL(이미지는 원 데이터셋 경로로 참조)</td></tr>
+<tr><td>파이프라인</td>
+<td>목적: 후속 연구자의 방법론 응용 지원<br>정보: GRPO/RLVR 학습 스크립트(Slurm), 복합 보상 함수, 형식 붕괴 감시 도구, 전문가 병합 스크립트, 평가 스크립트(holdout · 글로벌 벤치)<br>등록: 마켓플레이스 등록(위 패키지에 포함), GitHub 저장소 공개</td>
+<td>Python 3.12, PyTorch 2.10(CUDA 12.9), ms-swift 4.1.3, vLLM 0.19.1, Slurm + 컨테이너 실행 스크립트</td></tr>
 </table>
 <p class="note">※ 계획서 대비 변경: 학습 환경을 Python 3.10/DeepSpeed 에서 Python 3.12/ms-swift(vLLM 연동)로 바꿈. 의료 개방형 RL 본 학습은 후속 과제로 넘김.</p>
 </main>

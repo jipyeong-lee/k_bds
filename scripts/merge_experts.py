@@ -85,7 +85,7 @@ def main():
 
     os.makedirs(a.out, exist_ok=True)
     for name in os.listdir(a.base):          # config·tokenizer·processor·index 는 그대로
-        if not name.endswith('.safetensors'):
+        if not name.endswith('.safetensors') and os.path.isfile(os.path.join(a.base, name)):  # --local-dir 의 .cache/ 제외
             shutil.copy2(os.path.join(a.base, name), a.out)
 
     done = 0

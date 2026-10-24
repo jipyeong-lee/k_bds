@@ -122,7 +122,6 @@ li{margin:3px 0}
 <li><b>727건 샘플·길이 분포</b>: 예시(질문) <i>"Jewel2 … 특수 원소가 몇 개인가"</i>(시각논리 퍼즐) → <code>&lt;think&gt;보드 스캔·계산…&lt;/think&gt;&lt;answer&gt;N&lt;/answer&gt;</code>. assistant 완성문 길이(문자): 중앙값 <b>2837</b> · 평균 2861 · 최소 36 · 최대 5979.</li>
 <li><b>검증</b>: probe 추론(<code>probe_coldstart_think_true/false.jsonl</code>, <code>probe_rft_think_true.jsonl</code>)으로 형식 준수를 확인했다. 후속 GRPO 에서 <b>FormatThink 0.05→0.27</b>(≈5배)·clip↓. 중간 홀드아웃(N=100): base 0.15 → init 0.22(형식 0.12→0.32, 길이 5907→5188자).</li>
 </ul>
-<div class="warn">⚠️ 0.22 는 소표본값이다. 아래 동일조건 전량 재측정값 0.295 로 대체됐다(더 새로운 값, job 70671, 2026-07-21).</div>
 
 <h3 id="v3-설계--scriptsbuild_mixed_coldstartpy">v3 설계 — <code>scripts/build_mixed_coldstart.py</code></h3>
 <p><b>데이터</b> (전부 실측 검증 후 채택했다. 이름·초록만 보고 고르지 않았다.)</p>

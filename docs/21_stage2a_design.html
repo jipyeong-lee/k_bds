@@ -46,19 +46,11 @@ li{margin:3px 0}
 <li><b>Stage-2 를 도메인별 전문가 3종 + 통합 구조로 바꿨다(2026-08-13).</b> DeepSeek-V4 와 Kimi K3 가 독립적으로 같은 구조에 도달했다. 혼합 학습은 일반 +8.18pp 를 얻었다. 의료는 +0.75pp(p&gt;0.5)로 미검출이었다. 도메인 전용 학습은 같은 step 에서 소스를 1.3~4.9배 더 노출한다. → 4부</li>
 <li><b>콜드스타트 SFT 는 계속 필요하다.</b> 조사한 8개 모델 전부 RL 앞에 SFT 가 있다. 태그를 버려도 형식 학습만 사라진다. long-CoT 행동·출발 정책 품질·길이 기준선·시각 주의 유도는 남는다. 과도한 SFT 는 RLVR 을 방해한다. → 1부 §3</li>
 <li><b>2026년 불안정의 주범은 학습–추론 확률 불일치다.</b> 그래서 롤아웃 logprob 불일치 계측을 넣었다. → 1부 ③, 3부 F</li>
-<li><b>코어 알고리즘(손실·advantage·필터링)은 외부 관행과 맞는다.</b> 관행과 다른 4곳(KL β·그룹 크기·배치·temperature)은 자원 제약 때문이다. RLVR 은 ≤1 epoch + 조기중단이 맞다. → 2부</li>
+<li><b>코어 알고리즘(손실·advantage·필터링)은 외부 관행과 맞는다.</b> RLVR 은 ≤1 epoch + 조기중단이 맞다. → 2부</li>
 <li><b>재설계 A~I 중 A+B 는 GPU 비용 0 으로 개시 낙폭을 −0.324 → −0.195(40%) 줄인다.</b> repetition·언어 일관성 보상은 실측으로 기각했다. → 3부</li>
 <li><b>통합은 공짜인 가중치 산술부터 시작한다(계단식 통합).</b> 이 설계는 지금도 유효하다. → 4부 §8</li>
 </ol>
 </div>
-<div class="warn"><b>낡은 내용 주의.</b> 이 문서의 설정 값 일부는 이후 실행에서 바뀌었다. 각 부의 첫 주황 상자가 무엇이 바뀌었는지 적는다. 실제로 쓴 설정은 다음과 같다(더 새로운 사실).
-<ul>
-<li>도메인 전문가 3종은 <code>scale_rewards=gdpo</code>, <code>beta 0</code>, <code>num_generations</code> 8(KISTI/kgpu)·16(B200), <code>temperature 1.0</code> 이다. 3부 D(<code>none</code>)·§6(<code>beta=0.04</code>·<code>num_generations=4</code>)와 2부 "이 프로젝트" 열(β 0.04·그룹 4·temp 0.9), 4부 §7-3 ②("이미 <code>none</code> 으로 정했다")는 대체됐다.</li>
-<li>전문가는 <code>sft_mixed_merged</code> 에서 새로 시작했다. 3부 §5(checkpoint-850 에서 재개)는 실행하지 않았다.</li>
-<li>채택 체크포인트는 deepvision 2192 · mmk12 350 · pmcvqa 4896 이다. 4부 §6(1,000 step)·§9(600 step)는 대체됐다.</li>
-<li>Stage-3 는 전문가 3종 통합 모델에서 시작한다. 4부 §2 의 "Stage-3 = E3-b(E3-a 위 2차 학습)"는 대체됐다.</li>
-<li>1부(서베이)에는 원본에 낡은 내용 배너가 없다.</li>
-</ul></div>
 
 <nav>
 <b>목차</b>
@@ -119,7 +111,6 @@ li{margin:3px 0}
 <li><b>상단 클립 &gt; 하단 클립</b> (비대칭)</li>
 <li>동적 샘플링 + 적응 클리핑</li>
 <li>정렬 단계는 PPO — "고정 시간 내 최적화 스텝 수가 GRPO 계열보다 많다"</li></ul>
-<div class="warn"><p>⚠️ 우리 <code>beta=0.04</code>(KL 유지) 대 HyperCLOVA X 의 <b>KL 제거</b>는 정반대다. 다만 목적이 다르다 — 저쪽은 <b>다양성 확보</b>, 우리는 <b>정책 이탈 억제</b>. 우리 붕괴는 다양성 부족이 아니라 이탈이었으므로 KL 을 없애는 방향은 위험하다. 비대칭 클리핑도 같은 이유로 신중해야 한다 ([arXiv 2509.26114] clip-low 는 엔트로피를 <b>올리고</b> clip-high 는 <b>내린다</b>).</p></div>
 <h4 id="⑦-불안정은-대부분-아키텍처-층위에서-잡는다">⑦ 불안정은 대부분 <b>아키텍처 층위</b>에서 잡는다</h4>
 <ul>
 <li><b>K-EXAONE 2.0</b>(A): 깊은 층 일부 전문가의 활성값 폭주 → <b>Clamped SwiGLU</b>(임계 7.0). 피크 활성 <b>6,862 → 48.96</b>.</li>
@@ -180,7 +171,6 @@ li{margin:3px 0}
 <!-- ===== rlvr_hparams_external.md ===== -->
 <h2 data-part="2" id="rlvr-하이퍼파라미터--외부-관행-대조-2026-리포트-조사">2부 · RLVR 하이퍼파라미터 — 외부 관행 대조 (2026 리포트 조사)</h2>
 <div class="meta">원본: <code>docs/rlvr_hparams_external.md</code> (2026-10-22 HTML 로 통합)</div>
-<div class="warn"><p>⚠️ <b>낡은 내용</b>: 아래 표의 "이 프로젝트" 열(β 0.04 · 그룹 4 · temp 0.9)은 2026-07 구 혼합 실행 값이다. 도메인 전문가 실행은 <b>beta 0 · num_generations 8(KISTI/kgpu, B200 은 16) · temperature 1.0</b> 을 썼다 → <a href="../CLAUDE.md"><code>../CLAUDE.md</code></a> §3 · <a href="00_overview.html"><code>00_overview.html</code></a> 2-C. 외부 관행 대조·출처는 그대로 유효하다.</p></div>
 <div class="note"><p>목적: 이 프로젝트의 Stage-2 RLVR(GRPO/GDPO) 설정을 <b>외부에 알려진 관행</b>과 대조하고, 자원 제약으로 벌어진 지점과 실험 우선순위를 명시한다. 프로젝트 실측 근거는 <a href="../README.md"><code>../README.md</code></a>(Stage-2 · step600 포화)·<a href="../HANDOFF.md"><code>../HANDOFF.md</code></a>, 실행 절차는 <a href="../README.md"><code>../README.md</code></a> "빠른 실행" · 데이터 빌드는 <a href="21_stage2a_design.html#5-1-빌드-런북"><code>21_stage2a_design.html</code> §5-1</a>.</p></div>
 <h3 id="0-조사-프레이밍-솔직한-한계">0. 조사 프레이밍 (솔직한 한계)</h3>
 <ul>
@@ -189,8 +179,8 @@ li{margin:3px 0}
 <li><b>2026년의 기여</b>는 대부분 "<b>얼마나 오래 학습할지</b>"(과학습·다양성 붕괴)를 정밀화한 연구 논문.</li>
 <li>아래는 그 둘을 합친 <b>현재 통용 관행</b>이며, 절대 정답이 아니라 <b>다수설 + 근거 출처</b>다.</li></ul>
 <h3 id="1-하이퍼파라미터-대조표">1. 하이퍼파라미터 대조표</h3>
-<table><thead><tr><th>파라미터</th><th>외부 관행(다수설)</th><th>근거</th><th>이 프로젝트</th><th>판정</th></tr></thead><tbody><tr><td><b>KL 페널티 β</b></td><td><b>0으로 제거</b>가 대세</td><td>Magistral "remove KL entirely" · MiniMax-M1(CISPO) "no KL penalty" · DAPO · Open-Reasoner-Zero("removing KL→optimal")</td><td><b>0.04</b></td><td>⚠️ 보수적. 검증가능 보상엔 KL 불필요/유해가 다수설</td></tr><tr><td><b>학습률(actor)</b></td><td>작고 <b>상수</b>, full-FT ~<b>1e-6</b></td><td>DAPO/Dr.GRPO 계열; 스윕해도 marginal</td><td>LoRA <b>1e-5</b></td><td>✅ LoRA라 더 높은 게 정상</td></tr><tr><td><b>그룹 크기(rollouts/prompt)</b></td><td><b>8~16</b></td><td>DAPO/NeMo=16 · 다수=8 · "8→4는 정확도 하락"</td><td><b>4</b></td><td>⚠️ 관행 하한 아래(메모리 절충)</td></tr><tr><td><b>배치(prompt/step)</b></td><td>매우 큼(512~수천 시퀀스)</td><td>DAPO/NeMo=512×16 · Magistral 2k~8k</td><td><b>32</b>(1×accum4×8gpu)</td><td>⚠️ 소규모(8GPU LoRA 제약)</td></tr><tr><td><b>clip ε</b></td><td>εlow 0.2 / <b>εhigh 0.26~0.30</b>(clip-higher)</td><td>DAPO 0.28 · Magistral 0.26~0.3</td><td>0.2 대칭</td><td>✅ dr_grpo는 clip-higher 미적용이 정석</td></tr><tr><td><b>손실 정규화</b></td><td>길이편향 제거(토큰레벨/상수)</td><td>Dr.GRPO · DAPO · Magistral 공통</td><td>dr_grpo loss</td><td>✅ 일치</td></tr><tr><td><b>advantage 스케일</b></td><td>std 나눗셈 제거 or minibatch 정규화</td><td>Dr.GRPO <code>scale_rewards=none</code> · Magistral minibatch</td><td>GDPO(보상별 정규화)</td><td>✅ 최신 계열</td></tr><tr><td><b>dynamic sampling / overlong filter</b></td><td>표준(acc 0·1 그룹 폐기, 잘림 제외)</td><td>DAPO</td><td>둘 다 有</td><td>✅</td></tr><tr><td><b>롤아웃 temperature</b></td><td><b>~1.0</b>(탐색)</td><td>ORZ "T=1 best" · Magistral 0.7~1.0</td><td><b>0.9</b>(ms-swift 기본)</td><td>🔧 문헌 1.0과 미세차, A/B 가치</td></tr></tbody></table>
-<p><b>요약</b>: 손실·advantage·필터링(코어 알고리즘)은 최신 관행과 <b>정합</b>. 관행과 벌어진 4곳 (KL β · 그룹 4 · 배치 32 · temp 0.9)은 <b>전부 8GPU·LoRA·no-NVLink 자원 제약</b>의 결과이며, 치명적 오류가 아니라 "탐색 신호가 다소 약할 수 있는" 방향의 트레이드오프다.</p>
+<table><thead><tr><th>파라미터</th><th>외부 관행(다수설)</th><th>근거</th></tr></thead><tbody><tr><td><b>KL 페널티 β</b></td><td><b>0으로 제거</b>가 대세</td><td>Magistral "remove KL entirely" · MiniMax-M1(CISPO) "no KL penalty" · DAPO · Open-Reasoner-Zero("removing KL→optimal")</td></tr><tr><td><b>학습률(actor)</b></td><td>작고 <b>상수</b>, full-FT ~<b>1e-6</b></td><td>DAPO/Dr.GRPO 계열; 스윕해도 marginal</td></tr><tr><td><b>그룹 크기(rollouts/prompt)</b></td><td><b>8~16</b></td><td>DAPO/NeMo=16 · 다수=8 · "8→4는 정확도 하락"</td></tr><tr><td><b>배치(prompt/step)</b></td><td>매우 큼(512~수천 시퀀스)</td><td>DAPO/NeMo=512×16 · Magistral 2k~8k</td></tr><tr><td><b>clip ε</b></td><td>εlow 0.2 / <b>εhigh 0.26~0.30</b>(clip-higher)</td><td>DAPO 0.28 · Magistral 0.26~0.3</td></tr><tr><td><b>손실 정규화</b></td><td>길이편향 제거(토큰레벨/상수)</td><td>Dr.GRPO · DAPO · Magistral 공통</td></tr><tr><td><b>advantage 스케일</b></td><td>std 나눗셈 제거 or minibatch 정규화</td><td>Dr.GRPO <code>scale_rewards=none</code> · Magistral minibatch</td></tr><tr><td><b>dynamic sampling / overlong filter</b></td><td>표준(acc 0·1 그룹 폐기, 잘림 제외)</td><td>DAPO</td></tr><tr><td><b>롤아웃 temperature</b></td><td><b>~1.0</b>(탐색)</td><td>ORZ "T=1 best" · Magistral 0.7~1.0</td></tr></tbody></table>
+<p><b>요약</b>: 손실·advantage·필터링(코어 알고리즘)은 최신 관행과 <b>정합</b>.</p>
 <h3 id="2-에포크--많이가-아니라-1수-에포크--조기중단">2. 에포크 — "많이"가 아니라 "1~수 에포크 + 조기중단"</h3>
 <p>RLVR은 SFT와 달리 <b>에포크를 많이 돌리면 안 된다.</b> 프로젝트 실측(step600 포화)과 외부 근거가 일치.</p>
 <ul>
@@ -203,8 +193,7 @@ li{margin:3px 0}
 <p><b>환산(이 프로젝트)</b> — *2026-08-02 정정*: GRPO 의 <code>per_device_train_batch_size</code> 는 프롬프트가 아니라 completion 을 센다. <code>generation_batch_size = 1 × 8gpu × accum4 = 32 completions</code> → <code>프롬프트/step = 32 ÷ num_generations(4) = 8</code>. 따라서 확장셋 74,787 ÷ 8 = <b>1 epoch = 9,348 step</b> (종전 표기 2,337 은 ÷ num_generations 누락). step600 = 4,800 prompt ≈ <b>0.064 epoch</b>, 계획한 2,337 step 도 <b>0.25 epoch</b> 에 그친다 → 포화는 에포크가 아니라 <b>스텝 수준에서</b> 온 것. 실측 확증·영향 = <a href="22_stage2b_mixed_run.html"><code>22_stage2b_mixed_run.html</code></a> §3.</p>
 <p><b>결론</b>: 에포크 상한을 늘리지 말 것. <b>≤1에포크, 50스텝마다 홀드아웃 평가, 포화 시 조기중단</b>이 정답.</p>
 <h3 id="3-실행-제언-우선순위">3. 실행 제언 (우선순위)</h3>
-<table><thead><tr><th>#</th><th>제언</th><th>방법</th><th>우선순위</th></tr></thead><tbody><tr><td>1</td><td><b>그룹 4 → 8</b> 재고</td><td><code>NUM_GEN=8 bash scripts/launch_stage2_expanded.sh</code> (길이예산·메모리 트레이드오프 측정)</td><td>중</td></tr><tr><td>2</td><td><b>롤아웃 temp 0.9 → 1.0</b> A/B</td><td><code>TEMPERATURE=1.0 …</code> (문헌 다수설)</td><td>중</td></tr><tr><td>3</td><td><b>KL β 0.04 → 0.01</b> 탐색 여지 확대</td><td><code>BETA=0.01 …</code> (초기 붕괴 없으면)</td><td>낮</td></tr><tr><td>4</td><td><b>에포크 상한 유지</b> — 늘리지 말 것</td><td>지금 계획(≤1ep·조기중단) 그대로</td><td>—</td></tr></tbody></table>
-<div class="warn"><p>⚠️ <b>재현성 원칙</b>: 위는 전부 <b>env override 로 실험</b>하며, 스크립트 <b>기본값은 검증된 A/B 값 (NUM_GEN 4 · BETA 0.04 · TEMPERATURE 0.9) 그대로 둔다.</b> 기본값을 바꾸면 과거 A/B와 clean 비교가 깨진다. 각 knob 은 <code>scripts/21_rlvr_grpo_adv.slurm</code> 상단 주석 및 <code>launch_stage2_expanded.sh</code> 사용법에 노출돼 있다.</p></div>
+<table><thead><tr><th>#</th><th>제언</th><th>방법</th><th>우선순위</th></tr></thead><tbody><tr><td>1</td><td><b>에포크 상한 유지</b> — 늘리지 말 것</td><td>지금 계획(≤1ep·조기중단) 그대로</td><td>—</td></tr></tbody></table>
 <h3 id="4-출처">4. 출처</h3>
 <ul>
 <li>Understanding Diversity Collapse in RLVR via the Lens of Overtraining — arXiv:2606.15455 <a href="https://arxiv.org/html/2606.15455v1">https://arxiv.org/html/2606.15455v1</a></li>
@@ -219,7 +208,6 @@ li{margin:3px 0}
 <!-- ===== stage2_redesign_2026.md ===== -->
 <h2 data-part="3" id="stage-2-재실행-실험-설계">3부 · Stage-2 재실행 실험 설계</h2>
 <div class="meta">원본: <code>docs/stage2_redesign_2026.md</code> (2026-10-22 HTML 로 통합)</div>
-<div class="warn"><p>⚠️ <b>낡은 내용</b>: 항목 <b>D</b>(<code>scale_rewards</code> gdpo → none)와 <b>§5</b>(checkpoint-850 에서 재개)는 실행되지 않았다. 도메인 전문가 3종은 <b><code>scale_rewards=gdpo</code></b> 로, <b><code>sft_mixed_merged</code> 에서 새로</b> 시작했다(<a href="../HANDOFF.md"><code>../HANDOFF.md</code></a> §0·§1, <a href="00_overview.html"><code>00_overview.html</code></a> 2-C). §6 의 <code>beta=0.04</code>·<code>num_generations=4</code> 유지도 바뀌었다(beta 0, num_gen 8/16).</p></div>
 <div class="note"><p>작성 2026-08-13 · 근거 = <a href="#2026년-중국한국-모델-학습-단계-조사-2026-05--08-중심">2026년 모델 서베이</a> + <a href="22_stage2b_mixed_run.html">붕괴 사후분석 rev.2</a> 대상 = job 73924/73925 붕괴 이후의 Stage-2 재실행 설정</p>
 <p><b>설계 원칙</b>: 서베이에서 가져온 것과 우리 로그에서 잰 것을 섞지 않는다. 각 항목에 <b>근거 출처</b>와 <b>실측 효과</b>를 따로 적는다. 실측이 없는 항목은 그렇다고 적는다.</p></div>
 <h3 id="0-재현-실험이-바꾼-전제">0. 재현 실험이 바꾼 전제</h3>
@@ -228,7 +216,7 @@ li{margin:3px 0}
 <div class="note"><p><b>따라서 "step 900 에 터지게 되어 있었다"는 설명은 틀렸다.</b> 개시는 확률적이었다. 설계 목표가 바뀐다 — <b>개시를 막는 것이 아니라, 개시가 절벽으로 이어지지 않게 만드는 것.</b></p></div>
 <p>이 문서의 변경안은 전부 이 목표에 정렬되어 있다.</p>
 <h3 id="1-요약">1. 요약</h3>
-<table><thead><tr><th></th><th>변경</th><th>근거</th><th>실측 효과</th><th>비용</th></tr></thead><tbody><tr><td><b>A</b></td><td>정확도 보상을 형식에서 분리 ✅완료</td><td>자체 실측 + 서베이 ①</td><td>개시 낙폭 −0.324 → <b>−0.254</b></td><td>0</td></tr><tr><td><b>B</b></td><td><b>형식 보상을 이진→단계형</b></td><td>자체 실측 + [GLM-4.1V]</td><td>개시 낙폭 −0.254 → <b>−0.195</b></td><td>0</td></tr><tr><td><b>C</b></td><td><code>overlong_filter</code> → <b>false</b></td><td>자체 실측(§4-4)</td><td>회복 차단 요인 제거</td><td>0</td></tr><tr><td><b>D</b></td><td><code>scale_rewards</code> gdpo → <b>none</b></td><td><a href="https://arxiv.org/abs/2604.08644">EXAONE 4.5</a></td><td>없음(위생)</td><td>0</td></tr><tr><td><b>E</b></td><td><code>max_steps</code> 를 실제 정지 step 으로</td><td>설계 오류 수정</td><td>없음</td><td>0</td></tr><tr><td><b>F</b></td><td><b>rollout logprob 불일치 계측</b></td><td><a href="https://ant-ling.medium.com/ring-flash-2-0-4bf5b62204f5">IcePop</a></td><td>미측정 — <b>재는 게 목적</b></td><td>낮음</td></tr><tr><td><b>G</b></td><td>감시자 상시 가동</td><td>자체 검증</td><td>실제 발견보다 146 step 빠름</td><td>0</td></tr><tr><td><b>H</b></td><td>길이 하드 예산</td><td><a href="https://arxiv.org/abs/2607.24653">Kimi K3</a></td><td>미측정</td><td>코드</td></tr><tr><td><b>I</b></td><td><code>loss_type=sapo</code></td><td><a href="https://arxiv.org/html/2511.20347v1">Qwen3-VL/SAPO</a></td><td>⚠️ <b>보류 — 트레이드오프</b></td><td>0</td></tr></tbody></table>
+<table><thead><tr><th></th><th>변경</th><th>근거</th><th>실측 효과</th><th>비용</th></tr></thead><tbody><tr><td><b>A</b></td><td>정확도 보상을 형식에서 분리 ✅완료</td><td>자체 실측 + 서베이 ①</td><td>개시 낙폭 −0.324 → <b>−0.254</b></td><td>0</td></tr><tr><td><b>B</b></td><td><b>형식 보상을 이진→단계형</b></td><td>자체 실측 + [GLM-4.1V]</td><td>개시 낙폭 −0.254 → <b>−0.195</b></td><td>0</td></tr><tr><td><b>C</b></td><td><code>overlong_filter</code> → <b>false</b></td><td>자체 실측(§4-4)</td><td>회복 차단 요인 제거</td><td>0</td></tr><tr><td><b>E</b></td><td><code>max_steps</code> 를 실제 정지 step 으로</td><td>설계 오류 수정</td><td>없음</td><td>0</td></tr><tr><td><b>F</b></td><td><b>rollout logprob 불일치 계측</b></td><td><a href="https://ant-ling.medium.com/ring-flash-2-0-4bf5b62204f5">IcePop</a></td><td>미측정 — <b>재는 게 목적</b></td><td>낮음</td></tr><tr><td><b>G</b></td><td>감시자 상시 가동</td><td>자체 검증</td><td>실제 발견보다 146 step 빠름</td><td>0</td></tr><tr><td><b>H</b></td><td>길이 하드 예산</td><td><a href="https://arxiv.org/abs/2607.24653">Kimi K3</a></td><td>미측정</td><td>코드</td></tr><tr><td><b>I</b></td><td><code>loss_type=sapo</code></td><td><a href="https://arxiv.org/html/2511.20347v1">Qwen3-VL/SAPO</a></td><td>⚠️ <b>보류 — 트레이드오프</b></td><td>0</td></tr></tbody></table>
 <p><b>A+B 만으로 개시 시점 총보상 낙폭이 −0.324 → −0.195 로 40% 줄어든다.</b> 둘 다 GPU 비용 0 이다.</p>
 <h3 id="2-좋은-소식--ms-swift-413-이-이미-지원한다">2. 좋은 소식 — ms-swift 4.13 이 이미 지원한다</h3>
 <p>서베이에서 찾은 2026년 기법 대부분이 <b>이미 플래그로 들어와 있다.</b> 커스텀 코드가 필요 없다. (설치본 <code>work/images/ms-swift-413-sandbox/.../swift/rlhf_trainers/args_mixin.py</code> 직접 확인)</p>
@@ -259,10 +247,6 @@ li{margin:3px 0}
 <p><b>근거 = 자체 실측</b> (사후분석 §4-4). 서베이 근거 없음 — DAPO 원 논문의 의도와 다르게 우리 상황에서 해롭다.</p>
 <p>ms-swift 는 잘린 completion 을 <code>completion_mask</code> 에서 빼는데(<code>grpo_trainer.py:1132</code>), 그 마스크가 <b>KL 계산에도 그대로 쓰인다</b>(1140행). 절단이 늘수록 손실·KL 앵커 양쪽에서 면제되는 샘플이 늘어 <b>되돌아올 힘이 사라진다.</b> 부작용으로 KL 계측 자체가 둔해진다 — step 910~949 의 KL 하락(0.081→0.068)은 개선이 아니라 <b>계측 실패</b>였다.</p>
 <div class="warn"><p>⚠️ <b>F(불일치 계측)와 상호작용한다.</b> <code>overlong_filter=True</code> 면 rollout logprob 정렬 대상에서 절단 샘플이 빠져 계측이 왜곡된다. <b>C 를 먼저 꺼야 F 가 신뢰할 수 있다.</b></p></div>
-<h4 id="d-scale_rewards-gdpo--none">D. <code>scale_rewards</code> gdpo → none</h4>
-<p><b>근거</b> — <a href="https://arxiv.org/abs/2604.08644">EXAONE 4.5</a> 는 GRPO 를 쓰되 "<b>표준편차 정규화를 생략해 학습 안정성을 보존</b>"한다고 명시한다. Dr.GRPO 의 주장과 같다.</p>
-<p><b>실측 효과: 없음.</b> 사후분석 §4-2(a) 에서 gdpo 는 <b>무죄로 판정</b>됐다 — 표본 내 재가중 ±15%, 관측된 병리적 그룹 유형은 <code>none</code> 대비 1.15배에 불과. <b>이건 위생 조치지 치료가 아니다.</b></p>
-<p>recipe <code>dr_grpo</code> 의 기본값이 이미 <code>none</code> 이므로 <code>SCALE_REWARDS</code> 를 넘기지 않으면 된다.</p>
 <h4 id="e-max_steps-를-실제-정지-step-으로">E. <code>max_steps</code> 를 실제 정지 step 으로</h4>
 <p><b>근거 = 설계 오류.</b> 서베이·가설 불필요.</p>
 <p><code>--max_steps</code> 는 정지 지점이자 <b>cosine LR 스케줄의 분모</b>다. 2,337 로 잡고 1,200 에서 멈추면 LR 이 끝까지 안 내려온다. step 900 기준 6.77e-6 대 1.46e-6, <b>4.62배</b> 차이.</p>
@@ -310,14 +294,13 @@ RECIPE_ARGS="--loss_type dr_grpo \
   --importance_sampling_level token \
   --epsilon ${EPS:-0.2} \
   --scale_rewards ${SCALE_REWARDS:-none} \
-  --log_rollout_offpolicy_metrics true"                   # ← D, F</code></pre>
+  --log_rollout_offpolicy_metrics true"                   # ← F</code></pre>
 <p>기존 대비 <b>순 변경 3줄</b>이다. 나머지(A·B)는 <code>configs/accuracy.py</code>, E·G 는 실행 인자.</p>
 <p><b>변경 요약 — 현행 대 <code>stable</code></b></p>
-<table><thead><tr><th>인자</th><th>현행(73924)</th><th><code>stable</code></th><th>항목</th></tr></thead><tbody><tr><td><code>reward_funcs</code> / <code>weights</code></td><td>동일</td><td>동일 (1.0 / 0.2 / 0.2)</td><td>—</td></tr><tr><td><code>AccuracyMix</code> letter 폴백</td><td>없음</td><td><b>있음</b></td><td>A</td></tr><tr><td><code>FormatThink</code></td><td>이진</td><td><b>단계형 0 / 0.5 / 1</b></td><td>B</td></tr><tr><td><code>overlong_filter</code></td><td>true</td><td><b>false</b></td><td>C</td></tr><tr><td><code>scale_rewards</code></td><td>gdpo</td><td><b>none</b></td><td>D</td></tr><tr><td><code>max_steps</code></td><td>2337(1,047에서 중단)</td><td><b>실제 정지 step</b></td><td>E</td></tr><tr><td><code>log_rollout_offpolicy_metrics</code></td><td>없음</td><td><b>true</b></td><td>F</td></tr><tr><td><code>WATCHDOG</code></td><td>없음</td><td><b>1</b></td><td>G</td></tr><tr><td><code>loss_type</code></td><td>dr_grpo</td><td>dr_grpo (유지)</td><td>I 보류</td></tr><tr><td><code>beta</code></td><td>0.04</td><td>0.04 (유지)</td><td>§6</td></tr></tbody></table>
+<table><thead><tr><th>인자</th><th>현행(73924)</th><th><code>stable</code></th><th>항목</th></tr></thead><tbody><tr><td><code>reward_funcs</code> / <code>weights</code></td><td>동일</td><td>동일 (1.0 / 0.2 / 0.2)</td><td>—</td></tr><tr><td><code>AccuracyMix</code> letter 폴백</td><td>없음</td><td><b>있음</b></td><td>A</td></tr><tr><td><code>FormatThink</code></td><td>이진</td><td><b>단계형 0 / 0.5 / 1</b></td><td>B</td></tr><tr><td><code>overlong_filter</code></td><td>true</td><td><b>false</b></td><td>C</td></tr><tr><td><code>max_steps</code></td><td>2337(1,047에서 중단)</td><td><b>실제 정지 step</b></td><td>E</td></tr><tr><td><code>log_rollout_offpolicy_metrics</code></td><td>없음</td><td><b>true</b></td><td>F</td></tr><tr><td><code>WATCHDOG</code></td><td>없음</td><td><b>1</b></td><td>G</td></tr><tr><td><code>loss_type</code></td><td>dr_grpo</td><td>dr_grpo (유지)</td><td>I 보류</td></tr></tbody></table>
 <h3 id="5-실행-계획">5. 실행 계획</h3>
-<table><thead><tr><th>단계</th><th>내용</th><th>비용</th><th>판정</th></tr></thead><tbody><tr><td><b>0</b></td><td><code>configs/accuracy.py</code> B 구현 + 9,504건 회귀 검증</td><td>0 (로컬)</td><td>태그 정상 롤아웃 무변경</td></tr><tr><td><b>1</b></td><td>스모크 <code>MAX_STEPS=5</code></td><td>~1 GPU-h</td><td>인자 파싱·<code>rollout_correction/*</code> 지표 기록 확인</td></tr><tr><td><b>2</b></td><td>checkpoint-850 에서 재개, 200 step</td><td>~90 GPU-h</td><td>불일치 지표 5% 임계 · 형식 유지</td></tr><tr><td><b>3</b></td><td>2 의 결과로 F 보정 켤지 결정 → 본실행</td><td>예산에 따름</td><td>—</td></tr></tbody></table>
-<div class="note"><p><b>왜 850 인가</b>: 홀드아웃 51.52%, init 대비 +8.18pp(p&lt;0.0001)로 <b>검증된 최고점</b>이다. 처음부터 다시 돌리는 것보다 800 step 을 아낀다.</p>
-<p>⚠️ <b>큐 대기가 실질 비용이다.</b> 재현 실험은 제출 후 <b>5일 13시간</b> 대기했다. 단계 1·2 를 따로 넣으면 대기가 두 번 붙는다 — <b>같은 잡 안에서 스모크→본실행</b>을 잇는 편이 낫다.</p>
+<table><thead><tr><th>단계</th><th>내용</th><th>비용</th><th>판정</th></tr></thead><tbody><tr><td><b>0</b></td><td><code>configs/accuracy.py</code> B 구현 + 9,504건 회귀 검증</td><td>0 (로컬)</td><td>태그 정상 롤아웃 무변경</td></tr><tr><td><b>1</b></td><td>스모크 <code>MAX_STEPS=5</code></td><td>~1 GPU-h</td><td>인자 파싱·<code>rollout_correction/*</code> 지표 기록 확인</td></tr><tr><td><b>2</b></td><td>F 보정 켤지 결정 → 본실행</td><td>예산에 따름</td><td>—</td></tr></tbody></table>
+<div class="note"><p>⚠️ <b>큐 대기가 실질 비용이다.</b> 재현 실험은 제출 후 <b>5일 13시간</b> 대기했다. 단계 1·2 를 따로 넣으면 대기가 두 번 붙는다 — <b>같은 잡 안에서 스모크→본실행</b>을 잇는 편이 낫다.</p>
 <p>⚠️ <b>속도 정정</b>: 벽시계는 <code>step_time</code>(163s)이 아니라 <b>~330 s/it</b> 이다. 재현 실험 12h 에 127 step. 일정은 반드시 330 기준으로 잡을 것.</p></div>
 <h3 id="5-2-보상-설정-전면-점검">5-2. 보상 설정 전면 점검</h3>
 <h4 id="참조-리포트의-보상-서술--편차가-크다">참조 리포트의 보상 서술 — 편차가 크다</h4>
@@ -370,9 +353,9 @@ soft_overlong   0.2   min( −(len − 4096) / 2048 , 0 )      ← rewards/orm.p
 <table><thead><tr><th>전문가</th><th><code>num_generations</code></th><th>근거</th></tr></thead><tbody><tr><td>E1 deepvision</td><td>4 유지</td><td>13.5% — 정상 범위</td></tr><tr><td><b>E2 mmk12</b></td><td><b>8 검토</b></td><td>25.0% — 그룹 넷 중 하나가 정확도 신호 0</td></tr><tr><td>E3 pmcvqa</td><td>4 유지</td><td>3.7% — 가장 건강. 올릴 이유 없음</td></tr></tbody></table>
 <div class="note"><p>E2 만 올리면 롤아웃 비용이 그 전문가에서만 2배가 된다(≈ +733 GPU-h). <b>도메인 분리를 했기 때문에 이런 국소 조정이 가능해졌다.</b></p></div>
 <h4 id="정리">정리</h4>
-<table><thead><tr><th>항목</th><th>조치</th><th>근거</th></tr></thead><tbody><tr><td><b>가중치 1.0 / 0.2 / 0.2</b></td><td><b>유지</b></td><td>건강 구간 점유 92.3 / 4.3 / 3.4% — 의도대로다</td></tr><tr><td><b>정확도 균일도 계측 추가</b></td><td>🔴 신규</td><td>발견 ⑦⑧ — <code>frac_reward_zero_std</code> 는 이걸 못 잡는다</td></tr><tr><td><b>E2 만 <code>num_generations</code> 8</b></td><td>🟡 검토</td><td>발견 ⑨ — mmk12 25.0%</td></tr><tr><td><code>accuracy_mix</code> letter 폴백</td><td>✅ 완료 <code>2a0458a</code></td><td>자체 실측</td></tr><tr><td><code>format_think</code> 단계형</td><td>🔴 <b>구현</b></td><td>자체 실측 (개시 낙폭 −0.254→−0.195)</td></tr><tr><td><code>soft_max_length</code> 도메인별</td><td>🟡 의료 하향</td><td>Kimi K3 + 자체 실측</td></tr><tr><td>가중치 1.0 / 0.2 / 0.2</td><td><b>유지</b></td><td>단계형 효과 확인 후 판단</td></tr><tr><td><code>repetition</code> 추가</td><td>❌ <b>기각</b></td><td>자체 실측 — 정상 구간 잡음 · 퇴화 미검출</td></tr><tr><td>언어 일관성 추가</td><td>❌ <b>기각</b></td><td>자체 실측 — 한글 0% · 한자는 정당 기저</td></tr><tr><td>길이 하드 예산</td><td>🟡 2차 방어선</td><td>길이는 결과지 원인 아님</td></tr></tbody></table>
+<table><thead><tr><th>항목</th><th>조치</th><th>근거</th></tr></thead><tbody><tr><td><b>가중치 1.0 / 0.2 / 0.2</b></td><td><b>유지</b></td><td>건강 구간 점유 92.3 / 4.3 / 3.4% — 의도대로다</td></tr><tr><td><b>정확도 균일도 계측 추가</b></td><td>🔴 신규</td><td>발견 ⑦⑧ — <code>frac_reward_zero_std</code> 는 이걸 못 잡는다</td></tr><tr><td><code>accuracy_mix</code> letter 폴백</td><td>✅ 완료 <code>2a0458a</code></td><td>자체 실측</td></tr><tr><td><code>format_think</code> 단계형</td><td>🔴 <b>구현</b></td><td>자체 실측 (개시 낙폭 −0.254→−0.195)</td></tr><tr><td><code>soft_max_length</code> 도메인별</td><td>🟡 의료 하향</td><td>Kimi K3 + 자체 실측</td></tr><tr><td>가중치 1.0 / 0.2 / 0.2</td><td><b>유지</b></td><td>단계형 효과 확인 후 판단</td></tr><tr><td><code>repetition</code> 추가</td><td>❌ <b>기각</b></td><td>자체 실측 — 정상 구간 잡음 · 퇴화 미검출</td></tr><tr><td>언어 일관성 추가</td><td>❌ <b>기각</b></td><td>자체 실측 — 한글 0% · 한자는 정당 기저</td></tr><tr><td>길이 하드 예산</td><td>🟡 2차 방어선</td><td>길이는 결과지 원인 아님</td></tr></tbody></table>
 <h3 id="6-바꾸지-않는-것과-이유">6. 바꾸지 않는 것과 이유</h3>
-<table><thead><tr><th>항목</th><th>유지 이유</th></tr></thead><tbody><tr><td><code>beta=0.04</code> (KL 유지)</td><td>HyperCLOVA X 는 <b>KL 을 제거</b>하지만 목적이 다르다 — 저쪽은 다양성 확보, 우리는 이탈 억제. 우리 붕괴는 다양성 부족이 아니었다</td></tr><tr><td><code>epsilon_high</code> 미설정(대칭 0.2)</td><td><a href="https://arxiv.org/pdf/2509.26114">clip-low 는 엔트로피를 올리고 clip-high 는 내린다</a>. 상단 클립을 열면 <b>큰 상승 업데이트를 허용</b>하는 쪽 — 지금 원하는 방향의 반대</td></tr><tr><td><code>num_generations=4</code></td><td><code>frac_reward_zero_std</code> 평균 <b>0.0106</b> — 그룹은 끝까지 건강했다. 8로 올리면 롤아웃 비용 2배</td></tr><tr><td><code>freeze_vit=True</code></td><td>Kimi K3 가 비전 타워 최적화 불안정(gradient norm 스파이크)을 보고했다. RL 에서 여는 건 별도 실험</td></tr><tr><td><code>dynamic_sample=true</code></td><td>EXAONE 4.5 는 zero-variance 그룹을 버리지만 우리는 재샘플한다. 영향 미미(0.0106), 바꿀 이유 없음</td></tr><tr><td><b>모델 크기 9B</b></td><td>A100 80GB <b>PCIe</b>(NVLink 없음, P2P 차단) + vLLM colocate 가중치 2벌 → 실효 상한 ~12B. 14B 는 예산 47% 소모. 그리고 <b>붕괴는 용량 문제가 아니었다</b></td></tr></tbody></table>
+<table><thead><tr><th>항목</th><th>유지 이유</th></tr></thead><tbody><tr><td><code>epsilon_high</code> 미설정(대칭 0.2)</td><td><a href="https://arxiv.org/pdf/2509.26114">clip-low 는 엔트로피를 올리고 clip-high 는 내린다</a>. 상단 클립을 열면 <b>큰 상승 업데이트를 허용</b>하는 쪽 — 지금 원하는 방향의 반대</td></tr><tr><td><code>freeze_vit=True</code></td><td>Kimi K3 가 비전 타워 최적화 불안정(gradient norm 스파이크)을 보고했다. RL 에서 여는 건 별도 실험</td></tr><tr><td><code>dynamic_sample=true</code></td><td>EXAONE 4.5 는 zero-variance 그룹을 버리지만 우리는 재샘플한다. 영향 미미(0.0106), 바꿀 이유 없음</td></tr><tr><td><b>모델 크기 9B</b></td><td>A100 80GB <b>PCIe</b>(NVLink 없음, P2P 차단) + vLLM colocate 가중치 2벌 → 실효 상한 ~12B. 14B 는 예산 47% 소모. 그리고 <b>붕괴는 용량 문제가 아니었다</b></td></tr></tbody></table>
 <h3 id="7-이-문서가-다루지-않는-것">7. 이 문서가 다루지 않는 것</h3>
 <p>서베이에서 나온 <b>구조적 제안 2건</b>은 별도 판단이 필요해 여기 넣지 않았다.</p>
 <p><b>① 텍스트 전용 콜드스타트</b> — <a href="https://github.com/CSfufu/Revisual-R1">ReVisual-R1</a>(ICLR 2026)은 텍스트 전용 콜드스타트 → 멀티모달 RL → 텍스트 RL 3단이다. 관련 연구는 <b>멀티모달 콜드스타트가 시각 주의를 못 올리고 텍스트 전용은 올린다</b>고 보고한다 (<a href="https://arxiv.org/html/2603.03825v1">Lazy Attention Localization</a>). 우리 Stage-1 은 멀티모달 혼합이다. <b>의료 여섯 지점 미검출과 정합적인 가설</b>이지만 Stage-1 재실행이 필요하다.</p>
@@ -402,9 +385,8 @@ soft_overlong   0.2   min( −(len − 4096) / 2048 , 0 )      ← rewards/orm.p
 <!-- ===== deepseek_v4_pipeline_adoption.md ===== -->
 <h2 data-part="4" id="deepseek-v4-파이프라인-도입안--도메인별-전문가--통합">4부 · DeepSeek-V4 파이프라인 도입안 — 도메인별 전문가 + 통합</h2>
 <div class="meta">원본: <code>docs/deepseek_v4_pipeline_adoption.md</code> (2026-10-22 HTML 로 통합)</div>
-<div class="warn"><p>⚠️ <b>낡은 내용</b>: §2 의 "Stage-3 = E3-b(E3-a 위 2차 학습)" 와 §6·§9 의 전문가당 step 수(1,000 / 600)는 바뀌었다. Stage-3 는 <b>전문가 3종 통합 모델</b>에서 시작하고, 실제 채택 체크포인트는 deepvision 2192 · mmk12 350 · pmcvqa 4896 이다 → <a href="00_overview.html"><code>00_overview.html</code></a> · <a href="23_stage2ce_experts.html"><code>23_stage2ce_experts.html</code></a>. §8 계단식 통합 설계는 유효하다.</p></div>
-<div class="note"><p>작성 2026-08-13 · <b>rev.2</b> — 도메인 분리 학습으로 전면 개정 근거 = <a href="https://arxiv.org/html/2606.19348v1">DeepSeek-V4 (arXiv 2606.19348)</a> · <a href="https://arxiv.org/abs/2607.24653">Kimi K3 (arXiv 2607.24653)</a> · <a href="#2026년-중국한국-모델-학습-단계-조사-2026-05--08-중심">2026년 모델 서베이</a> · ms-swift 4.13 설치본 소스 직접 확인</p>
-<p>🚨 <b>rev.1 정정</b>: 초판은 "전문가 A = 기존 혼합 실행(ck-850)"으로 잡았다. <b>그건 DeepSeek-V4 구조가 아니다.</b> 혼합 학습된 모델은 도메인 전문가가 아니라 그냥 혼합 모델이다. 이 개정판은 <b>Stage-2 자체를 도메인별로 쪼갠다.</b> 대가도 함께 적는다 — ck-850 을 공짜 전문가로 쓰던 이점이 사라진다.</p></div>
+<div class="note"><p>작성 2026-08-13 · 근거 = <a href="https://arxiv.org/html/2606.19348v1">DeepSeek-V4 (arXiv 2606.19348)</a> · <a href="https://arxiv.org/abs/2607.24653">Kimi K3 (arXiv 2607.24653)</a> · <a href="#2026년-중국한국-모델-학습-단계-조사-2026-05--08-중심">2026년 모델 서베이</a> · ms-swift 4.13 설치본 소스 직접 확인</p>
+</div>
 <h3 id="0-리포트에서-확인된-것과-안-된-것">0. 리포트에서 확인된 것과 안 된 것</h3>
 <p><b>DeepSeek-V4 리포트는 후처리 부분이 얇다.</b> 시작 전에 알고 있어야 한다.</p>
 <table><thead><tr><th>항목</th><th>리포트</th></tr></thead><tbody><tr><td>2단 구조</td><td>✅ "독립적 도메인 전문가 육성 → 온폴리시 증류로 통합"</td></tr><tr><td>도메인</td><td>✅ 수학·코딩·에이전트·지시따르기</td></tr><tr><td>전문가 학습법</td><td>✅ 도메인별 SFT → <b>GRPO</b> + 도메인별 보상</td></tr><tr><td>통합 손실</td><td>⚠️ "reverse KL"·"Full-Vocabulary OPD" 표현만. <b>수식 없음</b></td></tr><tr><td>교사 가중·하이퍼파라미터</td><td>❌ 없음</td></tr><tr><td><b>전문가 대 통합모델 비교 수치</b></td><td>❌ <b>없음</b></td></tr></tbody></table>
@@ -431,19 +413,17 @@ soft_overlong   0.2   min( −(len − 4096) / 2048 , 0 )      ← rewards/orm.p
 <p><code>scripts/30_medical_rl.slurm</code> 을 확인한 결과 Stage-3 는 <b>pmcvqa 가 아니다.</b></p>
 <table><thead><tr><th></th><th>Stage-2 의료</th><th>Stage-3 의료</th></tr></thead><tbody><tr><td>데이터</td><td><code>stage2_expanded_train.jsonl</code> 중 pmcvqa 19,583</td><td><code>medix_rl_train.jsonl</code> (단답 VQA, 정답 중앙값 46자)</td></tr><tr><td>보상</td><td><code>accuracy_mix</code>(letter) + format + soft_overlong</td><td><code>clinical_judge</code>(RaR 루브릭, 1.0) + <code>format_think</code>(0.2)</td></tr><tr><td>채점</td><td>규칙 기반 검증</td><td>외부 멀티모달 judge (Qwen3.6-27B-FP8)</td></tr></tbody></table>
 <p><b>둘은 다른 능력을 겨냥한다</b> — pmcvqa 는 객관식 정답률, medix 는 개방형 임상 서술. 따라서 하나의 "의료 전문가"로 합칠 수도, 둘로 나눌 수도 있다.</p>
-<h4 id="권고-구성--전문가-3--의료-2단">권고 구성 — 전문가 3 + 의료 2단</h4>
+<h4 id="권고-구성--전문가-3--의료-2단">권고 구성 — 전문가 3</h4>
 <pre><code>sft_mixed_merged ──┬─→ [E1 일반]  deepvision 40,000 · accuracy_mix + format
    (동결 base,     │
     LoRA r16)      ├─→ [E2 수학]  mmk12 15,204 · math_verify 경로 · 길이 예산 ↑
                    │
                    └─→ [E3 의료]  pmcvqa 19,583 (RLVR·letter)
-                            └─→ medix (RaR·clinical_judge)   ← Stage-3 가 여기 흡수된다
-                                                                
+
   통합: E1 + E2 + E3 → 단일 학생 (계단 0 어댑터 산술 → 계단 1 GKD)</code></pre>
-<div class="note"><p>🔴 <b>Stage-3 가 독립 단계에서 E3 의 2차 학습으로 바뀐다.</b> 현재 Stage-3 계획은 "Stage-2 체크포인트 병합 → init 교체"이고 문서에 <b>"망각 방지용 DeepVision 혼합은 옵션"</b> 이라 적혀 있다. 그 망각 문제가 <b>구조적으로 사라진다</b> — E3 는 일반 능력을 지킬 의무가 없고, 일반 능력은 E1 이 들고 있다가 통합 때 합쳐진다.</p></div>
 <h4 id="도메인-분리로-새로-생기는-손잡이">도메인 분리로 새로 생기는 손잡이</h4>
 <p>혼합 학습에서는 불가능했던 것들이다. <b>이게 노출량 다음으로 큰 이득이다.</b></p>
-<table><thead><tr><th>손잡이</th><th>E1 일반</th><th>E2 수학</th><th>E3 의료</th></tr></thead><tbody><tr><td>길이 예산(<code>soft_max_length</code>)</td><td>중간</td><td><b>크게</b> — 수학은 긴 CoT 가 필요</td><td><b>작게</b> — 객관식</td></tr><tr><td><code>num_generations</code></td><td>4</td><td>4</td><td>필요시 ↑ (여유 폭이 좁아 변별 필요)</td></tr><tr><td>보상 가중</td><td>기본</td><td>기본</td><td>형식 비중 조정 여지</td></tr><tr><td>조기 종료</td><td>독립 판단</td><td>독립 판단</td><td>독립 판단</td></tr></tbody></table>
+<table><thead><tr><th>손잡이</th><th>E1 일반</th><th>E2 수학</th><th>E3 의료</th></tr></thead><tbody><tr><td>길이 예산(<code>soft_max_length</code>)</td><td>중간</td><td><b>크게</b> — 수학은 긴 CoT 가 필요</td><td><b>작게</b> — 객관식</td></tr><tr><td>보상 가중</td><td>기본</td><td>기본</td><td>형식 비중 조정 여지</td></tr><tr><td>조기 종료</td><td>독립 판단</td><td>독립 판단</td><td>독립 판단</td></tr></tbody></table>
 <h3 id="3-실현-가능성--ms-swift-413">3. 실현 가능성 — ms-swift 4.13</h3>
 <p>설치본 <code>swift/rlhf_trainers/gkd_trainer.py</code>(1,071줄) 직접 확인.</p>
 <h4 id="되는-것">되는 것</h4>
@@ -489,17 +469,8 @@ model = prepare_adapter(args, model, adapters)      # key=='teacher' 여도 rewa
 <h4 id="e1-에-관한-실측-판단--ck-850-이-285-step-어치-앞서-있다">E1 에 관한 실측 판단 — ck-850 이 285 step 어치 앞서 있다</h4>
 <p>ck-850 이 본 deepvision = 850 × 8 × 0.535 = <b>3,638건</b>. 전용 E1 이 이를 따라잡으려면 <b>455 step</b>(3,640건)이 필요하다.</p>
 <div class="note"><p><b>즉 E1 을 455 step 미만으로 돌리면 ck-850 보다 deepvision 을 덜 본 모델이 나온다.</b> 그 구간에서는 <b>ck-850 을 일반 교사로 쓰는 편이 낫다.</b> 다만 ck-850 은 혼합 학습본이라 순수 도메인 전문가가 아니다 — 통합 시 그만큼 도메인 경계가 흐려진다.</p></div>
-<h4 id="채택--전문가당-1000-step-">채택 — 전문가당 <b>1,000 step</b> 🔴</h4>
-<p><b>1,000 은 잘 고른 수다.</b> 이유가 셋이다.</p>
-<p><b>① 잡 하나에 들어간다.</b> 1,000 × 330s = <b>91.7 벽시계h</b> &lt; 파티션 상한 <b>120h</b>. 기동 0.5h·체크포인트 저장을 더해도 여유가 25h 넘게 남는다. → <b>전문가 3개 = 잡 3개 = 큐 대기 1회. 연쇄가 전혀 없다.</b> (2,448 step 짜리 1-epoch 안은 E3 만 2잡 연쇄라 대기가 한 번 더 붙는다)</p>
-<p><b>② 예산이 맞는다.</b></p>
-<table><thead><tr><th>전문가</th><th>step</th><th>epoch</th><th>혼합 대비</th><th>벽시계h</th><th>GPU-h</th><th>잡</th></tr></thead><tbody><tr><td>E1 deepvision</td><td class="n">1,000</td><td class="n">0.20</td><td class="n"><b>2.2배</b></td><td class="n">92</td><td class="n">733</td><td class="n">1</td></tr><tr><td>E2 mmk12</td><td class="n">1,000</td><td class="n">0.53</td><td class="n"><b>5.8배</b></td><td class="n">92</td><td class="n">733</td><td class="n">1</td></tr><tr><td>E3 pmcvqa</td><td class="n">1,000</td><td class="n">0.41</td><td class="n"><b>4.5배</b></td><td class="n">92</td><td class="n">733</td><td class="n">1</td></tr><tr><td><b>합계</b></td><td class="n">3,000</td><td class="n"></td><td class="n"></td><td class="n">275</td><td class="n"><b>2,200</b></td><td class="n"><b>3</b></td></tr><tr><td><b>잔여</b> (Stage-3 medix·통합·평가·예비)</td><td class="n"></td><td class="n"></td><td class="n"></td><td class="n"></td><td class="n"><b>1,926</b></td><td class="n"></td></tr></tbody></table>
-<p>잔여 4,126 의 <b>53%</b> 만 쓰고 <b>1,926 GPU-h</b> 를 남긴다. 1-epoch 안(2,492~3,629)보다 싸다.</p>
-<p><b>③ 노출이 목적에 충분하다.</b> 의료 0.41 epoch 은 혼합 실행의 <b>4.5배</b>다. 1.00 epoch(2,448 step)이 이상적이지만 <b>0.41 로도 "의료 RL 이 듣는가"는 판정된다</b> — 지금 0.09 에서는 판정 자체가 불가능했다. 부족하면 <b>이어학습</b>한다(체크포인트 재개는 job 74583 에서 검증됨).</p>
-<div class="warn"><p>⚠️ <b><code>--time</code> 을 올려야 한다.</b> 현재 <code>21_rlvr_grpo_adv.slurm</code> 기본값이 <code>70:00:00</code> 인데 1,000 step 에 91.7h 가 필요하다. <b><code>--time=115:00:00</code></b> 으로 제출할 것(상한 120h).</p>
-<p>⚠️ <b>step time 은 도메인마다 다를 것이다.</b> 의료·수학은 답이 짧아 롤아웃이 빠를 가능성이 높다. 330 s/it 는 혼합 실행 실측이므로 <b>스모크에서 도메인별로 재고</b> 필요시 step 수를 조정한다.</p></div>
 <h4 id="병렬-실행">병렬 실행</h4>
-<p>노드가 정확히 3개다. 잡 3개를 한 번에 띄우면 대기가 한 번이고 벽시계 92시간에 셋 다 끝난다. 다만 <b>파티션 전체 점유</b>이므로 다른 사용자와의 충돌 확인이 필요하다. 2개씩 나누면 대기가 두 번.</p>
+<p>노드가 정확히 3개다. 잡 3개를 한 번에 띄우면 대기가 한 번이다. 다만 <b>파티션 전체 점유</b>이므로 다른 사용자와의 충돌 확인이 필요하다. 2개씩 나누면 대기가 두 번.</p>
 <h3 id="7-lora-설정-점검">7. LoRA 설정 점검</h3>
 <p>현재 (<code>checkpoint-850/adapter_config.json</code> + 실행 인자):</p>
 <pre><code>tuner_type      lora           lora_dropout    0.05      ← 🔴 문제
@@ -569,7 +540,7 @@ with torch.no_grad(), disable_gradient_checkpointing(...):
 <h4 id="이어붙이기로-한다면--합동에-가깝게">이어붙이기로 한다면 — 합동에 가깝게</h4>
 <p><b>① pmcvqa 를 medix 에 섞는다.</b> Stage-3 문서에 이미 *"망각 방지용 DeepVision 혼합은 옵션"* 이라 적혀 있다. HyperCLOVA X 의 합동 전환 근거가 정확히 이것이다.</p>
 <p><b>② 섞어도 보상 수식이 깨지지 않는다.</b> GRPO advantage 는 그룹 평균을 뺀다. 어떤 보상 함수가 도메인 밖 샘플에 <b>상수</b>를 반환하면, 그 그룹의 모든 생성에 같은 값이 더해지고 그룹 평균도 같이 오르므로 <b>advantage 기여가 정확히 0</b> 이다. → <code>clinical_judge</code> 가 pmcvqa 샘플에 0 을 주어도 pmcvqa 학습이 왜곡되지 않는다.</p>
-<div class="warn"><p>⚠️ 단 <b><code>scale_rewards=none</code> 일 때만</b> 성립한다. <code>gdpo</code> 는 보상 함수별 z-score 라 상수 함수의 std=0 에서 정의가 깨진다. 우리는 이미 <code>none</code> 으로 정했다(§<a href="#stage-2-재실행-실험-설계">재설계 D</a>).</p></div>
+<div class="warn"><p>⚠️ 단 <b><code>scale_rewards=none</code> 일 때만</b> 성립한다. <code>gdpo</code> 는 보상 함수별 z-score 라 상수 함수의 std=0 에서 정의가 깨진다.</p></div>
 <p><b>③ 비용도 문제없다.</b> <code>clinical_judge</code> 는 이미 <b>형식 위반 시 judge 호출을 생략</b>한다 (<code>configs/medical_reward.py:214</code>). <b>소스 기반 생략을 추가하는 건 몇 줄</b>이고, judge 는 <code>1gpu</code> 파티션에 별도 상주하는 <code>AsyncORM</code> 이라 <b>학습 GPU 를 점유하지 않는다.</b></p>
 <p><b>④ 망각을 직접 잰다.</b> E3-b 전후로 <b>pmcvqa 홀드아웃(n=400)</b> 을 재면 끝이다. "섞었더니 지켜졌나"가 한 번의 평가로 판정된다.</p>
 <h4 id="세-번째-선택지--우리가-고른-구조에는-더-자연스러운-답이-있다">세 번째 선택지 — 우리가 고른 구조에는 더 자연스러운 답이 있다</h4>
@@ -592,10 +563,9 @@ with torch.no_grad(), disable_gradient_checkpointing(...):
       · docs/21_stage2a_design.html 의 A~G 를 그대로 적용
 [2] 스모크 1잡 (MAX_STEPS=5 ×3 arm) — 인자·분할·지표 확인
 [3] E1·E2·E3-a 동시 제출 (가능하면 3노드 병렬)
-[4] E3-b: medix RaR 을 E3-a 위에 (judge 서버 필요)
-[5] 계단 0 병합 스윕 → 판정 → 필요시 계단 1</code></pre>
-<p><b>지금 정해야 할 것 세 가지</b></p>
-<table><thead><tr><th></th><th>선택지</th><th>권고</th></tr></thead><tbody><tr><td><b>①</b> 도메인 3분할인가 2분할(일반+수학 / 의료)인가</td><td>Kimi K3 는 "넓은 도메인 3개"</td><td><b>3분할</b> — 소스가 이미 3개고 더 쪼개지 않는다</td></tr><tr><td><b>②</b> 전문가당 step 수</td><td>600 / 850</td><td><b>600 으로 시작</b> — 셋 합쳐 1,320 GPU-h(26%). 부족하면 이어학습</td></tr><tr><td><b>③</b> 파티션 3노드 동시 점유 허용 여부</td><td>가능 / 2개씩</td><td><b>확인 필요</b> — 대기 5.5일 × 횟수가 실질 비용</td></tr></tbody></table>
+[4] 계단 0 병합 스윕 → 판정 → 필요시 계단 1</code></pre>
+<p><b>지금 정해야 할 것 두 가지</b></p>
+<table><thead><tr><th></th><th>선택지</th><th>권고</th></tr></thead><tbody><tr><td><b>①</b> 도메인 3분할인가 2분할(일반+수학 / 의료)인가</td><td>Kimi K3 는 "넓은 도메인 3개"</td><td><b>3분할</b> — 소스가 이미 3개고 더 쪼개지 않는다</td></tr><tr><td><b>②</b> 파티션 3노드 동시 점유 허용 여부</td><td>가능 / 2개씩</td><td><b>확인 필요</b> — 대기 5.5일 × 횟수가 실질 비용</td></tr></tbody></table>
 <h3 id="10-레퍼런스">10. 레퍼런스</h3>
 <ul>
 <li><a href="https://arxiv.org/html/2606.19348v1">DeepSeek-V4 (arXiv 2606.19348)</a> — 2단 구조, 전어휘 OPD. 후처리 서술은 얇음</li>

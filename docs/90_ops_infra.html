@@ -30,7 +30,7 @@ svg{width:100%;height:auto;display:block} svg text{fill:var(--fg)} .q{fill:var(-
 .ok{color:var(--good);font-weight:600}.ng{color:var(--bad);font-weight:600}.run{color:var(--acc);font-weight:600}
 li{margin:3px 0}
 </style>
-<style>pre{background:var(--card);border-radius:6px;padding:10px 12px;overflow-x:auto;margin:10px 0 16px}pre code{background:none;padding:0;word-break:normal;white-space:pre}details{margin:10px 0}summary{cursor:pointer;font-weight:600}.stale{color:var(--warn);font-size:12.5px;font-weight:600}</style>
+<style>pre{background:var(--card);border-radius:6px;padding:10px 12px;overflow-x:auto;margin:10px 0 16px}pre code{background:none;padding:0;word-break:normal;white-space:pre}details{margin:10px 0}summary{cursor:pointer;font-weight:600}</style>
 <style>/* 좁은 화면 가로 넘침 방지 */pre{overflow-x:auto;max-width:100%;white-space:pre}img{max-width:100%;height:auto}main{overflow-wrap:anywhere}details{max-width:100%;overflow-x:auto}</style>
 <style>
 h4{font-size:15px;margin:22px 0 6px} h5{font-size:14px;margin:18px 0 6px}
@@ -56,7 +56,7 @@ details summary{cursor:pointer;color:var(--mute)}
 </div>
 <nav>
 <b>목차</b> · <b>Part 1</b>:
-<a href="#자원--운영-정책-가이드">자원 &amp; 운영 정책</a> · <a href="#-예산-실적-2026-07-21-기준-sacct-실측">예산 실적</a> · <a href="#데이터-소스-확정--변환-검증">데이터</a> · <a href="#홀드아웃-분리-stage-2-평가-누수-차단">홀드아웃 분리</a> · <a href="#-미해결-홀드아웃-22-중복-2026-07-16-발견-기록만--재측정-보류">홀드아웃 22% 중복</a> · <a href="#디렉토리-트리">디렉토리 트리</a> · <a href="#사용-순서">사용 순서</a><br>
+<a href="#자원--운영-정책-가이드">자원 &amp; 운영 정책</a> · <a href="#-예산-실적-2026-07-21-기준-sacct-실측">예산 실적</a> · <a href="#데이터-소스-확정--변환-검증">데이터</a> · <a href="#홀드아웃-분리-stage-2-평가-누수-차단">홀드아웃 분리</a> · <a href="#-미해결-홀드아웃-22-중복-2026-07-16-발견-기록만--재측정-보류">홀드아웃 22% 중복</a><br>
 <b>Part 2</b>:
 <a href="#환경-singularity-컨테이너-확정검증-완료">컨테이너</a> · <a href="#베이스-모델--ms-swift-4x-주의">베이스 모델 &amp; ms-swift 4.x</a> · <a href="#학습-방식-lora-하드웨어-제약-대응">LoRA</a> · <a href="#보상-설계-stage-2">보상 설계</a> · <a href="#논문-레퍼런스-전-링크-arxiv-원문-검증-완료">논문 레퍼런스</a> · <a href="#각-논문-무슨-문제를--어떤-방법으로-원문-요약">논문 계보</a>
 <br><b>Part 3</b>: <a href="#진행-이력--의사결정--todo">진행 이력·의사결정·TODO</a> · <a href="#날짜별-이력">날짜별 이력</a> · <b>Part 4</b>: <a href="#작업-일지-모음--2026-06-15--2026-07-01">작업 일지(06-15~07-01)</a>
@@ -164,58 +164,6 @@ singularity exec --bind $PWD/work --env HF_HUB_OFFLINE=1 $SB python scripts/conv
 <li><b>대응(합의)</b>: 지금은 <b>기록만</b> 하고 재측정을 보류한다(GPU 예산 83% 소진). 향후 홀드아웃을 재구성할 때는 <b>이미지 바이트해시 기준 dedup</b> 이 필수다.</li>
 </ul>
 
-<details id="디렉토리-트리"><summary>디렉토리 트리 <span class="stale">(낡음)</span></summary>
-<p class="meta">(낡음) 2026-07 시점 구조다. 이후 추가된 <code>b200/</code>·<code>kgpu/</code> 등이 없다. docs 파일명은 HTML 통합본 이름으로 바꿔 적었다.</p>
-<pre><code>kbds_project/
-├── README.md · HANDOFF.md · plan.hwp
-├── configs/
-│   ├── accuracy.py          # Stage-2 보상 accuracy_mix + format_think
-│   ├── medical_reward.py    # Stage-3 RaR 루브릭 보상 clinical_judge(AsyncORM)
-│   └── ds_zero{2,3,3_offload}.json
-├── scripts/                             # (총 49개 — 아래는 주요 스크립트)
-│   ├── 00_common.sh                     # 공통 경로/환경/실행 래퍼
-│   ├── 10_sft.slurm / 20_rlvr_grpo.slurm / 30_medical_rl.slurm / 40_eval.slurm  # 단계별 뼈대
-│   │
-│   │  # ── Stage-1 콜드스타트 v3 ──
-│   ├── 11_build_coldstart.slurm         # 데이터 빌드 (cpu32 잡)
-│   ├── build_mixed_coldstart.py         # 일반+의료 혼합, format_think==1.0 게이트
-│   ├── 12_merge_mixed.slurm             # LoRA 병합 + 형식/길이 프로브
-│   ├── 50_eval_v3.slurm / eval_v3_holdout.py   # 병합+홀드아웃 채점(strict format_think·층별·pred 덤프)
-│   ├── 52_eval_v2_baseline.slurm        # v2 동일조건 재측정(A/B 확정용)
-│   ├── plot_sft_curve.py                # SFT 학습곡선 → docs/assets/
-│   │
-│   │  # ── Stage-2 RLVR ──
-│   ├── 21_rlvr_grpo_adv.slurm           # A/B(dapo/gspo/dr_grpo, RESUME/MAX_STEPS)
-│   ├── make_holdout.py                  # 층화 홀드아웃 분리
-│   ├── 41_eval_compare.slurm / eval_compare.py            # base vs 학습 벤치
-│   ├── eval_midtrain.slurm              # 중간 홀드아웃 벤치(RL 25%)
-│   ├── 46_eval_gdpo_ab.slurm / 47_eval_ablation.slurm     # GDPO 판정 · 콜드스타트 ablation
-│   ├── 48_eval_gspo_holdout.slurm / 49_eval_contaminated.slurm  # GSPO 홀드아웃 · 오염 참고치
-│   ├── plot_grpo_multi.py / plot_grpo_compare.py / plot_grpo_trend.py  # 기법 성능 plot
-│   ├── merge_drgrpo.slurm / launch_stage3.sh / launch_gspo_ab.sh       # 오케스트레이터
-│   │
-│   │  # ── Stage-3 의료 RL ──
-│   ├── judge_server.sh / 31_judge_smoke.slurm / 33_judge_probe.slurm   # judge 서빙·검증
-│   ├── 34_rubric_compare.slurm / judge_compare_rubric.py  # 정적 vs 인스턴스 루브릭 비교
-│   ├── 35_stage3_smoke.slurm            # 배선 end-to-end 스모크
-│   ├── test_medical_reward.py           # 보상 유닛테스트(29)
-│   │
-│   │  # ── HealthBench / 공통 ──
-│   ├── 45_healthbench_smoke.slurm / run_healthbench.py    # HealthBench Hard 하니스(n=1000 실측)
-│   ├── _archive/                        # 폐기 스크립트(v1·v2 빌더 등, 이력 보존)
-│   └── convert_to_swift.py / download_{model,dataset}.py
-├── docs/ (30_stage3_medical_rl.html · 90_ops_infra.html) · logs/</code></pre>
-</details>
-
-<h3 id="사용-순서">사용 순서 <span class="stale">(낡음)</span></h3>
-<p class="meta">(낡음) 계획서 원안의 4단계 직렬 체인이다. 실제 Stage-2 는 이후 도메인 전문가·B200·kgpu 경로로 바뀌었다.</p>
-<pre><code># 0) 환경(1회, 로그인노드): bash env/build_image.sh  → work/images/ms-swift-413-sandbox
-# 1) 경로/모델 확인: scripts/00_common.sh 상단 변수
-# 2) 단계별 제출 (의존성 체이닝)
-JID1=$(sbatch --parsable scripts/10_sft.slurm)
-JID2=$(sbatch --parsable --dependency=afterok:$JID1 scripts/20_rlvr_grpo.slurm)
-JID3=$(sbatch --parsable --dependency=afterok:$JID2 scripts/30_medical_rl.slurm)
-sbatch          --dependency=afterok:$JID3 scripts/40_eval.slurm</code></pre>
 </section>
 
 <!-- ============================================================ -->
@@ -592,47 +540,7 @@ sbatch          --dependency=afterok:$JID3 scripts/40_eval.slurm</code></pre>
 <li><p><strong>09-28</strong> — <strong>9월 정체 원인 규명(KISTI 원격 조사) + 글로벌벤치 결과 소급 반영 + deepvision 이어학습 크래시 수정</strong>. ① <strong>09-04 항목 ⑦의 "커밋" 기록이 사실과 달랐다</strong> — <code>scripts/eval_pass_at_k.py</code>/<code>.slurm</code> 은 실제로는 한 번도 git 커밋된 적이 없었다(untracked 로 24일 방치). 이번에 README·본 항목과 함께 묶어 커밋. ② <strong>글로벌 벤치마크(과제계획서 약속 지표) — 09-11에 이미 완주돼 있었다</strong>(문서 미반영 상태로 17일 방치). <code>scripts/eval_global_bench.py</code>/<code>.slurm</code>(09-08 작성, 이 역시 그동안 untracked)로 job <code>77389</code>(SFT)→<code>77390</code>(RL, pmcvqa checkpoint-4896) 실행: MedXpertQA-MM+MMMU-H&amp;M(n=3,712) <strong>SFT 46.77%→RL 51.67%(+4.9pp)</strong>, mmmu_hm 이 견인(62.27→72.2%, +9.9pp)·medxpertqa_mm 은 거의 무변화(+0.6pp). pmcvqa 도메인 홀드아웃(+1.5pp, 09-04 항목②)보다 이득이 크다 — 분포가 다른 문항에서 효과가 더 드러난다(원인 미확인). 09-15 시도한 base 모델 3-way 비교(job <code>77522</code>)는 서버 로딩 중 타임리밋으로 캔슬, 결과 없음. ③ <strong>deepvision 을 KISTI 에서 이어 돌리려던 시도가 09-13에 즉시 크래시, 이후 방치</strong>(job <code>77210</code>, B200 checkpoint-2192에서 <code>RECIPE=dapo</code>로 재개 → <code>expert_deepvision_continued_0904</code>): 전 rank <code>torch.load</code> 에서 <code>UnpicklingError</code>. <strong>9월 내내 실질 진전이 없었던 원인이 이것으로 보인다</strong> — 아무도 후속 조치를 안 하고 방치돼 있었다. ④ <strong>원인·수정</strong>: PyTorch 2.6+ 가 <code>torch.load</code> 기본값을 <code>weights_only=True</code> 로 바꿔 <code>rng_state_*.pth</code>(HF Trainer 재개용, numpy RNG 상태 포함) 로드를 거부(<code>numpy._core.multiarray._reconstruct</code> 미허용). 로그인 노드에서 문제의 체크포인트로 직접 재현 확인(rng_state 7개 전부 동일 실패) 후, <code>scripts/pyfix/sitecustomize.py</code> 신설(<code>torch.load</code> 기본값을 <code>weights_only=False</code>로 되돌림 — 자체 학습이 만든 신뢰 가능한 체크포인트만 다루므로 안전) + <code>runc.sh</code> 의 <code>PYTHONPATH</code> 맨 앞에 그 디렉터리를 삽입해 모든 파이썬 실행에 적용. 같은 방식으로 재현 재검증 → 7개 전부 로드 성공. <strong>재제출(잡 다시 걸기)은 보류</strong> — recipe(dapo 유지 여부)·재개 방식 확정은 사용자 판단 대기. ⑤ mmk12는 08-22 이후 변동 없음(새 잡 없음, 결정 대기 그대로). 조사 시점 KISTI 큐는 완전 유휴(<code>squeue</code> 빈 결과). ⑥ 글로벌벤치 원시 결과(<code>eval_items_gbench_{sft_77389,rl_77390}.jsonl</code>·해당 <code>.log</code>)를 로컬 <code>logs/</code>(gitignore)로 회수하고, 신규 <code>scripts/plot_global_bench.py</code>로 소스별 SFT vs RL 막대(95% CI)를 그려 <code>docs/assets/stage2_global_bench.png</code>로 커밋·README에 삽입.</p></li>
 </ul>
 <h4 id="todo">TODO</h4>
-<div class="warn">
-<p>⚠️ <strong>낡은 내용</strong>: 아래 TODO 는 2026-08 초 혼합 실행 기준이다(예: "step 700 재시작", "<code>launch_stage2_expanded.sh</code> 본실행"). 이후 도메인 전문가 + 통합으로 바뀌었다 — 현재 다음 단계는 <a href="00_overview.html"><code>00_overview.html</code></a> §6 · <a href="../HANDOFF.md"><code>../HANDOFF.md</code></a> §5.</p>
-</div>
-<ul class="task-list">
-<li><label><input type="checkbox" checked="" />환경·모델·데이터 확정 + 전체 변환 (DeepVision 103K / medix 51K)</label></li>
-<li><label><input type="checkbox" checked="" />LoRA 전환(NVLink 없음) · 간결 콜드스타트 · <code>accuracy_mix</code></label></li>
-<li><label><input type="checkbox" checked="" />Stage-2 baseline 완주 + <strong>A/B 종결(dr_grpo 승자)</strong></label></li>
-<li><label><input type="checkbox" checked="" />Stage-3 RaR 보상·judge·<strong>배선 end-to-end 스모크</strong>(유닛 29/29)</label></li>
-<li><label><input type="checkbox" checked="" /><strong>홀드아웃 정비 + fresh 1 epoch 재학습</strong> (dr_grpo 본선은 33%서 중단, GDPO A/B로 전환)</label></li>
-<li><label><input type="checkbox" checked="" /><strong>중간 홀드아웃 벤치마크</strong>(RL 25%): init 0.22→trained 0.38(+73%)</label></li>
-<li><label><input type="checkbox" checked="" /><strong>Stage-2 홀드아웃 확정</strong> → step600서 <strong>~0.38–0.39 포화</strong>(전량 완주 불필요, 조기확정). step600 ckpt = Stage-3 init 후보</label></li>
-<li><label><input type="checkbox" checked="" /><strong>GSPO A/B 판정</strong> → 판정창 동률 → <strong>dr_grpo 유지</strong>(미채택)</label></li>
-<li><label><input type="checkbox" checked="" /><strong>GDPO A/B 판정</strong> → 판정창·홀드아웃 <strong>동률</strong>(0.380 vs 0.390) → Stage-2 무차별, <strong>Stage-3용 채택 권고</strong></label></li>
-<li><label><input type="checkbox" checked="" /><strong>콜드스타트 Ablation Study</strong> → base→RL(콜드스타트 無) 0.18 붕괴 → <strong>Stage-1 필수 확정</strong></label></li>
-<li><label><input type="checkbox" checked="" /><strong>HealthBench 기준선</strong> → base 0.229 / 콜드스타트 0.224 측정(추적표 ①까지)</label></li>
-<li><label><input type="checkbox" checked="" /><strong>콜드스타트 v2 결함 규명</strong> → 데이터 <code>format_think</code> 0.473 = RL 형식 천장</label></li>
-<li><label><input type="checkbox" checked="" /><strong>데이터 전수 스크리닝·수급</strong> → OpenMedReason·VisualWebInstruct·VLAA 확보·검증(탈락 6종 근거 기록)</label></li>
-<li><label><input type="checkbox" checked="" /><strong><code>build_mixed_coldstart.py</code></strong> 신규(게이트 1.0·A편향 제거·정답정규화·질문단위 분할·난이도 층화) + <code>10_sft.slurm</code> 기본값 교정</label></li>
-<li><label><input type="checkbox" checked="" /><strong>콜드스타트 v3 SFT 실행</strong> → <code>sft_mixed_lora/checkpoint-298</code> (job 66255, 41분·298스텝, 과적합 없음)</label></li>
-<li><label><input type="checkbox" checked="" /><strong>v3 DeepVision 홀드아웃 평가</strong> → <strong>acc 0.348 · strict <code>format_think</code> 0.909</strong>(천장 0.473 완파). <code>sft_mixed_merged</code> 생성 (job 69807)</label></li>
-<li><label><input type="checkbox" checked="" /><strong>v2 동일조건 재측정</strong> (job 70671, 07-21) → acc <strong>0.295</strong> / <code>format_think</code> <strong>0.185</strong>. 과거 소표본 "~0.22" 대체, v3 A/B 확정(+0.053 acc·vl 주도, 형식 5배)</label></li>
-<li><label><input type="checkbox" /><strong>v3 HealthBench Hard</strong> <em>(보류 — 비용 재검토 후 결정)</em> — base <strong>0.229</strong> / v2 콜드스타트 <strong>0.224</strong>(둘 다 <code>n=1000</code> 정식 실측)와 동일 하니스로 비교 가능하나, <strong>실측 비용이 크다</strong>: 과거 런 <code>59666</code>(base) <strong>7:03 on 4gpu ≈ 28 노드시간</strong>, <code>59691</code>(v2) <strong>6:53 on 8gpu ≈ 55</strong>. judge(27B)+타깃 동시 서빙이라 <code>gpu:2</code> 필수. → 잔여 예산 배분 결정 후 재검토. <a href="30_stage3_medical_rl.html#단계별-추적--healthbench-hard-n1000">추적표</a></label></li>
-<li><label><input type="checkbox" checked="" /><strong>예산 배분 결정</strong> → 다른 계정 5,000h 확보로 제약 해제, <strong>Stage-2 풀확장 + Stage-3 둘 다</strong> 진행</label></li>
-<li><label><input type="checkbox" checked="" /><strong>Stage-2 풀확장 데이터·검증</strong> → MMK12·<strong>PMC-VQA(의료)</strong> 수급·변환·조립(train <strong>74,787</strong> 일반53/math20/의료26, holdout 1,772 dedup 누수0), GDPO 배선·런북·HANDOFF·<code>docs/21_stage2a_design.html</code> 커밋</label></li>
-<li><label><input type="checkbox" checked="" /><strong>k252a02 이관 + 환경 복구</strong>(07-27~28) → work/ 293G 직접전송·경로 일괄치환, <strong>apptainer 파손 우회(<code>ENV_MODE=loader</code>)</strong>, 배선 스모크 완주(1GPU·8GPU)</label></li>
-<li><label><input type="checkbox" checked="" /><strong>Stage-2 풀확장 본실행 1차</strong>(73924~73927) → 🚨 <strong>step ~900 붕괴로 08-04 취소</strong>(step 1,046 정지). 최고점 <strong>step 850 = 51.52%</strong>(init 대비 +8.18pp p&lt;0.0001). 근인 후보 <code>overlong_filter=True</code> 가 잘린 completion 을 손실·KL 양쪽에서 제외 → <a href="22_stage2b_mixed_run.html">붕괴 분석 §8</a></label></li>
-<li><label><input type="checkbox" /><strong>Stage-2 재시작 설계</strong> ← <strong>다음 임계경로</strong>. ① <code>overlong_filter</code> 검증·해제 ② KL <code>beta</code> 0.04 → 상향 ③ 형식 감시 조기중단(<code>FormatThink &lt; 0.85</code> 지속 시 — <strong>절벽 25 step 전부터 경고가 있었다</strong>) ④ <code>max_grad_norm</code> 1.0 은 무의미(실측 최대 0.17) → 하향 ⑤ <strong>재시작 지점</strong>: 850 은 최고점이나 <strong>절벽에서 50 step</strong> 거리라 벼랑 끝이다. <strong>step 700 이 절충안</strong> — 850 과 통계적으로 구분되지 않으면서(p=0.25) 여유가 4배(200 step)</label></li>
-<li><label><input type="checkbox" /><del><strong>step 1200 판정</strong></del> — <strong>실행되지 않았다</strong>. step 1200 도달 전 붕괴. 사전기준은 재시작 런에 그대로 재사용 가능</label></li>
-<li><label><input type="checkbox" checked="" /><strong>중간 체크포인트 홀드아웃 평가</strong>(job 74060·74062·74063) → init 0.4533 / 400 0.4900 / 500 0.4800 / 600 0.4867 — <strong>n=300 으론 판별 불가</strong>(하한 8.0pp)</label></li>
-<li><label><input type="checkbox" checked="" /><strong>학습 로그 소스별 추세 측정</strong>(<code>scripts/train_source_trend.py</code>, 완성문 24,000) → <strong>판별 실패</strong>. step 301~750 기울기 CI 가 세 소스 모두 0 을 크게 포함(deepvision −14.4~+12.9pp). 최근 상승은 대부분 길이 구성효과. <strong>판정은 step 1200 홀드아웃이 유일 근거</strong></label></li>
-<li><label><input type="checkbox" checked="" /><strong>평가 검정력 보강</strong> — <code>eval_compare.py</code> per-item 점수 저장 + <code>EVAL_N=all</code>(전량 1,772) → 짝지음(McNemar). 하한 8.0pp → <strong>실측 1.7~2.3pp</strong> (job 74187·74137·74188·74189·74190)</label></li>
-<li><label><input type="checkbox" checked="" /><strong>전량 5지점 재측정</strong> → <strong>RL 순효과 확정</strong>(init→400 <strong>+5.70pp p&lt;0.0001</strong>) · 400→700 <strong>+1.35pp p=0.18 미검출</strong>(95% [−0.6,+3.3]) · <strong>의료 4지점 전부 무변화</strong>(p&gt;0.5) → <a href="22_stage2b_mixed_run.html">§6-d</a></label></li>
-<li><label><input type="checkbox" checked="" /><strong>붕괴 진단</strong>(08-04) — 형식 붕괴 → 토큰 퇴화 2단계 규명, 방아쇠(정방향 되먹임)·근인 후보(<code>overlong_filter</code>) 특정, 가설 4종 기각. 붕괴 전후 체크포인트 8개 스냅샷 확보 → <a href="22_stage2b_mixed_run.html">§8</a></label></li>
-<li><label><input type="checkbox" /><strong>Stage-2 확장 배선 스모크 → 본실행</strong> (<code>launch_stage2_expanded.sh</code>, 다른 계정 ~70h) ← <strong>다음 임계경로</strong></label></li>
-<li><label><input type="checkbox" /><strong>확장 결과 평가</strong>(소스별 홀드아웃) → v3(0.348) 대비 STEM 이득 확인</label></li>
-<li><label><input type="checkbox" /><strong>Stage-3 본실행</strong>(<code>launch_stage3.sh</code>) → init 교체 ← <strong>계획서 핵심 산출물, 미시작</strong></label></li>
-<li><label><input type="checkbox" />Stage-2·3 모델 HealthBench 추적표 ②③ 채움</label></li>
-<li><label><input type="checkbox" />(보류) 홀드아웃 이미지해시 기준 재구성 + clean 3종 재측정 — 예산 확보 시</label></li>
-<li><label><input type="checkbox" />(보류) VLAA vg·coco 이미지 별도 수급(Visual Genome·COCO) → 46,969건 복귀</label></li>
-<li><label><input type="checkbox" />(보류) MMFineReason 을 <strong>RL 단계</strong> 데이터로 검토(<code>pass_rate</code> 난이도 라벨)</label></li>
-</ul>
+<p>현재 다음 단계는 <a href="00_overview.html#s6"><code>00_overview.html</code> §6</a> 에 있다.</p>
 <hr />
 
 <div class="part" id="part2">PART 4 · 일별 작업 일지</div>

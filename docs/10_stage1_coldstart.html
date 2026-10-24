@@ -44,15 +44,18 @@ li{margin:3px 0}
 <li>v3 는 v2 대비 생성 형식 점수를 0.185 에서 0.909 로 약 5배 올렸다. 평가 조건은 같다(holdout 972건).</li>
 <li>holdout 정확도는 0.295 에서 0.348 로 +0.053(상대 +18%) 올랐다. 이득은 전부 vl 층에서 나왔다.</li>
 <li>v2 의 형식 점수 상한은 학습 데이터 결함에서 왔다. v2 데이터 자체의 형식 점수가 0.473 이다.</li>
-<li>최대 출력 2,048 토큰에서 콜드스타트는 RL 의 전제조건이다. RL 이득은 콜드스타트가 있으면 +0.16, 없으면 +0.03 이다.</li>
-<li>최대 출력 8,192 토큰에서는 기본 모델 holdout(50.45%)이 SFT(42.67%)보다 높다. 기본 모델은 응답이 약 6~9배 길고 형식 준수율이 0.638 이다(<a href="00_overview.html#s1-6">00_overview 1.6</a>, kgpu 측정).</li>
+<li>최대 출력 2,048 토큰에서 콜드스타트는 RL 의 전제조건이다. RL 이득은 콜드스타트가 있으면 +0.16(600 step), 없으면 +0.03(200 step)이다.</li>
+<li>최대 출력 8,192 토큰에서는 기본 모델 holdout(50.45%)이 SFT 모델(42.67%)보다 높다. 기본 모델은 응답이 약 6~9배 길다. 기본 모델의 형식 준수율은 0.638 이다(<a href="00_overview.html#s1-6">00_overview 1.6</a>, kgpu 측정).</li>
 <li>따라서 Stage-1 의 역할은 RL 을 가능하게 하는 것이다.</li>
 </ul></div>
 
 <table>
 <tr><th>용어</th><th>뜻</th></tr>
 <tr><td>기본 모델 (base)</td><td>Qwen3.5-9B 원본.</td></tr>
-<tr><td>형식 점수</td><td><code>format_think</code> (<code>configs/accuracy.py</code>). 응답이 <code>&lt;think&gt;…&lt;/think&gt;&lt;answer&gt;…&lt;/answer&gt;</code> 앵커에 맞고 think 실질이 16자 이상이어야 통과한다. 학습 로그의 이름은 FormatThink 다.</td></tr>
+<tr><td>SFT 모델</td><td>Stage-1 v3 콜드스타트 SFT 병합본 <code>sft_mixed_merged</code>.</td></tr>
+<tr><td>형식 점수</td><td><code>format_think</code> (<code>configs/accuracy.py</code>). 응답이 <code>&lt;think&gt;…&lt;/think&gt;&lt;answer&gt;…&lt;/answer&gt;</code> 앵커에 맞고 think 실질이 16자 이상이어야 통과한다. 학습 로그의 이름은 FormatThink 다. 옛 롤아웃 로그의 느슨한 지표 이름은 Format 이다.</td></tr>
+<tr><td>AccMix</td><td>정확도 보상 <code>accuracy_mix</code>(<code>AccuracyMix</code>) 의 학습 로그 값.</td></tr>
+<tr><td>clip</td><td>최대 출력에서 잘린 응답의 비율.</td></tr>
 <tr><td>holdout</td><td>학습에 쓰지 않은 평가용 문항. 이 문서에서는 DeepVision-103K 층화 holdout 이다. 층은 math 와 vl(시각 논리) 두 개다.</td></tr>
 <tr><td>RFT</td><td>Rejection-sampling Fine-Tuning. 모델이 만든 답 중 정답만 골라 다시 SFT 하는 자기증류 기법.</td></tr>
 <tr><td>token_acc</td><td>teacher-forcing 다음 토큰 정확도. 생성 정답률이 아니다.</td></tr>
@@ -73,12 +76,12 @@ li{margin:3px 0}
 
 <!-- ============================================================ -->
 <h2 id="stage-1--콜드스타트-sft">Stage-1 · 콜드스타트 SFT</h2>
-<p>목적: 기본 모델은 장문 추론(3.5~4.6K 토큰)을 한다. 잘린 응답은 0점이다. 이것이 RL 정체의 원인이다. 그래서 짧은 <code>&lt;think&gt;/&lt;answer&gt;</code> 형식을 SFT 로 먼저 가르친다.</p>
-<p>ZeRO-3 로 길이를 늘리는 방법은 쓰지 않았다. NVLink 가 없는 환경에서 5배 느리기 때문이다.</p>
+<p>목적: 기본 모델은 장문 추론(3.5~4.6K 토큰)을 한다. 잘린 응답은 0점이다. 이 잘림이 RL 정체의 원인이다. 그래서 짧은 <code>&lt;think&gt;/&lt;answer&gt;</code> 형식을 SFT 로 먼저 가르친다.</p>
+<p>ZeRO-3 로 길이를 늘리는 방법은 쓰지 않았다. NVLink 가 없는 환경에서는 ZeRO-3 가 5배 느리기 때문이다.</p>
 <table>
 <tr><th>버전</th><th>데이터</th><th>데이터의 형식 점수</th><th>결정</th></tr>
 <tr><td>v1 <code>sft_coldstart_*</code></td><td>VLAA clevr_math 단일 2,913</td><td>—</td><td>폐기. 도메인이 하나라 일반화에 실패했다.</td></tr>
-<tr><td>v2 <code>sft_rft_coldstart_*</code></td><td>자기증류(RFT) 727</td><td class="n">0.473</td><td>대체. ablation 으로 필수성을 입증했고 Stage-2 에 성공했다. 형식 점수에 상한이 있다.</td></tr>
+<tr><td>v2 <code>sft_rft_coldstart_*</code></td><td>자기증류(RFT) 727</td><td class="n">0.473</td><td>대체. ablation 으로 콜드스타트의 필수성을 입증했다. v2 에서 시작한 Stage-2 가 성공했다. 형식 점수에 상한이 있다.</td></tr>
 <tr><td><b>v3</b> <code>sft_mixed_*</code></td><td>일반+의료 혼합 9,507</td><td class="n">1.000 (게이트로 강제)</td><td>채택(현행). 생성 형식 점수 0.909, 정확도 0.348 (<a href="#v3-학습-결과--학습곡선-job-66255-2026-07-18">학습</a> · <a href="#v3-홀드아웃-평가-결과--형식-천장-완파-job-69807-2026-07-20">평가</a>)</td></tr>
 </table>
 
@@ -92,10 +95,10 @@ li{margin:3px 0}
 </table>
 <p>원인은 <code>build_rft_coldstart.py:78</code> 의 합격 조건이다. 조건은 <code>AccuracyMix&gt;=1.0 and closed(c) and len(c)&lt;=6000</code> 이다. <code>closed()</code> 는 <code>'&lt;/think&gt;' in c</code> 와 <code>&lt;answer&gt;</code> 존재만 본다. 앵커링과 최소 추론 길이 검사가 없다. 당시 롤아웃 로그에는 느슨한 <code>Format</code> 컬럼만 있었다.</p>
 <p>선별 규칙도 결함을 키웠다. 규칙은 질문당 가장 짧은 3개다(<code>sorted(set(comps), key=len)[:3]</code>). 객관식에서 가장 짧은 정답은 <code>&lt;think&gt;&lt;/think&gt;&lt;answer&gt;C&lt;/answer&gt;</code> 다. 따라서 이 규칙은 추론 없는 찍기를 먼저 고른다. 4지선다에서는 찍어도 25% 가 AccuracyMix 를 통과한다.</p>
-<p>결과: 모델은 절반이 틀린 형식을 배웠다. RL 시작 시 FormatThink 는 0.26 이었다. 600 step 후에도 FormatThink 는 0.425 에서 정체했다. 정체의 원인은 RL 이 아니라 초기화 데이터다.</p>
+<p>결과: 모델은 절반이 틀린 형식인 데이터로 학습했다. RL 시작 시 형식 점수는 0.26 이었다. 600 step 후에도 형식 점수는 0.425 에서 정체했다. 정체의 원인은 RL 이 아니라 초기화 데이터다.</p>
 
 <h3 id="v1v2-구축-상세--rft-콜드스타트-job-57242-2026-06-16">v1·v2 구축 (RFT 콜드스타트, job 57242, 2026-06-16)</h3>
-<p>기본 모델은 어려운 시각·기하 문제에서 매우 길게 추론한다. 4096/6144 토큰 예산에서도 약 50% 가 잘려 0점이 된다. RL 과 예산 조정으로는 이 문제를 풀지 못했다. 그래서 짧은 추론 습관을 SFT 로 가르친다.</p>
+<p>기본 모델은 어려운 시각·기하 문제에서 매우 길게 추론한다. 4,096/6,144 토큰 예산에서도 약 50% 가 잘려 0점이 된다. RL 과 예산 조정으로는 이 문제를 풀지 못했다. 그래서 짧은 추론 습관을 SFT 로 가르친다.</p>
 <table>
 <tr><th>항목</th><th>v1 (plain, 폐기)</th><th>v2 (RFT)</th></tr>
 <tr><td>스크립트</td><td><code>build_coldstart_sft.py</code></td><td><code>build_rft_coldstart.py</code></td></tr>
@@ -105,47 +108,47 @@ li{margin:3px 0}
 <tr><td>결과</td><td><code>sft_coldstart_train.jsonl</code> 2913건</td><td><code>sft_rft_coldstart_train.jsonl</code> 727건 + val 40건 (ms-swift <code>{messages, images}</code> 포맷)</td></tr>
 <tr><td>문제</td><td>clevr_math 가 너무 쉽다(평균 760자). 어려운 문제로 일반화하지 못했다.</td><td><a href="#v2-의-진짜-결함--데이터가-형식보상의-천장이었다-2026-07-16-발견">v2 결함</a></td></tr>
 </table>
-<p>RFT 는 기본 모델이 가끔 맞힌 간결한 정답만 골라 SFT 로 되먹인다. RFT 는 새 정답을 늘리기보다 이미 낼 수 있는 정답의 스타일을 고정한다. 그래서 형식과 간결성을 가르치는 콜드스타트에 맞다.</p>
-<div class="note">worklog 06-16 의 "767예시"는 727 + val 40 이다.</div>
+<p>RFT 는 자기 GRPO 롤아웃에서 모델이 가끔 맞힌 간결한 정답만 골라 SFT 로 되먹인다. RFT 는 새 정답을 늘리기보다 이미 낼 수 있는 정답의 스타일을 고정한다. 그래서 형식과 간결성을 가르치는 콜드스타트에 맞다.</p>
+<div class="note">옛 작업 일지(git 이력)의 "767예시"는 727 + val 40 이다.</div>
 <pre><code>base Qwen3.5-9B + LoRA r16/a32 (all-linear)
 727건 · 4 epochs · LR 1e-4 · max_len 4096 · bs1×grad_accum8 · 8GPU DDP
 → sft_rft_coldstart_lora/checkpoint-48
 → (merge, job 57245) sft_rft_coldstart_merged (18G)  ← 구 Stage-2 init</code></pre>
 <ul>
 <li>학습은 48 step(12 step/epoch × 4)이고 총 약 5분이다.</li>
-<li>val loss 는 epoch 1 에 0.2149, epoch 4 에 0.2138 이다(이후 변동 ±0.001). val token_acc 는 0.924 를 유지했다.</li>
-<li>형식은 약 1 epoch 에 수렴했다. 과적합은 없다. 추가 epoch 의 효과는 작다.</li>
-<li>val 이 평탄한 다른 원인은 stride 분할이다(아래 v3 설계 5번).</li>
+<li>val loss 는 epoch 1 에 0.2149, epoch 4 에 0.2138 이다(epoch 간 변동 ±0.001). val token_acc 는 0.924 를 유지했다.</li>
+<li>val loss 는 약 1 epoch 에 평탄해졌다. 추가 epoch 의 효과는 작다.</li>
+<li>val 에는 학습 질문의 형제 샘플이 섞여 있었다(stride 분할, 아래 v3 설계 5번). 그러므로 val 로는 과적합 여부를 판단할 수 없다.</li>
 </ul>
 
 <h3 id="v3-설계--scriptsbuild_mixed_coldstartpy">v3 설계 (<code>scripts/build_mixed_coldstart.py</code>)</h3>
 <p>모든 소스는 실측으로 검증한 후 채택했다. 이름이나 초록만 보고 고르지 않았다.</p>
 <table>
 <tr><th>소스</th><th>샘플링 목표</th><th>추론 중앙값</th><th>≤6000자</th><th>라이선스</th><th>역할</th></tr>
-<tr><td><code>neginb/OpenMedReason</code></td><td class="n">5,000</td><td class="n">1,927자</td><td class="n">100%</td><td>CC-BY-4.0</td><td>의료 신규 지식(19 taxonomy)</td></tr>
-<tr><td><code>TIGER-Lab/VisualWebInstruct-verified</code></td><td class="n">3,000</td><td class="n">933자</td><td class="n">100%</td><td>MIT</td><td>일반, 자유형 정답 52.9%</td></tr>
+<tr><td><code>neginb/OpenMedReason</code></td><td class="n">5,000</td><td class="n">1,927자</td><td class="n">100%</td><td>CC-BY-4.0</td><td>의료 신규 지식(19개 분류)</td></tr>
+<tr><td><code>TIGER-Lab/VisualWebInstruct-verified</code>(VWI)</td><td class="n">3,000</td><td class="n">933자</td><td class="n">100%</td><td>MIT</td><td>일반, 자유형 정답 52.9%</td></tr>
 <tr><td><code>UCSC-VLAA/VLAA-Thinking</code> (synthesis·clevr)</td><td class="n">2,500</td><td class="n">649~934자</td><td class="n">100%</td><td>Apache-2.0</td><td>일반, 이미 목표 형식</td></tr>
 </table>
-<div class="warn">위 표는 요청한 목표치다. 실제 채택은 9,889건이다. 형식 점수 게이트와 풀 부족 때문이다. VWI 는 difficulty-5 풀이 57건뿐이다. 그래서 목표 3,000 대신 2,390 을 채택했다. 실측 내역은 <a href="#v3-학습-결과--학습곡선-job-66255-2026-07-18">학습 데이터</a> 표에 있다.</div>
+<div class="warn">위 표는 요청한 목표치다(합계 10,500건). 실제 채택은 9,889건으로 목표보다 적다. 형식 점수 게이트 탈락과 풀 부족 때문이다. VWI 는 difficulty-5 풀이 57건뿐이다. 그래서 목표 3,000 대신 2,390 을 채택했다. 실측 내역은 <a href="#v3-학습-결과--학습곡선-job-66255-2026-07-18">학습 데이터</a> 표에 있다.</div>
 <p>의료 데이터를 넣은 이유: <code>medix_rl_train</code>(Stage-3 데이터) 51,335건은 assistant 가 비어 있다(prompt+solution 만 있다). 그래서 프로젝트에 의료 추론 트레이스가 0건이었다. v1 과 v2 는 일반(clevr/DeepVision) 전용이었다. 그래서 Stage-3 전이를 검증하지 못했다.</p>
-<p>설계 규칙 6개는 각각 v2 결함 하나에 대응한다.</p>
+<p>설계 규칙은 6개다. 규칙 1·5·6 은 v2 결함에 대응한다. 규칙 2·3 은 새 소스의 문제에 대응한다. 규칙 4 는 v2 의 길이 상한을 유지한다.</p>
 <ol>
 <li><b>게이트 <code>format_think == 1.0</code></b>. 느슨한 <code>closed()</code> 를 버렸다. 이 규칙이 v2 0.473 의 원인을 막는다.</li>
-<li><b>OpenMedReason 정답 위치 편향 제거</b>. 정답이 대부분 A 다(4지선다 A=77%, 5지선다 A=86%). 이미지를 안 보고 A 만 골라도 77~86% 다. 보기를 섞을 수는 없다. 추론문의 29.6% 가 <code>option B</code> 처럼 문자를 참조하기 때문이다. 대신 정답 문자별로 균형 샘플링했다(A/B/C/D 각 1,250).</li>
+<li><b>OpenMedReason 정답 위치 편향 제거</b>. 정답이 대부분 A 다(4지선다 A=77%, 5지선다 A=86%). 이미지를 안 보고 A 만 골라도 정답률이 77~86% 다. 보기를 섞을 수는 없다. 추론문의 29.6% 가 <code>option B</code> 처럼 문자를 참조하기 때문이다. 대신 정답 문자별로 균형 샘플링했다(목표 A/B/C/D 각 1,250).</li>
 <li><b>정답 정규화</b>. VLAA 답은 <code>\boxed</code> 66%, <code>\[..\]</code> 76%, 앞뒤 공백 100% 다. 일부는 <code>&lt;answer&gt;</code> 에 산문을 통째로 넣었다. 정규화 후 200자 초과 답은 뺐다. 이 프로젝트는 <code>\boxed</code> 컨벤션을 폐기했다.</li>
 <li><b>간결성 상한 6,000자</b>. 콜드스타트의 목적은 잘림 차단이다.</li>
 <li><b>질문 단위 train/val 분할</b>. v2 는 질문을 정렬한 후 stride 로 나눴다. 그래서 같은 질문의 형제 샘플이 양쪽에 있었다. 이것 때문에 v2 val loss 가 4 epoch 내내 0.2136~0.2149 로 평탄했다.</li>
 <li><b>난이도 층화</b>. VWI <code>difficulty</code> 1~5 를 균등하게 뽑는다. v2 의 "가장 짧은 것" 선별은 찍기를 먼저 골랐다.</li>
 </ol>
 <details><summary>후보 스크리닝에서 탈락한 것 (기준: 간결성)</summary>
-<p><code>max_completion_length</code> 는 2048~6144 다. 긴 trace 를 가르치면 장황한 응답이 잘려 형식 0점이 된다.</p>
+<p>RL 의 최대 출력(<code>max_completion_length</code>)은 2,048~6,144 토큰이다. 긴 추론 트레이스를 가르치면 장황한 응답이 잘려 형식 0점이 된다.</p>
 <table>
 <tr><th>후보</th><th>추론 중앙값</th><th>판정</th></tr>
 <tr><td><code>OpenDataArena/MMFineReason</code> 1.8M</td><td>9,059~11,178자</td><td>탈락. Qwen3-VL-235B-Thinking 증류라 생성자 자체가 장황하다. 쉬운 문제(pass_rate=1.0)만 골라도 9K 다. RL 단계 후보로 보류한다(<code>pass_rate</code> 난이도 라벨이 유용).</td></tr>
-<tr><td>DeepVision 자기수확(Stage-2 롤아웃 21,786건, 무료·in-domain)</td><td>4,393자 (37.5%가 6K 초과)</td><td>탈락. RL 모델이 길게 추론하도록 학습한 출력이다. 장황함을 다시 배운다.</td></tr>
-<tr><td><code>leduckhai/S-Chain</code></td><td>—</td><td>탈락. 10,783건에 고유 정답 3개(Non/Mild/Moderate-Dementia), 고유 질문 170개다. 고정 3단계 템플릿으로 3지선다를 반복한다. 우리 파이프라인에는 grounding 보상이 없어 이 행동을 채점하지 않는다.</td></tr>
-<tr><td><code>FanqingM/MMK12</code> · <code>MM-Eureka</code> · <code>ThinkLite-VL</code></td><td>—</td><td>탈락. 추론 trace 가 없다(RLVR 용 prompt+answer).</td></tr>
-<tr><td><code>BoKelvin/GEMeX-ThinkVG</code>(=논문의 GEMeX-RMCoT, 개명)</td><td>—</td><td>보류. 공개 범위는 텍스트뿐이다. 이미지에는 MIMIC-CXR(PhysioNet) 자격심사, CITI, DUA 가 필요하다(수주). CC-BY-NC.</td></tr>
+<tr><td>DeepVision 자기수확(Stage-2 롤아웃 21,786건, 무료·in-domain)</td><td>4,393자 (37.5%가 6K 초과)</td><td>탈락. RL 학습으로 길게 추론하게 된 모델의 출력이다. 장황함을 다시 배운다.</td></tr>
+<tr><td><code>leduckhai/S-Chain</code></td><td>—</td><td>탈락. 10,783건에 고유 정답 3개(Non/Mild/Moderate-Dementia), 고유 질문 170개다. 고정 3단계 템플릿으로 3지선다를 반복한다. 이 데이터는 영역 지정(grounding)을 가르친다. 이 프로젝트의 보상은 영역 지정을 채점하지 않는다.</td></tr>
+<tr><td><code>FanqingM/MMK12</code> · <code>MM-Eureka</code> · <code>ThinkLite-VL</code></td><td>—</td><td>탈락. 추론 트레이스가 없다(RLVR 용 prompt+answer).</td></tr>
+<tr><td><code>BoKelvin/GEMeX-ThinkVG</code>(=논문의 GEMeX-RMCoT, 개명)</td><td>—</td><td>보류. 공개 범위는 텍스트뿐이다. 이미지에는 MIMIC-CXR(PhysioNet) 자격심사, CITI, DUA 가 필요하다(수 주 소요). CC-BY-NC.</td></tr>
 <tr><td><code>Xkev/LLaVA-CoT-100k</code>(170GB) · <code>Mulberry</code> · <code>Zebra-CoT</code></td><td>—</td><td>탈락. 용량, 형식(interleaved 시각 CoT), NC 라이선스.</td></tr>
 </table>
 </details>
@@ -154,7 +157,7 @@ li{margin:3px 0}
 <p><b>학습 데이터</b>. 빌드 스크립트는 <code>scripts/build_mixed_coldstart.py</code> 다. <code>format_think==1.0</code> 게이트를 통과한 샘플만 채택했다(빌드 로그 <code>logs/build_coldstart_66245.log</code>).</p>
 <table>
 <tr><th>소스</th><th>채택</th><th>비고</th></tr>
-<tr><td><code>neginb/OpenMedReason</code></td><td class="n">4,999</td><td>의료. 정답 문자 A/B/C/D 각 1,250 균형 추출 (원본 A 편중 77~86% 제거)</td></tr>
+<tr><td><code>neginb/OpenMedReason</code></td><td class="n">4,999</td><td>의료. 정답 문자별 균형 추출(목표 각 1,250, 합계 4,999). 원본의 A 편중(77~86%)을 없앴다.</td></tr>
 <tr><td><code>TIGER-Lab/VisualWebInstruct-verified</code></td><td class="n">2,390</td><td>일반. <code>difficulty</code> 1~5 층화 (5는 풀이 57건뿐이라 미달)</td></tr>
 <tr><td><code>UCSC-VLAA/VLAA-Thinking</code> · synthesis</td><td class="n">1,250</td><td>일반. 풀 19,257 에서 채택</td></tr>
 <tr><td><code>UCSC-VLAA/VLAA-Thinking</code> · clevr_math</td><td class="n">1,250</td><td>일반. 풀 5,923 에서 채택</td></tr>
@@ -178,7 +181,7 @@ li{margin:3px 0}
 <div class="note"><code>grad_accum</code> 16 과 8 의 차이는 GPU 수 보정이다. 유효 배치는 같다. epoch 수가 다른 이유: v2 는 727건이라 4 epoch 도 48 step 이다. v3 는 9,507건이라 2 epoch 이 298 step 이다. 실제 학습량은 약 6.2배다. v2 에서 val 이 epoch 1 이후 평탄했으므로 epoch 을 2 로 줄였다(<code>scripts/10_sft.slurm</code> 주석).</div>
 <div class="warn">v3 의 우위는 데이터 품질과 학습량(48 → 298 step)의 합산 효과다. LoRA 하이퍼파라미터, LR, 유효 배치, 시드는 같다. 따라서 튜닝 효과는 배제한다. 품질 효과만 따로 분리하지는 않았다.</div>
 <figure><img src="assets/sft_mixed_traincurve.png" alt="Stage-1 v3 콜드스타트 SFT 학습곡선" style="max-width:100%"><figcaption>Stage-1 v3 콜드스타트 SFT 학습곡선</figcaption></figure>
-<p>valid 는 epoch 끝에서 2회만 잰다(<code>--save_strategy epoch</code>). 5 step 간격의 train 값 60포인트는 <code>work/data/sft_mixed_traincurve.json</code> 에 있다.</p>
+<p>val 은 epoch 끝에서 2회만 잰다(<code>--save_strategy epoch</code>). 5 step 간격의 train 값 60포인트는 <code>work/data/sft_mixed_traincurve.json</code> 에 있다.</p>
 <table>
 <tr><th>지표</th><th>epoch 1</th><th>epoch 2</th><th>판정</th></tr>
 <tr><td>train loss</td><td>1.12 → ~0.62</td><td>~0.60 (전체 평균 0.665)</td><td>초반 ~50 step 에 대부분 수렴</td></tr>
@@ -194,9 +197,9 @@ li{margin:3px 0}
 <div class="warn">이 지표는 학습 안정성만 보여 준다. token_acc 0.79 는 생성 정답률이 아니다. 생성 형식 점수와 holdout 정확도는 다음 절(job 69807)에서 잰다.</div>
 
 <h3 id="v3-홀드아웃-평가-결과--형식-천장-완파-job-69807-2026-07-20">v3 holdout 평가 결과 (job 69807, 2026-07-20)</h3>
-<p>평가 데이터는 <code>work/data/deepvision_holdout.jsonl</code> 이다. DeepVision-103K 층화 holdout 972건(math 453 / vl 519)이다. <code>scripts/make_holdout.py</code> 로 분리했다. 이 데이터는 학습에 쓰지 않았다. Stage-2 도 <code>deepvision103k_trainonly.jsonl</code> 로 새로 학습했다. 따라서 누수는 0 이다.</p>
-<div class="note">학습 중의 <code>sft_mixed_val.jsonl</code>(382)은 holdout 과 다른 셋이다. val 은 학습셋과 같은 분포(질문 단위 분할)이고 <code>eval_loss</code>/<code>token_acc</code> 를 잰다. holdout 은 학습에 쓰지 않은 분포에서 생성 정답률과 형식을 잰다.</div>
-<p>절차: <code>sft_mixed_merged</code> 로 병합하고 vLLM 으로 띄워 holdout 972건 전량을 채점했다. 스크립트는 <code>scripts/50_eval_v3.slurm</code> 과 <code>scripts/eval_v3_holdout.py</code> 다. 조건은 temp=0, <code>max_tok</code> 2048, 같은 system 프롬프트다. v2 도 같은 조건으로 다시 쟀다(<code>52_eval_v2_baseline.slurm</code>, job 70671, 2026-07-21).</p>
+<p>평가 데이터는 <code>work/data/deepvision_holdout.jsonl</code> 이다. DeepVision-103K 층화 holdout 972건(math 453 / vl 519)이다. <code>scripts/make_holdout.py</code> 로 분리했다. 이 데이터는 학습에 쓰지 않았다. Stage-2 도 <code>deepvision103k_trainonly.jsonl</code> 로 새로 학습했다. 경로 기준 누수는 0 이다. 단 이미지 해시 기준으로 214건(22%)이 Stage-2 학습 데이터(trainonly)와 겹친다(아래 오염 비대칭).</p>
+<div class="note">학습 중의 <code>sft_mixed_val.jsonl</code>(382)은 holdout 과 다른 셋이다. val 은 학습셋과 같은 분포다(질문 단위 분할). val 로는 <code>eval_loss</code>/<code>token_acc</code> 를 잰다. holdout 으로는 학습에 쓰지 않은 문항에서 생성 정답률과 형식을 잰다.</div>
+<p>절차: LoRA 를 <code>sft_mixed_merged</code> 로 병합했다. vLLM 으로 holdout 972건 전량을 채점했다. 스크립트는 <code>scripts/50_eval_v3.slurm</code> 과 <code>scripts/eval_v3_holdout.py</code> 다. 조건은 temp=0, <code>max_tok</code> 2,048, 같은 system 프롬프트다. v2 도 같은 조건으로 다시 쟀다(<code>52_eval_v2_baseline.slurm</code>, job 70671, 2026-07-21).</p>
 <table>
 <tr><th>지표</th><th>v3 <code>sft_mixed</code></th><th>v2 <code>sft_rft</code> (같은 조건)</th><th>v2 RL 이후 (step600)</th></tr>
 <tr><td>strict <code>format_think</code></td><td class="n"><b>0.909</b></td><td class="n">0.185</td><td>0.425 (on-policy)</td></tr>
@@ -209,8 +212,8 @@ li{margin:3px 0}
 <div class="warn">과거 v2 값 "~0.22" 는 소표본(N=100~200) 값이다. 이 값은 쓰지 않는다. 전량(972) 같은 조건 값은 0.295 다.</div>
 <ol>
 <li>형식 점수 상한은 데이터 문제였다. 같은 조건에서 v2 SFT 는 0.185, v3 는 0.909 다. v3 SFT 는 RL 없이 v2 의 RL 이후 값(0.425)의 2배를 넘는다.</li>
-<li>정확도는 +0.053(상대 +18%) 올랐다. 이득은 전부 vl(0.270 → 0.368)에서 나왔다. math 는 동률이다. 혼합 데이터는 객관식 추론을 개선했고 수치 계산은 바꾸지 않았다.</li>
-<li>v3 는 RL 없이 0.348 이다. v2 가 Stage-2 RL 로 도달한 0.380~0.390 에 가깝다. 따라서 Stage-2 한계효용을 다시 검토할 근거가 있다.</li>
+<li>정확도는 +0.053(상대 +18%) 올랐다. 이득은 전부 vl(0.270 → 0.368)에서 나왔다. math(수치)는 동률이다.</li>
+<li>v3 는 RL 없이 0.348 이다. v2 가 Stage-2 RL 로 도달한 0.380~0.390 에 가깝다. 당시에는 이 결과로 Stage-2 의 한계효용을 다시 검토했다. 이후 Stage-2 결과는 <a href="00_overview.html">00_overview</a> 2-C·2-E 절에 있다.</li>
 <li>v3 평균 응답은 1,982자, v2 는 4,824자다. v2 는 장황해서 학습 데이터(0.473)보다 낮은 형식 점수로 생성한다. 이 장황함은 RL 단계에서 잘림과 형식 0점을 만든다.</li>
 </ol>
 <div class="warn"><b>오염 비대칭.</b> 이 비교는 v3 에 불리하다. holdout 972건 중 214건(22.0%)이 <code>trainonly</code> 와 완전히 같다. 기준은 질문, 이미지 바이트 해시, 정답이 모두 같은 것이다(<a href="90_ops_infra.html#홀드아웃-분리-stage-2-평가-누수-차단">알려진 한계</a>). 질문과 정답만 비교하면 301건(31.0%)이다(vl 167 / math 134). 22% 는 검증된 하한이고 31% 는 질문 수준 상한이다. 오염 이득은 DeepVision 을 학습한 모델만 얻는다.</div>
@@ -220,19 +223,19 @@ li{margin:3px 0}
 <tr><td>v2 콜드스타트 (같은 조건 0.295)</td><td>예. DeepVision 자기증류 727건</td><td>일부 있음</td></tr>
 <tr><td>v3 <code>sft_mixed</code> (0.348)</td><td>아니오. OpenMedReason + VWI + VLAA 만 사용, DeepVision 0건</td><td>없음 (학습하지 않은 분포)</td></tr>
 </table>
-<p>v3 는 처음 보는 분포에서 0.348 을 냈다. 비교 대상 점수는 22% 를 학습한 상태의 값이다. 따라서 위 표의 격차는 실제보다 작을 가능성이 높다.</p>
+<p>v3 는 처음 보는 분포에서 0.348 을 냈다. 비교 대상 점수는 22% 를 학습한 상태의 값이다. 따라서 v3 와 Stage-2 의 점수 격차(0.348 대 0.380~0.390)는 실제보다 작을 가능성이 높다.</p>
 <ul>
-<li>남은 형식 위반 9.1%(88건)는 주로 2048 토큰 잘림이다(<code>&lt;/answer&gt;</code> 전에 끊김). <code>max_new_tokens</code> 를 올릴 여지가 있다.</li>
-<li>채점 규칙은 RL 보상과 같다. 템플릿 <code>response_prefix='&lt;think&gt;\n'</code> 을 전제하고 <code>configs/accuracy.py:FormatThink</code> 와 같은 앵커·16자 조건을 쓴다. 예측 덤프 <code>logs/eval_v3_preds_69807.jsonl</code> 로 표본을 검증했다.</li>
+<li>남은 형식 위반 9.1%(88건)는 주로 2,048 토큰 잘림이다(<code>&lt;/answer&gt;</code> 전에 끊김). <code>max_new_tokens</code> 를 올릴 여지가 있다.</li>
+<li>채점 규칙은 RL 보상과 같다. 채점은 템플릿 <code>response_prefix='&lt;think&gt;\n'</code> 을 전제한다. 채점은 <code>configs/accuracy.py:FormatThink</code> 와 같은 앵커·16자 조건을 쓴다. 예측 덤프 <code>logs/eval_v3_preds_69807.jsonl</code> 로 표본을 검증했다.</li>
 <li>v2 1차 재측정(job 70342)은 v2 의 장황함 때문에 <code>--time 1:20</code> 에서 TIMEOUT 으로 끝났다. <code>--time 2:30</code> 으로 다시 제출해 완주했다(job 70671).</li>
 </ul>
 
 <!-- ============================================================ -->
 <h2 id="콜드스타트-ablation-study-순가치-확정-2026-07-09">콜드스타트 Ablation (2026-07-09)</h2>
-<div class="note">이 실험은 v2 데이터로 했다. 절제 변수는 콜드스타트 init 유무다. 그래서 결론은 데이터 버전과 무관하게 v3 에도 유효하다. v2 는 데이터 형식 점수가 0.473 인데도 필수였다.</div>
+<div class="note">이 실험은 v2 데이터로 했다. v2 는 데이터 형식 점수가 0.473 인데도 필수였다. 그러므로 v3 에서도 콜드스타트가 필수일 것으로 본다. v3 로는 다시 실험하지 않았다.</div>
 <ul>
-<li><b>계기</b>: 콜드스타트 모델의 HealthBench(0.224)가 기본 모델(0.229)과 동률이었다. 그래서 Stage-1 을 빼도 되는지 확인했다.</li>
-<li><b>설계</b>: 절제 변수는 콜드스타트 init 유무다. 나머지(trainonly, dr_grpo, LoRA, 보상, 하이퍼파라미터)는 같다. 처리군은 기본 모델에서 바로 RL 을 한다(dr_grpo·GDPO 2-arm, step200, <code>59946</code>/<code>59970</code>). 대조군은 기존 콜드스타트 경로다.</li>
+<li><b>계기</b>: 콜드스타트 모델의 HealthBench(0.224)가 기본 모델(0.229)과 같은 수준이었다. 그래서 Stage-1 을 빼도 되는지 확인했다.</li>
+<li><b>설계</b>: 절제 변수는 콜드스타트 init 유무다. 나머지(trainonly, dr_grpo, LoRA, 보상, 하이퍼파라미터)는 같다. 처리군은 기본 모델에서 바로 RL 을 한다(dr_grpo·GDPO 2-arm, step200, job <code>59946</code>/<code>59970</code>). 대조군은 기존 콜드스타트 경로다.</li>
 <li><b>평가</b>: DeepVision 층화 holdout N=200, 최대 출력 2,048.</li>
 </ul>
 <table>
@@ -241,14 +244,14 @@ li{margin:3px 0}
 <tr><td><b>콜드스타트 있음</b></td><td class="n">0.22</td><td>+RL(600step) 0.38</td><td class="n"><b>+0.16</b></td></tr>
 <tr><td><b>콜드스타트 효과</b></td><td class="n">+0.07</td><td class="n">+0.20</td><td></td></tr>
 </table>
-<p class="meta">콜드스타트 없는 RL 은 dr_grpo 0.18, GDPO 0.165 다. GDPO 도 붕괴를 막지 못했다. 표의 0.22 는 당시 소표본 값이다. 같은 조건 전량 재측정 값 0.295 는 v3 holdout 평가 절에 있다.</p>
-<p><b>결론.</b> RL 이득은 콜드스타트에 조건부다(+0.16 vs +0.03). 콜드스타트가 없으면 FormatThink 가 100 step 내내 약 0 에 머문다. 콜드스타트 init 은 FormatThink 0.26 에서 시작한다. 콜드스타트가 없으면 잘림이 40% 이고 학습이 2~3배 느리다. 200 step RL 은 콜드스타트 SFT 한 번(0.22)보다 낮다. HealthBench 동률은 대상 밖 지표(텍스트 의료)의 결과다.</p>
-<div class="warn"><b>적용 범위.</b> 이 결론은 최대 출력 2,048 토큰 조건의 결론이다. 이 조건에서 Stage-1 은 RL 의 전제조건이다. 최대 출력 8,192 토큰에서는 기본 모델 holdout(50.45%)이 SFT(42.67%)보다 높다(<a href="00_overview.html#s1-6">00_overview 1.6</a>).</div>
+<p class="meta">콜드스타트 없는 RL 은 dr_grpo 0.18, GDPO 0.165 다. GDPO 도 형식을 만들지 못했다. 표의 0.22 는 당시 소표본 값이다. 같은 조건 전량 재측정 값 0.295 는 v3 holdout 평가 절에 있다.</p>
+<p><b>결론.</b> RL 이득은 콜드스타트에 조건부다(+0.16 vs +0.03). 콜드스타트가 없으면 형식 점수가 측정한 100 step 내내 약 0 에 머문다. 콜드스타트 init 은 형식 점수 0.26 에서 시작한다. 콜드스타트가 없으면 학습 중 잘림이 약 40% 다(clip, 최대 출력 6,144). 콜드스타트가 없으면 학습도 2~3배 느리다. 기본 모델에서 200 step RL 한 결과(0.18)는 콜드스타트 SFT 한 번(0.22)보다 낮다. HealthBench 동률은 대상 밖 지표(텍스트 의료)의 결과다.</p>
+<div class="warn"><b>적용 범위.</b> 이 결론은 최대 출력 2,048 토큰 조건의 결론이다. 이 조건에서 Stage-1 은 RL 의 전제조건이다. 최대 출력 8,192 토큰에서는 기본 모델 holdout(50.45%)이 SFT 모델(42.67%)보다 높다(<a href="00_overview.html#s1-6">00_overview 1.6</a>).</div>
 
 <h3 id="ablation-상세--학습-경과층별-홀드아웃">Ablation 상세: 학습 경과와 층별 holdout</h3>
 <ul>
-<li><b>설계</b>: <code>21_rlvr_grpo_adv.slurm</code> 에서 <code>INIT_MODEL</code> 만 바꿨다. 처리군은 <code>INIT_MODEL=base(raw Qwen3.5-9B)</code>, MAX_STEPS=200 이다. 대조군 값은 RL0% 0.22, step600 0.38 이다. 측정은 학습 지표와 checkpoint-200 병합본의 holdout N=200 평가(<code>47_eval_ablation.slurm</code>)다.</li>
-<li><b>근거</b>: 기본 모델 파일럿은 답의 77% 가 잘렸고 Format 은 0 이었다. <code>&lt;answer&gt;</code> 에 닿지 못하면 보상이 0 이다. 보상이 0 이면 advantage 도 0 이라 RL 이 학습할 신호가 없다. 기본 모델은 HealthBench 에서 최대 44K자까지 장황했다.</li>
+<li><b>설계</b>: <code>21_rlvr_grpo_adv.slurm</code> 에서 <code>INIT_MODEL</code> 만 바꿨다. 처리군은 <code>INIT_MODEL=base(raw Qwen3.5-9B)</code>, MAX_STEPS=200 이다. 대조군 값은 RL 전(콜드스타트만) 0.22, step600 0.38 이다. 측정은 학습 지표와 checkpoint-200 병합본의 holdout N=200 평가(<code>47_eval_ablation.slurm</code>)다.</li>
+<li><b>근거</b>: 기본 모델 파일럿(조건 기록 없음)은 답의 77% 가 잘렸다. 파일럿의 형식 점수는 0 이었다. <code>&lt;answer&gt;</code> 에 닿지 못하면 보상이 0 이다. 보상이 0 이면 advantage 도 0 이라 RL 이 학습할 신호가 없다. 기본 모델은 HealthBench 에서 최대 44K자까지 장황했다.</li>
 </ul>
 <p><b>학습 지표 (step 1~100 구간 평균)</b>. 콜드스타트 없이 RL 을 하면 형식이 붙지 않는다.</p>
 <table>
@@ -261,12 +264,12 @@ li{margin:3px 0}
 <tr><th>모델</th><th>Acc</th><th>math</th><th>vl</th><th>형식</th></tr>
 <tr><td>base→dr_grpo (콜드스타트 없음)</td><td class="n"><b>0.18</b></td><td class="n">0.137</td><td class="n">0.219</td><td class="n">0.205</td></tr>
 <tr><td>base→GDPO (콜드스타트 없음)</td><td class="n"><b>0.165</b></td><td class="n">0.137</td><td class="n">0.190</td><td class="n">0.19</td></tr>
-<tr><td><i>(참조) 콜드스타트 RL0%</i></td><td class="n">0.22</td><td>—</td><td>—</td><td class="n">0.32</td></tr>
+<tr><td><i>(참조) 콜드스타트, RL 전</i></td><td class="n">0.22</td><td>—</td><td>—</td><td class="n">0.32</td></tr>
 <tr><td><i>(참조) 콜드스타트+dr_grpo step600</i></td><td class="n">0.38</td><td class="n">0.358</td><td class="n">0.400</td><td class="n">0.425</td></tr>
 </table>
 <ul>
-<li>AccMix 의 소폭 상승(0.42→0.48)은 관대한 파서가 형식 없이 답만 잡은 결과다. 형식과 간결성 학습은 실패했다.</li>
-<li>GDPO(0.165)는 dr_grpo(0.18)보다 낮다. 보상별 정규화도 0 신호를 살리지 못한다.</li>
+<li>dr_grpo arm 의 AccMix 소폭 상승(0.42→0.48)은 관대한 파서가 형식 없이 답만 잡은 결과로 본다. 형식과 간결성 학습은 실패했다.</li>
+<li>GDPO(0.165)와 dr_grpo(0.18)의 차이는 N=200 에서 약 3문항이다. 두 방법 모두 보상 신호가 0 인 문제를 풀지 못했다.</li>
 </ul>
 
 <h3 id="v2-콜드스타트-적합성-판단-2026-07-08">v2 콜드스타트 적합성 판단 (2026-07-08)</h3>
@@ -274,15 +277,15 @@ li{margin:3px 0}
 <div class="key"><b>판정.</b> v2 는 최소 기능(minimum viable) 콜드스타트로서 적합하다. 최적은 아니다. RL 을 가능하게 한다는 목적은 달성했다. 효율, 선별 편향, Stage-3 전이에는 개선 여지가 있다.</div>
 <table>
 <tr><th>판단</th><th>내용</th><th>후속</th></tr>
-<tr><td>적합</td><td>형식을 주입해 RL 을 가능하게 했다. Stage-2 plateau 를 넘었다. 다운스트림 성공이 최종 검증이다.</td><td>—</td></tr>
+<tr><td>적합</td><td>형식을 주입해 RL 을 가능하게 했다. Stage-2 정체를 넘었다.</td><td>—</td></tr>
 <tr><td>적합</td><td>clevr_math(쉬움) 실패 후 DeepVision 자기 롤아웃으로 바꿨다.</td><td>—</td></tr>
-<tr><td>적합</td><td>과적합이 없다(val 평탄, token_acc 0.924).</td><td>—</td></tr>
+<tr><td>적합</td><td>과적합 신호가 보이지 않는다(val 평탄, token_acc 0.924). 단 val 에 학습 질문이 섞여 있었다.</td><td>—</td></tr>
 <tr><td>미흡</td><td>4 epoch 은 과다하다. val 이 epoch 1 에 수렴했다(0.2149→0.2138). 1~2 epoch 이면 충분하다. 학습이 약 5분이라 손실은 작다.</td><td>v3 는 2 epoch</td></tr>
-<tr><td>미흡</td><td>"가장 짧은 정답" 선별은 쉬운 문제에 쏠릴 수 있다. 필터가 <code>정답 AND 간결</code> 이기 때문이다. 어려운 문제의 간결화 전이 증거는 간접 증거(FormatThink 5배, holdout +47%)뿐이었다.</td><td>찍기 편향으로 확인(<a href="#v2-의-진짜-결함--데이터가-형식보상의-천장이었다-2026-07-16-발견">v2 결함</a>)</td></tr>
+<tr><td>미흡</td><td>"가장 짧은 정답" 선별은 쉬운 문제에 쏠릴 수 있다. 필터가 정답이면서 짧은 답을 고르기 때문이다. 어려운 문제의 간결화 전이 증거는 간접적이었다. 후속 GRPO 의 형식 점수는 0.05 에서 0.27 로 약 5배가 되었다. holdout(N=100)은 기본 모델 0.15 에서 0.22 로 +47% 였다.</td><td>찍기 편향으로 확인(<a href="#v2-의-진짜-결함--데이터가-형식보상의-천장이었다-2026-07-16-발견">v2 결함</a>)</td></tr>
 <tr><td>미흡</td><td>727건, DeepVision 전용이다. 규모가 작고 도메인이 하나다. Stage-3(medix) 형식 전이를 검증하지 않았다.</td><td>v3 에 의료 CoT 투입</td></tr>
 <tr><td>미흡</td><td>holdout 정비 후 순가치 비교(clean ablation)가 없었다.</td><td>위 ablation 으로 해소</td></tr>
 </table>
-<p>당시 권고: 재학습 때 epoch 1~2, 어려운 문제 비중 상향, medix 형식 소량 혼합을 검토한다. HealthBench 상세(instr +0.044, 평균 8.9K자, judge 파싱 실패 9.9%→5.0%)는 <a href="30_stage3_medical_rl.html#단계별-추적--healthbench-hard-n1000"><code>30_stage3_medical_rl.html</code></a> 에 있다.</p>
+<p>당시 권고: 재학습 때 epoch 1~2, 어려운 문제 비중 상향, medix 형식 소량 혼합을 검토한다. HealthBench 상세(instr +0.044, 평균 8.9K자, 채점자 파싱 실패 9.9%→5.0%)는 <a href="30_stage3_medical_rl.html#단계별-추적--healthbench-hard-n1000"><code>30_stage3_medical_rl.html</code></a> 에 있다.</p>
 </main>
 </body>
 </html>

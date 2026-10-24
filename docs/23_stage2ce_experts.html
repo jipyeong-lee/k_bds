@@ -34,47 +34,47 @@ li{margin:3px 0}
 <body>
 <main>
 <h1>Stage-2 · 도메인 전문가와 통합 (2-C~2-E) — 전문가 학습, 형식 붕괴 원인, 모델 통합</h1>
-<div class="meta">기준 2026-10-22 14:30 · 대상 기간 2026-10-15 ~ 10-22(pmcvqa 는 8월 완료분 참고) · 작성 방식 ASD-STE100(한 문장에 한 사실, 능동문, 주의 사항을 먼저, 번호 절차)<br>
-이 문서는 10월 실험 정리(X1~X6)와 전문가 통합(merging) 실험 정리를 합친 것이다. 전 단계 요약은 <a href="00_overview.html">00_overview.html</a> 에 있다.</div>
+<div class="meta">기준 2026-10-23 · 대상 기간 2026-10-14 ~ 10-23(pmcvqa 는 8월 완료분 참고) · 작성 방식 ASD-STE100(한 문장에 한 사실, 능동문, 주의 사항을 먼저, 번호 절차)<br>
+이 문서는 10월 실험(X1~X6)과 전문가 통합(merging) 실험을 정리한다. 모든 단계의 요약은 <a href="00_overview.html">00_overview.html</a> 에 있다.</div>
 <nav><b>목차</b> ·
 <a href="#summary">요약</a> · <a href="#partA">A. 전문가 학습과 확정</a> · <a href="#partB">B. 형식 붕괴 원인 추적</a> · <a href="#partC">C. 전문가 통합</a> · <a href="#impl">구현·실행 환경</a> · <a href="#next">다음 단계</a>
 </nav>
 
 <!-- ============================================================ -->
 <h2 id="summary">요약</h2>
-<p>전문가 3종의 학습과 확정은 끝났다. 추가 학습 없이 세 전문가를 통합 모델 1개로 합쳤다. 통합 상위 2개의 본평가(전체셋)를 K-BDS 에서 끝냈다. 최종 통합 모델은 ta_w07 로 확정했다.</p>
+<p>추가 학습 없이 세 전문가를 통합 모델 1개로 합쳤다. 통합 후보 상위 2개의 본평가(전체셋)를 K-BDS 에서 끝냈다. 최종 통합 모델은 ta_w07 로 확정했다.</p>
 <ol>
 <li>전문가 3종을 확정했다: deepvision 2192(B200), mmk12 350, pmcvqa 4896. deepvision 2700 과 mmk12 400 은 탈락시켰다.</li>
-<li>세 전문가는 모두 글로벌 벤치에서 SFT 를 넘었다. 최고는 deepvision 2192 의 57.52%(SFT 46.77%)다.</li>
-<li>pmcvqa 전문가는 붕괴 없이 1 epoch 을 끝냈다. 글로벌 벤치 정확도는 46.77% 에서 51.67% 로 올랐다.</li>
+<li>세 전문가는 모두 글로벌 벤치에서 SFT 모델을 넘었다. 최고는 deepvision 2192 의 57.52% 다(SFT 모델 46.77%).</li>
+<li>pmcvqa 전문가는 붕괴 없이 1 epoch 을 끝냈다. pmcvqa 전문가의 글로벌 벤치 정확도는 46.77% 에서 51.67% 로 올랐다.</li>
 <li>deepvision 과 mmk12 는 학습이 길어지면 형식 붕괴가 생긴다. 붕괴 전에 학습↔롤아웃 불일치가 먼저 커진다.</li>
 <li>TIS 는 붕괴를 늦춘다. TIS 는 붕괴를 막지 못한다.</li>
 <li>세 전문가의 가중치 변화량(task vector)은 거의 직교한다. 코사인 유사도는 +0.01 ~ +0.11 이다.</li>
-<li>선별 1위는 task arithmetic, 가중치 0.7(<code>ta_w07</code>)이다. 세 도메인에서 전문가 성능의 97~109% 를 지켰다. 2위는 <code>breadcrumbs_d09</code> 다. 10개 중 9개가 판정 기준을 통과했다.</li>
+<li>선별 1위는 Task Arithmetic(가중 합산), 가중치 0.7(<code>ta_w07</code>)이다. 세 도메인에서 전문가 성능의 97~109% 를 지켰다. 2위는 <code>breadcrumbs_d09</code> 다. 평가를 마친 10개 중 9개가 판정 기준을 통과했다.</li>
 <li>부호 충돌을 다루는 기법(TIES 등)은 단순 합산보다 낫지 않았다.</li>
-<li>본평가(K-BDS, 전체셋): ta_w07 은 holdout 63.32%(SFT 42.67%), 글로벌 56.22%(SFT 46.77%)다. breadcrumbs_d09 는 holdout 63.71%, 글로벌 56.90% 다. 짝지은 검정에서 차이가 유의하지 않아 더 단순한 ta_w07 을 최종 모델로 확정했다. kgpu 본평가는 플랫폼 장애로 결과 없이 끝났다(<a href="#fulleval">C.6</a>).</li>
+<li>본평가(K-BDS, 전체셋): ta_w07 은 holdout 63.32%(SFT 모델 42.67%), 글로벌 56.22%(SFT 모델 46.77%)다. breadcrumbs_d09 는 holdout 63.71%, 글로벌 56.90% 다. 짝지은 검정에서 차이가 유의하지 않았다. 그래서 더 단순한 ta_w07 을 최종 모델로 확정했다. kgpu 본평가는 플랫폼 장애로 결과 없이 끝났다(<a href="#fulleval">C.6</a>).</li>
 </ol>
 <table id="terms">
 <tr><th>용어</th><th>뜻</th></tr>
-<tr><td>형식 붕괴</td><td>모델이 <code>&lt;/think&gt;</code> 전에 <code>&lt;|im_end|&gt;</code> 로 응답을 끝낸다. FormatThink 점수가 떨어진다.</td></tr>
-<tr><td>불일치 diff</td><td>학습 엔진과 vLLM 롤아웃이 같은 응답에 주는 log-perplexity 차이의 절댓값. 지표 이름은 <code>rollout_correction/log_ppl_abs_diff</code>.</td></tr>
-<tr><td>TIS</td><td>Truncated Importance Sampling. 불일치가 큰 토큰의 가중치를 상한 2.0 에서 자른다. 인자는 <code>--rollout_importance_sampling_mode token_truncate</code>.</td></tr>
+<tr><td>형식 붕괴</td><td>학습 중 형식 점수가 짧은 step 구간 안에 크게 떨어지는 현상. 붕괴한 응답은 <code>&lt;/think&gt;</code> 전에 <code>&lt;|im_end|&gt;</code> 로 끝난다.</td></tr>
+<tr><td>학습↔롤아웃 불일치</td><td>학습 엔진과 vLLM 롤아웃이 같은 응답에 주는 log-perplexity 차이의 절댓값. 지표 이름은 <code>rollout_correction/log_ppl_abs_diff</code>.</td></tr>
+<tr><td>TIS</td><td>Truncated Importance Sampling. 토큰의 중요도 비율(학습 확률 ÷ 롤아웃 확률)을 상한 2.0 에서 자른다. 인자는 <code>--rollout_importance_sampling_mode token_truncate</code>.</td></tr>
 <tr><td>holdout</td><td>학습에 쓰지 않은 평가 문항.</td></tr>
-<tr><td>init</td><td>SFT 모델 <code>sft_mixed_merged</code> (Qwen3.5-9B 기반, SFT 병합본). Stage-2 의 시작 모델이다.</td></tr>
+<tr><td>init</td><td>SFT 모델 <code>sft_mixed_merged</code> (Qwen3.5-9B 기반, SFT 병합본). Stage-2 전문가 학습의 시작 모델이다. 이 문서의 산문은 "SFT 모델"로 쓴다.</td></tr>
 <tr><td>task vector (τ)</td><td>전문가 가중치 − SFT 가중치. LoRA 에서는 ΔW = B·A·(α/r).</td></tr>
-<tr><td>task arithmetic</td><td>W = W<sub>SFT</sub> + Σ wᵢ·τᵢ. 가중치 wᵢ 로 합산한다.</td></tr>
+<tr><td>Task Arithmetic</td><td>W = W<sub>SFT</sub> + Σ wᵢ·τᵢ. 가중치 wᵢ 로 합산한다.</td></tr>
 <tr><td>보존율</td><td>통합 모델의 도메인 정확도 ÷ 그 도메인 전문가의 정확도.</td></tr>
 <tr><td>선별 / 본평가</td><td>선별 = 축소셋(holdout 600 + 글로벌 600). 본평가 = 전체셋(holdout 1,772 + 글로벌 3,712).</td></tr>
 </table>
 
 <!-- ============================================================ -->
 <h2 id="partA">Part A. 전문가 학습과 확정</h2>
-<p>세 전문가 모두 글로벌 벤치에서 SFT 를 넘었다. 붕괴 전 체크포인트 중에서 holdout 점수가 가장 높은 것을 전문가로 골랐다.</p>
+<p>세 전문가 모두 글로벌 벤치에서 SFT 모델을 넘었다. 남아 있는 붕괴 전 체크포인트 중에서 holdout 점수가 가장 높은 것을 전문가로 골랐다.</p>
 
 <h3 id="pipeline">A.1 전체 파이프라인과 현재 위치</h3>
 <p>현재 위치는 "통합 완료"다. 최종 통합 모델은 ta_w07 로 확정했다. Stage-3 는 2차에서 이 모델로 시작한다.</p>
 <figure>
-<svg viewBox="0 0 820 300" role="img" aria-label="파이프라인: 전문가 확정과 통합이 끝났고 Stage-3 는 보류">
+<svg viewBox="0 0 820 300" role="img" aria-label="파이프라인: 전문가 확정과 통합이 끝났고 Stage-3 는 2차로 이월">
 <defs><marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="var(--gray)"/></marker></defs>
 <text x="16" y="26" font-size="15" font-weight="600">Stage-3 는 전문가 3종을 통합한 모델에서 시작한다</text>
 <rect x="16" y="110" width="130" height="72" rx="8" fill="none" stroke="var(--gray)"/>
@@ -99,7 +99,7 @@ li{margin:3px 0}
 <text x="630" y="158" text-anchor="middle" font-size="11.5">ta_w07 확정</text>
 <rect x="710" y="110" width="96" height="72" rx="8" fill="none" stroke="var(--gray)" stroke-dasharray="4 4"/>
 <text x="758" y="138" text-anchor="middle" font-size="13" font-weight="600">Stage-3</text>
-<text x="758" y="158" text-anchor="middle" font-size="11.5" class="q">의료 RL · 보류</text>
+<text x="758" y="158" text-anchor="middle" font-size="11.5" class="q">의료 RL · 이월</text>
 <g stroke="var(--gray)" fill="none" stroke-width="1.25">
 <path d="M146 146H184" marker-end="url(#ar)"/>
 <path d="M386 146H424" marker-end="url(#ar)"/>
@@ -107,7 +107,7 @@ li{margin:3px 0}
 <path d="M678 146H708" marker-end="url(#ar)"/>
 </g>
 </svg>
-<figcaption>테두리 색: 초록 = 완료, 주황 = 붕괴가 있어 붕괴 전 체크포인트를 쓴다, 파랑 = 현재 단계, 점선 = 보류. 통합은 가중 합산 병합(Part C)이다.</figcaption>
+<figcaption>테두리 색: 초록 = 완료, 주황 = 붕괴가 있어 붕괴 전 체크포인트를 쓴다, 파랑 = 현재 단계, 점선 = 이월. 통합은 가중 합산 병합(Part C)이다.</figcaption>
 </figure>
 
 <h3 id="expert-setup">A.2 공통 설정과 학습 경과</h3>
@@ -118,14 +118,14 @@ li{margin:3px 0}
 <tr><td>어댑터</td><td>LoRA r16, α32, dropout 0 (통합을 위해 rank 를 같게 함)</td></tr>
 <tr><td>엔트로피 마스크</td><td><code>top_entropy_quantile 0.2</code></td></tr>
 <tr><td>보상</td><td>accuracy_mix 1.0 + format_think 0.2 + soft_overlong 0.2</td></tr>
-<tr><td>길이 예산(<code>soft_max</code>)</td><td>deepvision 8192 · mmk12 6144 · pmcvqa 3072</td></tr>
-<tr><td>감시</td><td>FormatThink 50 step 평균 &lt; 0.85 이면 job 자동 취소(watchdog)</td></tr>
+<tr><td>길이 예산(<code>soft_max</code>)</td><td>deepvision 8,192 · mmk12 6,144 · pmcvqa 3,072</td></tr>
+<tr><td>감시</td><td>형식 점수 50 step 평균 &lt; 0.85 이면 job 자동 취소(watchdog)</td></tr>
 </table>
 <table>
 <tr><th>전문가</th><th>클러스터</th><th>진행</th><th>경과</th></tr>
-<tr><td>deepvision</td><td>B200 → KISTI</td><td>2,203 step(B200) → 3,428 step(KISTI)</td><td>B200 은 TIS 를 켜서 붕괴 없음. KISTI 이어학습은 lr 이 다시 올라 step 3428 에서 붕괴(<a href="#x2">X2</a>)</td></tr>
-<tr><td>mmk12</td><td>KISTI</td><td>475 / 3,801 step</td><td>step ~450 에서 같은 붕괴 3회. entropy 0.459 → 0.204 단조 감소</td></tr>
-<tr><td>pmcvqa</td><td>KISTI</td><td>4,896 / 4,896 step</td><td>붕괴 없이 완주(8월). 배치의 49% 가 학습 신호 0</td></tr>
+<tr><td>deepvision</td><td>B200 → KISTI</td><td>2,203 step(B200) → 3,428 step(KISTI)</td><td>B200 은 TIS 를 켰고 2,203 step 까지 붕괴가 없었다(원인은 확인하지 않음). KISTI 이어학습은 lr 이 다시 올랐고 step 3428 에서 붕괴했다(<a href="#x2">X2</a>)</td></tr>
+<tr><td>mmk12</td><td>KISTI</td><td>475 / 3,801 step</td><td>step ~450 부근에서 같은 붕괴가 3번 연속 생겼다. 엔트로피는 0.459 → 0.204 로 단조 감소했다</td></tr>
+<tr><td>pmcvqa</td><td>KISTI</td><td>4,896 / 4,896 step</td><td>붕괴 없이 완주했다(8월). 프롬프트 그룹의 49% 가 학습 신호 0 이었다(응답이 다 맞거나 다 틀림)</td></tr>
 </table>
 
 <h3 id="selection">A.3 체크포인트 확정 (X6)</h3>
@@ -138,26 +138,26 @@ li{margin:3px 0}
 <tr><td>pmcvqa (n=400)</td><td>4896</td><td class="n">56.5 → 58.0%</td><td class="n">1.000</td><td class="n"><b>51.67%</b></td><td class="ok">채택</td></tr>
 </table>
 <ul>
-<li>deepvision 2700 은 응답이 길어져(평균 8,469자) 최대 출력을 넘었다. 형식 점수가 0.765 로 떨어졌다. 3428 붕괴의 초입으로 추정한다.</li>
-<li>평가 환경: holdout 은 KISTI A100(최대 출력 8192 토큰). 글로벌은 KISTI A100 또는 kgpu RTX 5090(dv2700, mm350).</li>
-<li>deepvision 의 init 기준선은 같은 시기 측정쌍인 35.19% 로 통일한다. 10월 재측정(job 82983, 최대 출력 8192)은 35.8% 다. 이 기준으로는 2192 가 +31.6pp, 2700 이 +19.8pp 다.</li>
+<li>deepvision 2700 은 응답이 길어져(평균 8,469자) 최대 출력(8,192 토큰)에서 잘린 응답이 늘었다. 형식 점수가 0.765 로 떨어졌다. 3428 붕괴의 초입으로 추정한다.</li>
+<li>holdout 은 KISTI A100 에서 최대 출력 8,192 토큰으로 쟀다. 글로벌은 KISTI A100 또는 kgpu RTX 5090(dv2700, mm350)에서 최대 출력 4,096 토큰으로 쟀다.</li>
+<li>SFT 모델의 deepvision 기준선은 같은 시기 측정쌍인 35.19%(job 76330)로 통일한다. 10월 재측정(job 82983, 최대 출력 8,192)은 35.8% 다. 이 기준으로는 2192 가 +31.6pp, 2700 이 +19.8pp 다.</li>
 </ul>
-<p>X6 holdout 평가는 2026-10-22 09:00 에 KISTI 에 job 5개로 제출했다. 모든 job 은 최대 출력 8192 토큰을 썼다.</p>
+<p>2026-10-22 09:00 에 X6 holdout 평가 job 5개를 KISTI 에 제출했다. 모든 job 은 최대 출력 8,192 토큰을 썼다.</p>
 <table>
 <tr><th>job</th><th>대상</th><th>holdout</th><th>파티션</th><th>결과</th></tr>
 <tr><td>82982</td><td>deepvision 2700</td><td>deepvision 972건</td><td>1gpu</td><td class="n">55.6%</td></tr>
-<tr><td>82983</td><td>init 기준선</td><td>deepvision 972건</td><td>debug-1gpu</td><td class="n">35.8%</td></tr>
-<tr><td>82984</td><td>init 기준선</td><td>mmk12 400건</td><td>debug-1gpu</td><td class="n">47.0%</td></tr>
+<tr><td>82983</td><td>SFT 모델 기준선</td><td>deepvision 972건</td><td>debug-1gpu</td><td class="n">35.8%</td></tr>
+<tr><td>82984</td><td>SFT 모델 기준선</td><td>mmk12 400건</td><td>debug-1gpu</td><td class="n">47.0%</td></tr>
 <tr><td>82985</td><td>mmk12 400</td><td>mmk12 400건</td><td>debug-1gpu</td><td class="n">58.25%</td></tr>
 <tr><td>82986</td><td>mmk12 350</td><td>mmk12 400건</td><td>debug-1gpu</td><td class="n">60.75%</td></tr>
 </table>
 <ul>
 <li>mmk12 holdout 파일 <code>work/data/mmk12_only_holdout.jsonl</code> 은 통합 holdout 에서 mmk12 문항만 골라 만들었다.</li>
-<li>init 기준선을 다시 쟀다. 기존 init 측정은 최대 출력 2048 토큰이라 비교할 수 없었다.</li>
+<li>X6 는 SFT 모델 기준선을 최대 출력 8,192 토큰으로 다시 쟀다.</li>
 </ul>
 
 <h3 id="global-bench">A.4 글로벌 벤치 결과</h3>
-<p>글로벌 벤치 = MedXpertQA-MM 2,000 + MMMU-H&amp;M 1,712 문항(n=3,712).</p>
+<p>글로벌 벤치 = MedXpertQA-MM 2,000 + MMMU-H&amp;M 1,712문항(n=3,712).</p>
 <table>
 <tr><th>전문가</th><th>체크포인트</th><th>도메인 holdout (init → RL)</th><th>글로벌 벤치</th><th>MedXpertQA-MM</th><th>MMMU-H&amp;M</th></tr>
 <tr><td>SFT (기준)</td><td>—</td><td>—</td><td class="n">46.77%</td><td class="n">33.5%</td><td class="n">62.27%</td></tr>
@@ -168,14 +168,14 @@ li{margin:3px 0}
 <p>출처: KISTI job 77389/77390/80138, kgpu <code>gbench_mm350.jsonl</code>.</p>
 <h4 id="pmcvqa">pmcvqa (8월 완료, 참고)</h4>
 <table>
-<tr><th>평가</th><th>init</th><th>checkpoint-4896</th></tr>
-<tr><td>pass@1 / pass@8</td><td colspan="2">51.75% / 83.0%</td></tr>
+<tr><th>평가 (temperature 1.0 샘플, job 76491)</th><th>checkpoint-4896</th></tr>
+<tr><td>pass@1 / pass@8</td><td>51.75% / 83.0%</td></tr>
 </table>
 <ul>
 <li>step 2850 체크포인트는 holdout 60.5% 였다. <code>save_total_limit</code> 설정이 이 체크포인트를 지웠다.</li>
 <li><b>전이:</b> 수학·시각 추론으로 학습한 전문가가 의료 벤치에서 더 많이 올랐다. 의료로 학습한 pmcvqa 가 가장 적게 올랐다.</li>
-<li><b>pmcvqa 진단:</b> 모델은 답을 알지만(pass@8 83.0%) RL 이 그 능력을 끌어내지 못했다. 객관식은 결정 토큰이 하나라 학습 신호가 적다(추정).</li>
-<li><b>교차 평가:</b> deepvision 전문가의 pmcvqa holdout 은 56.75% 로 init 과 같다. 다른 도메인 망각은 없다.</li>
+<li><b>pmcvqa 진단:</b> pass@8 은 83.0% 다. 4지선다에서는 무작위로 8번 답해도 pass@8 이 약 90% 다. 그래서 이 값으로 지식 보유를 판단하지 않는다. 객관식은 결정 토큰이 하나라 학습 신호가 적다(추정).</li>
+<li><b>교차 평가:</b> deepvision 전문가의 pmcvqa holdout 은 56.75% 로 SFT 모델(56.5%)과 거의 같다. pmcvqa 에서는 망각이 보이지 않는다.</li>
 </ul>
 
 <!-- ============================================================ -->
@@ -187,60 +187,60 @@ li{margin:3px 0}
 <table>
 <tr><th>#</th><th>실험</th><th>질문</th><th>판정 기준</th><th>상태</th></tr>
 <tr><td>X1</td><td>Stage-3 kgpu 스모크·시간 측정</td><td>kgpu 1 GPU 로 Stage-3 를 돌릴 수 있는가?</td><td>완주 여부, s/step, 메모리</td><td class="ok">완료</td></tr>
-<tr><td>X2</td><td>deepvision 이어학습 (KISTI job 82476)</td><td>2700 에서 1 epoch 끝까지 갈 수 있는가?</td><td>FormatThink ≥ 0.85 유지</td><td class="ok">완료</td></tr>
-<tr><td>X3</td><td>mmk12 kgpu probe (ckpt-350, lr 1e-5 고정, beta 0.01)</td><td>KISTI probe 가 450 을 넘긴 것은 beta 덕인가, lr 감소 덕인가?</td><td>lr 을 고정해도 형식이 버티는가</td><td class="ok">완료</td></tr>
+<tr><td>X2</td><td>deepvision 이어학습 (KISTI job 82476)</td><td>2700 에서 1 epoch 끝까지 갈 수 있는가?</td><td>형식 점수 ≥ 0.85 유지</td><td class="ok">완료</td></tr>
+<tr><td>X3</td><td>mmk12 kgpu probe (ckpt-350, lr 1e-5 고정, beta 0.01)</td><td>KISTI probe(mmk12, beta 0.01, step 500 에서 끝나는 cosine lr)가 450 을 넘긴 것은 beta 덕인가, lr 감소 덕인가?</td><td>lr 을 고정해도 형식이 버티는가</td><td class="ok">완료</td></tr>
 <tr><td>X4</td><td>붕괴 해부 (completions 분석)</td><td>붕괴한 응답은 어떤 모양인가? 무엇이 먼저 변하는가?</td><td>실패 유형 비율, advantage 부호, 선행 지표</td><td class="ok">완료</td></tr>
 <tr><td>X5</td><td>E1 (TIS 켬) / E1c (TIS 끔)</td><td>학습↔롤아웃 불일치가 붕괴의 원인인가?</td><td>E1c 만 붕괴 → 원인. 둘 다 붕괴 → TIS 로 부족. 둘 다 유지 → 환경 차이</td><td class="ok">완료</td></tr>
-<tr><td>X6</td><td>전문가 holdout 평가</td><td>어느 체크포인트를 전문가로 쓰는가?</td><td>init 대비 정확도, 형식 점수</td><td class="ok">완료(<a href="#selection">A.3</a>)</td></tr>
+<tr><td>X6</td><td>전문가 holdout 평가</td><td>어느 체크포인트를 전문가로 쓰는가?</td><td>SFT 모델 대비 정확도, 형식 점수</td><td class="ok">완료(<a href="#selection">A.3</a>)</td></tr>
 </table>
 <p>X3 와 X5 는 같은 레시피를 쓴다. 바꾼 것은 시작 체크포인트, beta, TIS 뿐이다.</p>
 
 <h3 id="recipe">B.2 공통 레시피 (X3, X5)</h3>
 <table>
 <tr><th>항목</th><th>값</th></tr>
-<tr><td>알고리즘</td><td>GRPO, <code>loss_type dr_grpo</code>, <code>scale_rewards gdpo</code>, <code>epsilon 0.2</code></td></tr>
+<tr><td>알고리즘</td><td>GRPO, <code>loss_type dr_grpo</code>, <code>scale_rewards gdpo</code>, ε 0.2</td></tr>
 <tr><td>어댑터</td><td>LoRA r16, α32, all-linear (학습 파라미터 43.3M)</td></tr>
 <tr><td>보상</td><td>accuracy_mix 1.0 + format_think 0.2 + soft_overlong 0.2</td></tr>
 <tr><td>롤아웃</td><td>vLLM colocate, num_generations 8, temperature 1.0, max_completion 6144</td></tr>
-<tr><td>배치</td><td>PDTBS 2 × ACCUM 16 = completion 32 개/step</td></tr>
+<tr><td>배치</td><td>GPU당 배치 2 × 누적 16 = completion 32개/step</td></tr>
 <tr><td>학습률</td><td>1e-5 고정 (<code>lr_scheduler_type constant</code>)</td></tr>
 <tr><td>엔트로피 마스크</td><td><code>top_entropy_quantile 0.2</code></td></tr>
 </table>
 
 <h3 id="x1">B.3 X1: Stage-3 kgpu 스모크</h3>
 <ul>
-<li>스모크는 완주했다. num_gen 4, completion 1024 에서 38 s/step, 메모리 61.8 GiB.</li>
+<li>스모크는 완주했다. num_generations 4, max_completion 1,024 에서 38 s/step 이다. 메모리는 61.8 GiB 를 썼다.</li>
 <li>실제 설정(completion 4096)에서는 84.9 s/step 이다. 1 step 에 프롬프트 2개를 처리한다.</li>
-<li>전체 medix 데이터는 약 25 일이 걸린다. Stage-3 는 통합 모델이 생길 때까지 보류한다.</li>
+<li>medix 전체 1 epoch 은 약 25 일이 걸린다. Stage-3 본학습은 2차에서 통합 모델(ta_w07)로 한다.</li>
 </ul>
 
 <h3 id="x2">B.4 X2: deepvision 이어학습과 붕괴</h3>
 <ul>
-<li>job 81708 이 step 2700 까지 완주했다.</li>
+<li>job 81708 은 step 2700 까지 돌았다.</li>
 <li>job 82476 이 이어 돌렸다. lr 이 약 8.2e-6 으로 다시 올라갔다 (max_steps 10000 기준 cosine 재계산).</li>
 <li>step 3428 에서 형식 붕괴가 생겼다. 학습 정확도는 붕괴 전에 0.55 에서 약 0.45 로 떨어졌다.</li>
-<li>붕괴 전 후보 <code>v2-20261014-111314/checkpoint-2700</code> 을 X6 로 평가했다. 2700 은 holdout 55.6%, 형식 0.765 로 탈락했다. 전문가는 B200 의 2192 다(<a href="#selection">A.3</a>).</li>
+<li>붕괴 전 후보 <code>v2-20261014-111314/checkpoint-2700</code> 을 X6 에서 평가했다. 2700 은 holdout 55.6%, 형식 0.765 로 탈락했다. 전문가는 B200 의 2192 다(<a href="#selection">A.3</a>).</li>
 </ul>
 
 <h3 id="x3">B.5 X3: mmk12 probe (lr 고정)</h3>
 <ul>
 <li>ckpt-350 에서 lr 1e-5 고정, beta 0.01 로 돌렸다.</li>
-<li>형식 점수가 0.89 에서 0.55 로 떨어졌다 (최저 0.28). 정확도는 0.48 에서 0.35 로 떨어졌다.</li>
+<li>형식 점수가 0.89 에서 0.55 로 떨어졌다 (최저 0.28). 학습 정확도는 0.48 에서 0.35 로 떨어졌다.</li>
 <li>KISTI probe 는 step 351 에서 lr 이 2.0e-6 이었다.</li>
-<li>beta 0.01 은 붕괴를 막지 못한다. KISTI probe 가 버틴 것은 lr 감소 덕이다.</li>
+<li>beta 0.01 은 붕괴를 막지 못한다. KISTI probe 가 버틴 것은 lr 감소 덕으로 추정한다.</li>
 </ul>
 
 <h3 id="x4">B.6 X4: 붕괴 해부</h3>
 <ol>
 <li>실패 응답의 96% 이상이 같은 모양이다. 모델이 <code>&lt;/think&gt;</code> 전에 <code>&lt;|im_end|&gt;</code> 를 낸다.</li>
-<li>실패 응답이 받은 advantage 합은 음수다. 보상이 실패를 강화한 것이 아니다.</li>
-<li>붕괴 전에 응답 길이가 줄어든다. deepvision 은 5124 자에서 2396 자, mmk12 는 1972 자에서 1419 자.</li>
-<li>붕괴 전에 불일치 diff 가 커진다. KISTI mmk12: step 1–150 은 0.04, 250 은 0.16, 300 은 0.39, 350 은 0.82. 붕괴는 약 450 에서 생겼다.</li>
+<li>실패 응답이 받은 advantage(그룹 평균 대비 보상) 합은 음수다. 보상은 실패 응답을 강화하지 않았다.</li>
+<li>붕괴 전에 응답 길이가 줄어든다. deepvision 은 5,124자에서 2,396자로 줄었다. mmk12 는 1,972자에서 1,419자로 줄었다.</li>
+<li>붕괴 전에 학습↔롤아웃 불일치가 커진다. KISTI mmk12: step 1–150 은 0.04, 250 은 0.16, 300 은 0.39, 350 은 0.82. 붕괴는 약 450 에서 생겼다.</li>
 <li>붕괴한 KISTI 실행은 모두 TIS 를 껐다. 2,203 step 을 버틴 B200 deepvision 은 TIS 를 켰다.</li>
 </ol>
 
 <h3 id="x5">B.7 X5: E1 / E1c</h3>
-<p>두 실행 모두 붕괴했다. TIS 를 켠 E1 은 붕괴가 약 20 step 늦고, 형식 점수가 덜 떨어졌다.</p>
+<p>두 실행 모두 붕괴했다. TIS 를 켠 E1 은 붕괴가 약 20 step 늦었다. E1 은 형식 점수도 덜 떨어졌다(0.79 대 0.62).</p>
 <figure>
 <svg viewBox="0 0 400 300" role="img" aria-label="E1과 E1c 실험 설계">
 <defs><marker id="ar2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="var(--gray)"/></marker></defs>
@@ -257,7 +257,7 @@ li{margin:3px 0}
 <text x="300" y="193" text-anchor="middle" font-size="11.5">붕괴 ~411, 끝 형식 0.62</text>
 <text x="300" y="210" text-anchor="middle" font-size="11.5" class="q">10/19 23:47 – 10/20 09:13</text>
 <text x="200" y="258" text-anchor="middle" font-size="12" class="q">공통: step 251→500, lr 1e-5 고정, beta 0, sdpa, kgpu 1 GPU</text>
-<text x="200" y="278" text-anchor="middle" font-size="12" class="q">비용: 두 실행 합 약 5.9만 크레딧</text>
+<text x="200" y="278" text-anchor="middle" font-size="12" class="q">비용: 두 실행 합 약 59,000 크레딧</text>
 <g stroke="var(--gray)" fill="none" stroke-width="1.25">
 <path d="M170 100L110 148" marker-end="url(#ar2)"/>
 <path d="M230 100L290 148" marker-end="url(#ar2)"/>
@@ -276,12 +276,12 @@ li{margin:3px 0}
 <tr><td>둘 다 붕괴 → TIS 로 부족</td><td>E1 ~431, E1c ~411 에서 붕괴</td><td class="ng">해당</td></tr>
 <tr><td>둘 다 유지 → 환경 차이</td><td>아님</td><td>—</td></tr>
 </table>
-<div class="note" id="interpretation"><b>해석.</b> 두 실행 모두 불일치가 먼저 커지고, 그 뒤 형식이 무너졌다. TIS 를 켜도 불일치는 커졌다. 그러므로 불일치는 학습 진행에 따라 스스로 커진다. 토큰 단위 절단(TIS)만으로는 붕괴를 막지 못한다. 불일치가 커지는 원인은 확인하지 않았다. 가설은 colocate 모드에서 LoRA 를 vLLM 에 bf16 으로 병합하는 과정이다.</div>
-<div class="note"><b>실무 결론.</b> 붕괴 직전 체크포인트를 holdout 으로 골라 전문가로 쓴다. 불일치 지표(<code>log_ppl_abs_diff</code>)를 붕괴 조기 경보로 감시한다.</div>
+<div class="note" id="interpretation"><b>해석.</b> 두 실행 모두 불일치가 먼저 커지고, 그 뒤 형식이 무너졌다. TIS 를 켜도 불일치는 커졌다. TIS 는 불일치 자체를 줄이는 장치가 아니다. 토큰 단위 절단(TIS)만으로는 붕괴를 막지 못했다. 불일치가 커지는 원인은 확인하지 않았다. 가설은 colocate 모드에서 LoRA 를 vLLM 에 bf16 으로 병합하는 과정이다.</div>
+<div class="note"><b>실무 결론.</b> 붕괴 전 체크포인트 중 holdout 정확도가 가장 높은 것을 전문가로 쓴다. 불일치 지표(<code>log_ppl_abs_diff</code>)를 붕괴 조기 경보로 감시한다.</div>
 
 <!-- ============================================================ -->
 <h2 id="partC">Part C. 전문가 통합 (모델 merging)</h2>
-<p>추가 학습 없이 전문가 3종을 합쳐 통합 모델 1개를 만들었다. 단순 가중 합산(task arithmetic w=0.7)이 가장 좋았다.</p>
+<p>추가 학습 없이 전문가 3종을 합쳐 통합 모델 1개를 만들었다. 선별에서는 가중 합산(Task Arithmetic, w=0.7)이 1위였다. 본평가에서 2위와의 차이는 유의하지 않았다.</p>
 
 <h3 id="merge-design">C.1 질문과 판정 기준</h3>
 <p>질문: 추가 학습 없이 세 전문가를 한 모델로 합칠 수 있는가? 판정 기준은 실행 전에 정했다(<a href="21_stage2a_design.html"><code>docs/21_stage2a_design.html</code></a> §8).</p>
@@ -290,17 +290,17 @@ li{margin:3px 0}
 <li>글로벌 벤치에서 SFT 보다 높다.</li>
 <li>두 기준을 통과한 후보 중 (holdout + 글로벌)/2 가 높은 순서로 2개를 본평가한다.</li>
 </ol>
-<p>원래 설계(8/13)는 3단계다. 계단 0 은 가중치 merging(학습 없음), 계단 1 은 순차 증류, 계단 2 는 도메인별 교사 증류(OPD)다. 1차에서는 계단 0 을 했다.</p>
+<p>원래 설계(8/13)는 계단 3개다. 계단 0 은 가중치 merging(학습 없음), 계단 1 은 순차 증류, 계단 2 는 도메인별 교사 증류(OPD, on-policy distillation)다. 1차에서는 계단 0 을 했다.</p>
 
 <h3 id="candidates">C.2 후보</h3>
 <table>
 <tr><th>후보</th><th>기법</th><th>인자</th><th>원리</th></tr>
-<tr><td>ta_w1 / ta_w07 / ta_w05</td><td>task arithmetic</td><td>w = 1.0 / 0.7 / 0.5</td><td>τ 를 w 배 해서 더한다</td></tr>
-<tr><td>ta_avg</td><td>task arithmetic</td><td>w = 1/3</td><td>단순 평균(model soup)</td></tr>
+<tr><td>ta_w1 / ta_w07 / ta_w05</td><td>Task Arithmetic</td><td>w = 1.0 / 0.7 / 0.5</td><td>τ 를 w 배 해서 더한다</td></tr>
+<tr><td>ta_avg</td><td>Task Arithmetic</td><td>w = 1/3</td><td>단순 평균(model soup)</td></tr>
 <tr><td>ties_d05</td><td>TIES</td><td>density 0.5</td><td>크기 상위 50% 만 남기고, 부호를 다수결로 정하고, 같은 부호만 평균</td></tr>
 <tr><td>dare_lin_d05 / dare_ties_d05</td><td>DARE</td><td>density 0.5</td><td>50% 를 무작위로 버리고 2배로 복원(+ 부호 다수결)</td></tr>
 <tr><td>della_d05</td><td>DELLA</td><td>density 0.5, ε 0.1</td><td>크기에 따라 행마다 버릴 확률을 다르게 함 + 부호 다수결</td></tr>
-<tr><td>breadcrumbs_d09</td><td>Breadcrumbs+TIES</td><td>density 0.9, γ 0.01</td><td>가장 큰 1% 와 작은 값을 함께 버림</td></tr>
+<tr><td>breadcrumbs_d09</td><td>Breadcrumbs+TIES</td><td>density 0.9, γ 0.01</td><td>크기 상위 1% 와 하위 9% 를 버림</td></tr>
 <tr><td>model_stock</td><td>Model Stock</td><td>없음</td><td>τ 끼리의 코사인으로 보간 비율을 자동 계산</td></tr>
 <tr><td>ram</td><td>RAM</td><td>없음</td><td>한 전문가만 바꾼 값은 그대로, 여럿이 바꾼 값은 평균</td></tr>
 </table>
@@ -328,7 +328,7 @@ li{margin:3px 0}
 </g>
 <g font-size="12"><text x="440" y="98" class="q">같은 도메인 다른 step:</text><text x="440" y="118" class="q">dv2192 ↔ dv2700 0.999</text><text x="440" y="138" class="q">mm350 ↔ mm400 0.971</text></g>
 </svg>
-<figcaption>출처: <code>scripts/task_vector_cosine.py</code> → KISTI <code>logs/task_vector_cosine.json</code>. 모듈 248개의 내적 합으로 계산한 전체 코사인. 모듈별 범위는 −0.32 ~ +0.50.</figcaption>
+<figcaption>출처: <code>scripts/task_vector_cosine.py</code> → KISTI <code>logs/task_vector_cosine.json</code>. 전체 코사인은 모듈 248개의 내적 합으로 계산했다. 모듈별 범위는 −0.32 ~ +0.50.</figcaption>
 </figure>
 <ul>
 <li>계산법: ΔW 를 만들지 않고 r×r 연산으로 정확히 구한다. ⟨B₁A₁, B₂A₂⟩ = Σ (B₁ᵀB₂) ∘ (A₁A₂ᵀ).</li>
@@ -357,12 +357,12 @@ li{margin:3px 0}
 <text x="80" y="150" font-size="11.5" text-anchor="middle" class="q">KISTI → kgpu 직접 전송</text>
 <text x="80" y="166" font-size="11.5" text-anchor="middle" class="q">약 52 MB/s</text>
 </svg>
-<figcaption>kgpu RTX 5090(32GB) pod 1장이 후보 여러 개를 차례로 처리한다. 선별에 pod 5개(A~E)를 썼다.</figcaption>
+<figcaption>RTX 5090(32GB) 1장짜리 kgpu pod 1개가 후보 여러 개를 차례로 처리한다. 선별에 pod 5개(A~E)를 썼다.</figcaption>
 </figure>
 <p>병합·평가 스크립트는 <a href="#scripts">스크립트 표</a>, 함정은 <a href="#pitfalls">함정 표</a>에 있다.</p>
 
 <h3 id="screening">C.5 결과: 선별(축소셋)</h3>
-<p>task arithmetic(w=0.7)이 1위다. 통합 모델의 글로벌 점수(59.2)가 가장 강한 단일 전문가(59.3)와 같다. 10개 중 9개가 판정 기준을 통과했다. 본평가 대상은 1위 ta_w07 과 2위 breadcrumbs_d09 다.</p>
+<p>Task Arithmetic(w=0.7)이 1위다. 통합 모델의 글로벌 점수(59.2)는 가장 강한 단일 전문가(59.3)와 거의 같다. 평가를 마친 10개 중 9개가 판정 기준을 통과했다. 본평가 대상은 1위 ta_w07 과 2위 breadcrumbs_d09 다.</p>
 <figure>
 <svg id="rank" viewBox="0 0 760 520" role="img" aria-label="선별 순위: ta_w07 이 holdout 과 글로벌 모두 1위"></svg>
 <figcaption>출처: kgpu <code>~/files/kbds/logs/screen_*_{hold,gb}.jsonl</code>. holdout 600 = 도메인별 200, 글로벌 600 = 벤치별 300, 같은 seed 로 모든 후보가 같은 문항. 점선 = SFT.</figcaption>
@@ -382,11 +382,11 @@ li{margin:3px 0}
 <tr><td>della_d05</td><td colspan="3">mergekit 오류: 확률값 <code>p_in</code> 이 0~1 을 벗어남(density 0.5, ε 0.1)</td><td class="ng">실패</td></tr>
 <tr><td>기준: deepvision 단독</td><td class="n">60.5</td><td class="n">59.3</td><td>100% / 114% / 87%</td><td></td></tr>
 </table>
-<p>기준선: SFT holdout 47.5 · 글로벌 50.2. 전문가 단독 exp_dv 60.5 · 59.3, exp_mm 52.3 · 54.2, exp_pmc 51.3 · 54.0.</p>
+<p>기준선은 SFT 모델 holdout 47.5, 글로벌 50.2 다. 전문가 단독(holdout · 글로벌)은 deepvision 60.5 · 59.3, mmk12 52.3 · 54.2, pmcvqa 51.3 · 54.0 이다.</p>
 <ul>
-<li>통합 모델은 의료 VQA(pmcvqa) 보존을 87% 에서 97% 로 높인다.</li>
+<li>pmcvqa 보존율은 deepvision 단독 87%, ta_w07 97% 다.</li>
 </ul>
-<div class="note"><b>해석.</b> τ 가 거의 직교하므로 부호 충돌을 정리할 일이 적다. 그래서 TIES·DARE·RAM 이 단순 합산보다 낫지 않았다. 2~8위의 점수 차이(2pp)는 노이즈 범위다. 가중치 1.0 보다 0.7 이 나았다. 세 τ 를 그대로 더하면 변화량이 과해진다고 추정한다. Model Stock 은 보간 비율을 작게 잡아 SFT 쪽으로 끌려갔다(추정).</div>
+<div class="note"><b>해석.</b> τ 가 거의 직교하므로 부호 충돌을 정리할 일이 적다. TIES·DARE·RAM 은 ta_w07 보다 낫지 않았다. 원인은 부호 충돌이 적기 때문으로 추정한다. 2~8위의 (holdout + 글로벌)/2 차이(약 2pp)는 노이즈 범위다. 가중치 1.0 보다 0.7 이 나았다. 세 τ 를 그대로 더하면 변화량이 과해진다고 추정한다. Model Stock 은 보간 비율을 작게 잡아 SFT 쪽으로 끌려갔다(추정).</div>
 
 <h3 id="fulleval">C.6 결과: 본평가(전체셋, K-BDS)</h3>
 <p>kgpu 본평가는 2026-10-22 15:25~17:37 의 플랫폼 장애(HTTP 503)로 결과 없이 끝났다. pod 3개는 장애 중에 플랫폼이 정리했다. 같은 평가를 KISTI A100 에서 다시 했다. 통합 모델은 KISTI 에서 <code>merge_experts.py</code> 로 만들었다. breadcrumbs_d09 는 mergekit 의 <code>breadcrumbs_ties</code>(normalize false)를 같은 스크립트에 구현해서 만들었다.</p>
@@ -399,17 +399,17 @@ li{margin:3px 0}
 </table>
 <p>출처: KISTI job 83037·83038(ta_w07), 83043·83070(breadcrumbs_d09). 보존 = 통합 모델 정확도 ÷ 해당 전문가 정확도(dv 67.39, mm 60.75, pmc 58.0). SFT holdout 전체(42.67)는 도메인별 측정값을 문항 수로 가중 평균한 값이다.</p>
 <ul>
-<li>ta_w07 은 세 도메인에서 전문가 성능의 95~108% 를 지켰다. 선별(97~109%)과 같은 결론이다. 형식 준수율은 99.7% 다.</li>
-<li>전체셋에서 통합 모델의 글로벌 점수는 가장 강한 단일 전문가보다 1.30pp 낮다(56.22 대 57.52). 선별(축소셋)에서는 둘이 같았다(59.2 대 59.3).</li>
-<li>breadcrumbs_d09 는 holdout(+0.39pp)과 글로벌(+0.68pp) 모두 ta_w07 보다 조금 높다. 같은 문항끼리 짝지어 비교(McNemar)하면 차이가 유의하지 않다: holdout 은 한쪽만 맞힌 문항이 138 대 131(p=0.72), 글로벌은 234 대 209(p=0.25)다.</li>
-<li><b>최종 모델은 ta_w07 로 확정했다.</b> 두 후보의 차이가 유의하지 않으므로 더 단순한 레시피(가중 합산, 인자 1개)를 고른다. 결과보고서·기탁 패키지는 ta_w07 기준이다. breadcrumbs_d09 는 패키지의 대안 레시피(<code>merge.sh … bc_d09</code>)로 남긴다.</li>
-<li>기탁 패키지의 <code>merge.sh</code> 로 공개 Qwen3.5-9B 에서 ta_w07 을 다시 만들었다(job 83057). bf16 텐서 712개가 평가 모델과 비트 단위로 같다. 나머지 48개(<code>linear_attn.A_log</code>, <code>linear_attn.norm.weight</code>)는 공개 모델의 fp32 값이 남는다. bf16 으로 바꾸면 같다.</li>
+<li>ta_w07 은 세 도메인에서 전문가 성능의 95~108% 를 지켰다. 선별(97~109%)과 같은 결론이다. 형식 점수는 0.997 이다.</li>
+<li>전체셋에서 통합 모델의 글로벌 점수는 가장 강한 단일 전문가보다 1.30pp 낮다(56.22 대 57.52). 선별(축소셋)에서는 둘이 거의 같았다(59.2 대 59.3).</li>
+<li>breadcrumbs_d09 는 holdout(+0.39pp)과 글로벌(+0.68pp) 모두 ta_w07 보다 조금 높다. 같은 문항끼리 짝지어 비교(McNemar)하면 차이가 유의하지 않다. holdout 에서 한쪽만 맞힌 문항은 138 대 131 이다(p=0.72). 글로벌은 234 대 209 다(p=0.25).</li>
+<li><b>최종 모델은 ta_w07 로 확정했다.</b> 두 후보의 차이가 유의하지 않으므로 더 단순한 레시피(가중 합산, 인자 1개)를 골랐다. 결과보고서·기탁 패키지는 ta_w07 기준이다. breadcrumbs_d09 는 패키지의 대안 레시피(<code>merge.sh … bc_d09</code>)로 남긴다.</li>
+<li>기탁 패키지의 <code>merge.sh</code> 로 공개 Qwen3.5-9B 에서 ta_w07 을 다시 만들었다(job 83057). bf16 텐서 712개가 평가 모델과 비트 단위로 같다. 나머지 48개(<code>linear_attn.A_log</code>, <code>linear_attn.norm.weight</code>)는 공개 모델의 fp32 값이 남는다. 이 48개도 bf16 으로 바꾸면 평가 모델과 같다.</li>
 </ul>
 
 <!-- ============================================================ -->
 <h2 id="impl">구현·실행 환경</h2>
 <div class="warn"><b>주의.</b> 자격증명(토큰, PAT)을 명령 인자나 파일에 남기지 않는다. 토큰은 <code>.env</code> 에서 읽거나 stdin 으로 넘긴다. git 은 <code>.env</code> 를 추적하지 않는다.</div>
-<div class="warn"><b>주의.</b> 감시 프로세스가 죽거나 판정을 잘못하면 kgpu pod 를 반납하지 못한다. 비용이 계속 나간다. 10/15 에 이 문제로 약 197k 크레딧을 잃었다. 10/22 merging 선별에서는 판정 버그로 약 1,900 크레딧을 잃었다. 감시는 <code>nohup setsid</code> 로 띄운다.</div>
+<div class="warn"><b>주의.</b> 감시 프로세스가 죽거나 판정을 잘못하면 kgpu pod 를 반납하지 못한다. 비용이 계속 나간다. 10/15 에 이 문제로 약 197,000 크레딧을 잃었다. 10/22 merging 선별에서는 판정 버그로 약 1,900 크레딧을 잃었다. 감시는 <code>nohup setsid</code> 로 띄운다.</div>
 
 <h3 id="env">실행 환경</h3>
 <table>
@@ -418,7 +418,7 @@ li{margin:3px 0}
 <tr><td>실행</td><td>Slurm <code>sbatch</code></td><td>HTTP API: <code>POST /pods</code> → <code>/exec</code> → <code>DELETE</code></td></tr>
 <tr><td>attention</td><td>flash_attn</td><td>sdpa</td></tr>
 <tr><td>사용한 실험</td><td>X2, X4, X6, 전문가 holdout, 최종 병합, merging 본평가</td><td>X1, X3, X5, 글로벌 평가(dv2700, mm350), merging 선별(본평가는 장애로 중단)</td></tr>
-<tr><td>비용</td><td>할당 내</td><td>3,000 크레딧/시간</td></tr>
+<tr><td>비용</td><td>할당 내</td><td>3,000 크레딧/시간(RTX PRO 6000)</td></tr>
 <tr><td>전송</td><td colspan="2">KISTI → kgpu <code>~/files</code> 직접 PUT: 약 37 MB/s(10/15 실측), 약 52 MB/s(10/22 merging 실측)</td></tr>
 </table>
 
@@ -427,12 +427,12 @@ li{margin:3px 0}
 <tr><th>파일</th><th>역할</th></tr>
 <tr><td><code>kgpu/setup_venv.sh</code></td><td>pod 에 고정 버전 스택을 설치한다 (torch 2.10.0+cu129, vllm 0.19.1, ms-swift 4.1.3, transformers 5.6.2, peft 0.19.1, fastapi 0.136.1).</td></tr>
 <tr><td><code>kgpu/stage3_smoke.sh</code></td><td>X1. Stage-3 를 kgpu 에서 돌린다. 심판은 KHDP <code>deepseek-v4-1-flash-ax</code>.</td></tr>
-<tr><td><code>kgpu/mmk12_probe.sh</code></td><td>X3, X5. mmk12 를 체크포인트에서 이어 돌린다. 노브: <code>CKPT</code>, <code>BETA</code>, <code>TIS</code>, <code>MAX_STEPS</code>.</td></tr>
-<tr><td><code>kgpu/merge_screen.sh</code></td><td>pod 1장에서 후보를 병합·서빙·채점한다. <code>HOLD_N</code>, <code>GB_N</code>, <code>RES_PREFIX</code> 로 선별/본평가를 바꾼다.</td></tr>
-<tr><td><code>kgpu/global_bench.sh</code></td><td>전문가 1개의 글로벌 벤치 전체 평가.</td></tr>
+<tr><td><code>kgpu/mmk12_probe.sh</code></td><td>X3, X5. mmk12 를 체크포인트에서 이어 돌린다. 조정 변수: <code>CKPT</code>, <code>BETA</code>, <code>TIS</code>, <code>MAX_STEPS</code>.</td></tr>
+<tr><td><code>kgpu/merge_screen.sh</code></td><td>pod 1개에서 후보를 병합·서빙·채점한다. <code>HOLD_N</code>, <code>GB_N</code>, <code>RES_PREFIX</code> 로 선별/본평가를 바꾼다.</td></tr>
+<tr><td><code>kgpu/global_bench.sh</code></td><td>전문가 1개의 글로벌 벤치를 전체 평가한다.</td></tr>
 <tr><td><code>scripts/21_rlvr_grpo_adv.slurm</code></td><td>X2. KISTI 에서 deepvision 을 이어 돌린다.</td></tr>
 <tr><td><code>scripts/eval_midtrain.slurm</code></td><td>X6. 체크포인트를 병합하고 vLLM 으로 holdout 을 채점한다.</td></tr>
-<tr><td><code>scripts/merge_experts.py</code></td><td>LoRA 를 가중치 산술로 base 에 합친다(linear, TIES, breadcrumbs). shard 단위로 처리해 메모리를 적게 쓴다. 비전 타워·processor 를 보존한다.</td></tr>
+<tr><td><code>scripts/merge_experts.py</code></td><td>LoRA 를 가중치 산술로 SFT 모델(<code>--base</code>)에 합친다(linear, TIES, breadcrumbs). shard 단위로 처리해 메모리를 적게 쓴다. 비전 타워·processor 를 보존한다.</td></tr>
 <tr><td><code>scripts/test_merge_experts.py</code></td><td>합성 텐서로 수식을 검증한다. 9/9 통과.</td></tr>
 <tr><td><code>scripts/task_vector_cosine.py</code></td><td>τ 코사인 진단(<a href="#cosine">C.3</a>).</td></tr>
 <tr><td><code>configs/merge/*.yaml</code></td><td>mergekit 후보 11개. mergekit 은 커밋 <code>c91c787</code>(2026-10-20)으로 고정.</td></tr>
@@ -444,7 +444,7 @@ li{margin:3px 0}
 <li>KISTI 에서 kgpu <code>~/files</code> 로 바로 PUT 한다.</li>
 <li>pod 를 만든다. 이미지는 <code>nvidia/cuda:12.9.1-cudnn-devel-ubuntu24.04</code> 다.</li>
 <li>스크립트를 pod 로컬로 복사한다.</li>
-<li>pod 에서 스크립트를 background 로 실행한다.</li>
+<li>pod 에서 스크립트를 백그라운드로 실행한다.</li>
 <li>감시 스크립트가 180 초마다 로그를 읽는다.</li>
 <li>스크립트가 끝나면 감시 스크립트가 pod 를 반납한다 (<code>trap … EXIT</code>, 상한 10 시간).</li>
 </ol>
@@ -454,16 +454,16 @@ li{margin:3px 0}
 <tr><th>함정</th><th>대응</th></tr>
 <tr><td>KISTI curl 7.29 가 <code>-H @file</code> 을 지원하지 않는다 (401).</td><td>헤더를 <code>-K</code> 설정 파일(권한 600)로 넘기고, 끝나면 지운다.</td></tr>
 <tr><td>KISTI 계산 노드에 외부망이 없다.</td><td>외부 심판이 필요한 Stage-3 는 kgpu 에서 돌린다.</td></tr>
-<tr><td>pro6000 노드에 기본 이미지가 없다.</td><td>CUDA 이미지를 쓰고 curl, python 을 스크립트가 깐다.</td></tr>
+<tr><td>RTX PRO 6000 노드에 kgpu 표준 이미지(<code>kgpu-pytorch</code>)가 없다.</td><td>CUDA 이미지를 쓰고 curl, python 을 스크립트가 깐다.</td></tr>
 <tr><td><code>~/files</code> 는 느린 네트워크 저장소다.</td><td>모델, venv, 데이터를 pod 로컬 <code>/root/w</code> 로 복사한다.</td></tr>
 <tr><td>kgpu <code>~/files</code> 에서 스크립트를 바로 실행하면 I/O 오류(Errno 121)가 난다.</td><td>pod 로컬로 복사해서 실행한다.</td></tr>
 <tr><td>sbatch <code>--export</code> 가 값 안의 쉼표를 변수 구분자로 읽는다.</td><td><code>EVAL_STAGES=init,trained</code> 를 쓰지 않는다. 단계마다 job 을 따로 낸다.</td></tr>
-<tr><td>pod 반납 시 중간 체크포인트가 사라진다.</td><td>스크립트는 마지막 체크포인트만 보존한다. E1 의 step 400 체크포인트는 잃었다.</td></tr>
+<tr><td>pod 반납 시 중간 체크포인트가 사라진다.</td><td>스크립트가 마지막 체크포인트를 <code>~/files</code> 로 옮긴다. 중간 체크포인트는 남지 않는다. E1 의 step 400 체크포인트는 잃었다.</td></tr>
 <tr><td><code>swift export</code> 가 체크포인트 <code>args.json</code> 의 KISTI 경로를 찾다 죽는다.</td><td>병합을 <code>merge_experts.py</code> 로 바꿨다.</td></tr>
-<tr><td>fastapi 0.159 가 vLLM 모니터링과 안 맞아 모든 요청이 500 이다.</td><td>fastapi 를 0.136.1 로 고정했다(<code>kgpu/setup_venv.sh</code>).</td></tr>
+<tr><td>fastapi 0.159 가 vLLM 모니터링과 맞지 않아 모든 요청이 HTTP 500 오류로 실패한다.</td><td>fastapi 를 0.136.1 로 고정했다(<code>kgpu/setup_venv.sh</code>).</td></tr>
 <tr><td>pod 이미지에 git 이 없어 mergekit 설치가 실패한다.</td><td>같은 커밋의 tar.gz 주소로 설치한다.</td></tr>
-<tr><td>TIES·DARE-TIES·DELLA·Breadcrumbs·RAM 이 32GB GPU 에서 OOM 이다.</td><td>GPU 실패 시 CPU 로 재시도한다(60Gi RAM).</td></tr>
-<tr><td>감시가 로그 끝의 빈 줄 때문에 작업 종료를 못 알아챈다.</td><td>빈 줄을 지우고 판정한다. 이 버그로 pod 2개가 약 40분 더 켜져 있었다(약 1,900 크레딧).</td></tr>
+<tr><td>TIES·DARE-TIES·DELLA·Breadcrumbs·RAM 이 32GB GPU 에서 메모리 부족(OOM)으로 실패한다.</td><td>GPU 실패 시 CPU 로 재시도한다(60Gi RAM).</td></tr>
+<tr><td>감시가 로그 끝의 빈 줄 때문에 작업 종료를 못 알아챈다.</td><td>빈 줄을 지우고 판정한다. 이 버그로 RTX 5090 pod 2개가 약 40분 더 켜져 있었다(약 1,900 크레딧).</td></tr>
 <tr><td>대기 명령이 자기 자신을 <code>pgrep</code> 으로 찾거나, 좀비 pid 를 살아 있다고 본다.</td><td>대기열을 쓰지 않고 새 pod 에서 돌린다.</td></tr>
 </table>
 
@@ -471,18 +471,18 @@ li{margin:3px 0}
 <h2 id="next">다음 단계</h2>
 <p>본평가는 KISTI 에서 끝났다(<a href="#fulleval">C.6</a>). 결과보고서 초안(<a href="99_report_draft.html"><code>docs/99_report_draft.html</code></a>)에는 ta_w07 수치를 넣었다.</p>
 <ol>
-<li>breadcrumbs_d09 holdout 은 job 83070 에서 끝났다. 앞의 두 번(83041·83058)은 vLLM 기동이 600초 대기 한도를 넘어 결과 없이 끝났다. 한도를 늘렸다(<code>EVAL_READY_TRIES</code>).</li>
-<li>통합 모델 가중치는 Hugging Face 비공개 저장소 <code>easypyeong/Qwen3.5-9B-MedCrossReason</code> 에 올렸다. sha256 이 평가 모델과 같다. 마켓플레이스 패키지(<code>share/kbds_integrated_model_v2.zip</code>)에는 LoRA 4개, <code>merge.sh</code>, 데이터, 코드를 넣었다. 추론 비용은 <a href="00_overview.html#s2e-7">00_overview 2-E.7</a>.</li>
+<li>breadcrumbs_d09 의 holdout 평가는 job 83070 에서 끝났다. 앞의 두 시도(job 83041·83058)는 vLLM 기동이 600초 대기 한도를 넘어 결과 없이 끝났다. 한도를 늘렸다(<code>EVAL_READY_TRIES</code>).</li>
+<li>통합 모델 가중치는 Hugging Face 비공개 저장소 <code>easypyeong/Qwen3.5-9B-MedCrossReason</code> 에 올렸다. sha256 이 평가 모델과 같다. 마켓플레이스 패키지(<code>share/kbds_integrated_model_v2.zip</code>)에는 LoRA 4개(SFT 1개 + 전문가 3개), <code>merge.sh</code>, 데이터, 코드를 넣었다. 추론 비용은 <a href="00_overview.html#s2e-7">00_overview 2-E.7</a> 에 있다.</li>
 <li>2차: 통합 모델로 Stage-3 를 kgpu 에서 시작한다.</li>
 </ol>
 <h3 id="unverified">확인하지 않은 것</h3>
 <ul>
-<li>불일치가 커지는 원인. 오프라인 측정(병합 LoRA 대 학습 엔진 확률 비교)으로 확인할 수 있다. 예상 비용은 약 1 시간, 3천 크레딧.</li>
-<li>시퀀스 단위 rejection 이나 lr 감쇠가 붕괴를 막는지.</li>
-<li>kgpu(sdpa) 와 KISTI(flash_attn) 의 불일치 수준 차이. E1c 의 첫 구간 diff(0.27)는 E1(0.13)의 2배였다. 같은 체크포인트이므로 이 차이는 측정 잡음일 수 있다.</li>
+<li>불일치가 커지는 원인. 오프라인 측정(병합 LoRA 대 학습 엔진 확률 비교)으로 확인할 수 있다. 예상 소요는 약 1 시간, 비용은 약 3,000 크레딧이다.</li>
+<li>시퀀스 단위 거부(rejection)나 lr 감쇠가 붕괴를 막는지.</li>
+<li>kgpu(sdpa) 와 KISTI(flash_attn) 의 불일치 수준 차이. E1c 의 첫 구간 불일치(0.27)는 E1(0.13)의 2배였다. 두 실행은 같은 체크포인트·같은 kgpu 환경이다. 따라서 실행 사이의 측정 편차도 이만큼 클 수 있다.</li>
 <li>DELLA 를 다른 인자(ε 0.05 등)로 돌리면 동작하는지.</li>
 <li>w = 0.6, 0.8 같은 중간 가중치.</li>
-<li>전문가 평가 환경 차이(KISTI A100 대 kgpu RTX 5090)의 크기. 재측정(pod ex)은 kgpu 장애로 끝나지 않았다.</li>
+<li>전문가 평가 환경 차이(KISTI A100 대 kgpu RTX 5090)의 크기. kgpu 재측정은 플랫폼 장애로 결과 없이 중단됐다.</li>
 </ul>
 </main>
 

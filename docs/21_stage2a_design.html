@@ -38,23 +38,25 @@ li{margin:3px 0}
 <h1>Stage-2 · 설계·데이터·방법론 (2-A) — 외부 조사, 하이퍼파라미터 관행, 재설계, 데이터 구축, GRPO 변형 A/B</h1>
 <div class="meta">기준 2026-10-22 · 원 문서 작성 2026-07-24 ~ 2026-08-13 · 작성 방식 ASD-STE100(한 문장에 한 사실, 능동문, 같은 대상에 같은 용어)<br>
 원본: <code>docs/rlvr_survey_2026.md</code> · <code>docs/rlvr_hparams_external.md</code> · <code>docs/stage2_redesign_2026.md</code> · <code>docs/deepseek_v4_pipeline_adoption.md</code> (2026-10-22 HTML 로 통합)<br>
-관련: <a href="00_overview.html">00_overview.html</a>(전 단계 실험 정리) · <a href="23_stage2ce_experts.html">23_stage2ce_experts.html</a>(전문가 학습·통합)<br>5부·6부 = 구 <code>21_stage2a_design.html</code>(데이터 구축·GRPO 변형 A/B, 2026-10-23 통합). 3부와 4부에는 실측 결과와 지금도 유효한 결정만 남겼다.</div>
+관련: <a href="00_overview.html">00_overview.html</a>(전 단계 실험 정리) · <a href="23_stage2ce_experts.html">23_stage2ce_experts.html</a>(전문가 학습·통합)<br>5부·6부는 옛 데이터 구축·GRPO 변형 A/B 문서에서 옮겼다(2026-10-23 통합). 3부와 4부에는 실측 결과와 지금도 유효한 결정만 남겼다.</div>
 
 <h2 id="summary">요약</h2>
 <div class="key">
 <ol>
-<li>Stage-2 를 도메인 전문가 3종 + 통합 구조로 바꿨다(2026-08-13). DeepSeek-V4 와 Kimi K3 가 각자 같은 구조를 택했다. 혼합 학습은 일반 +8.18pp 를 얻었다. 의료는 +0.75pp(p&gt;0.5)로 미검출이었다. 도메인 전용 학습은 같은 850 step 에서 소스를 1.9~4.9배 더 노출한다(4부).</li>
+<li>Stage-2 를 도메인 전문가 3종 + 통합 구조로 바꿨다(2026-08-13). DeepSeek-V4 와 Kimi K3 도 같은 구조를 따로 택했다. 혼합 학습은 holdout 전체에서 +8.18pp 를 얻었다(일반 +10.80pp). 의료는 +0.75pp 로 유의한 향상이 없었다(p&gt;0.5). 도메인 전용 학습은 같은 850 step 에서 소스를 1.9~4.9배 더 노출한다(4부).</li>
 <li>콜드스타트 SFT 는 계속 필요하다. 조사한 8개 모델은 모두 RL 앞에 SFT 를 둔다. 형식 태그를 버리면 형식 학습만 사라진다. long-CoT 행동, 출발 정책 품질, 길이 기준선, 시각 주의 유도는 남는다. 과도한 SFT 는 RLVR 을 방해한다(1부 3절).</li>
-<li>2026년 리포트가 가장 많이 지목한 불안정 원인은 학습↔롤아웃 확률 불일치다. 그래서 롤아웃 logprob 불일치 계측(F)을 넣었다(1부 ③, 3부).</li>
+<li>2026년 리포트가 가장 많이 지목한 불안정 원인은 학습↔롤아웃 확률 불일치다. 그래서 롤아웃 logprob 불일치 계측(3부 항목 F)을 넣었다(1부 ③).</li>
 <li>코어 알고리즘(손실·advantage·필터링)은 외부 관행과 맞는다. RLVR 은 ≤1 epoch 으로 돌리고 조기 중단한다(2부).</li>
-<li>재설계 항목 A+B 는 GPU 비용 없이 개시 낙폭을 −0.324 에서 −0.195 로 40% 줄인다. repetition 보상과 언어 일관성 보상은 실측으로 기각했다(3부).</li>
+<li>재설계 항목 A(정확도 보상을 형식에서 분리)와 B(단계형 형식 보상)는 GPU 비용이 없다. 기존 롤아웃을 A+B 로 다시 채점하면 개시 구간 총보상이 −0.324 에서 −0.195 로 오른다(하락 폭 40% 감소). repetition 보상과 언어 일관성 보상은 실측으로 기각했다(3부).</li>
 <li>통합은 학습이 없는 가중치 산술부터 시작한다(계단식 통합). 통합 판정 기준은 통합 전에 정했다(4부 7절).</li>
 </ol>
 <table><thead><tr><th>용어</th><th>뜻</th></tr></thead><tbody>
 <tr><td>holdout</td><td>학습에 쓰지 않은 평가 문항.</td></tr>
+<tr><td>기본 모델 (base)</td><td>공개 모델 Qwen3.5-9B.</td></tr>
+<tr><td>SFT 모델</td><td>Stage-1 v3 콜드스타트 SFT 병합본 <code>sft_mixed_merged</code>. 전문가 학습의 출발 모델이다.</td></tr>
 <tr><td>학습↔롤아웃 불일치</td><td>학습 엔진과 vLLM 롤아웃이 같은 토큰에 주는 확률의 차이.</td></tr>
 <tr><td>advantage</td><td>응답의 보상에서 그룹 평균을 뺀 값. GRPO 는 이 값으로 응답의 확률을 올리거나 내린다.</td></tr>
-<tr><td>개시 낙폭</td><td>붕괴 개시 구간(step 899-910)의 총보상 평균. 값이 낮을수록 절벽이 깊다.</td></tr>
+<tr><td>개시 구간 총보상</td><td>붕괴 개시 구간(step 899-910)의 총보상 평균. 붕괴 전 평균은 0.618 이다. 값이 낮을수록 절벽이 깊다.</td></tr>
 <tr><td>정확도 균일 그룹</td><td>한 프롬프트의 생성이 모두 같은 정확도 점수를 받은 그룹. 이 그룹에서 정확도의 advantage 기여는 0 이다.</td></tr>
 <tr><td>ck-850</td><td>혼합 학습의 <code>checkpoint-850</code>. 혼합 학습의 기준선이다.</td></tr>
 </tbody></table>
@@ -64,8 +66,8 @@ li{margin:3px 0}
 <b>목차</b>
 <div><b><a href="#2026년-중국한국-모델-학습-단계-조사-2026-05--08-중심">1부. 2026년 중국·한국 모델 학습 단계 조사 (2026-05 ~ 08 중심)</a></b><br><a href="#0-신뢰도-표기">0. 신뢰도 표기</a> · <a href="#1-한눈에-보는-학습-단계">1. 한눈에 보는 학습 단계</a> · <a href="#2-횡단-패턴--7가지">2. 횡단 패턴 7가지</a> · <a href="#3-콜드스타트-sft-는-여전히-필요한가">3. 콜드스타트 SFT 는 여전히 필요한가</a> · <a href="#4-이-프로젝트에-대한-함의">4. 이 프로젝트에 대한 함의</a> · <a href="#5-출처">5. 출처</a></div>
 <div><b><a href="#rlvr-하이퍼파라미터--외부-관행-대조-2026-리포트-조사">2부. RLVR 하이퍼파라미터 — 외부 관행 대조 (2026 리포트 조사)</a></b><br><a href="#0-조사-프레이밍-솔직한-한계">0. 조사 범위와 한계</a> · <a href="#1-하이퍼파라미터-대조표">1. 하이퍼파라미터 대조표</a> · <a href="#2-에포크--많이가-아니라-1수-에포크--조기중단">2. 에포크: ≤1 epoch + 조기 중단</a> · <a href="#4-출처">3. 출처</a></div>
-<div><b><a href="#stage-2-재실행-실험-설계">3부. Stage-2 재실행 실험 설계</a></b><br><a href="#0-재현-실험이-바꾼-전제">0. 재현 실험이 바꾼 전제</a> · <a href="#1-요약">1. 항목별 실측 효과와 결정</a> · <a href="#2-좋은-소식--ms-swift-413-이-이미-지원한다">2. ms-swift 4.13 지원 현황</a> · <a href="#3-변경-항목-상세">3. 항목 상세</a> · <a href="#5-2-보상-설정-전면-점검">4. 보상 설정 점검</a> · <a href="#6-바꾸지-않는-것과-이유">5. 바꾸지 않는 것과 이유</a> · <a href="#8-레퍼런스">6. 레퍼런스</a></div>
-<div><b><a href="#deepseek-v4-파이프라인-도입안--도메인별-전문가--통합">4부. DeepSeek-V4 파이프라인 도입안 — 도메인별 전문가 + 통합</a></b><br><a href="#0-리포트에서-확인된-것과-안-된-것">0. 리포트에서 확인된 것과 안 된 것</a> · <a href="#1-도메인-분리가-왜-옳은가--실측">1. 도메인 분리의 근거: 노출량</a> · <a href="#2-새-구조">2. 전문가 구조</a> · <a href="#3-실현-가능성--ms-swift-413">3. 증류 도구: ms-swift 4.13 GKD</a> · <a href="#4-전이되지-않을-수-있는-것--정직하게">4. 전이되지 않을 수 있는 것</a> · <a href="#7-lora-설정-점검">5. LoRA 설정</a> · <a href="#7-2-베이스-모델--sft_mixed_merged-인가-raw-base-인가">6. 베이스 모델: sft_mixed_merged 를 유지한다</a> · <a href="#8-계단식-통합--공짜부터">7. 계단식 통합: 학습 없는 병합부터</a> · <a href="#10-레퍼런스">8. 레퍼런스</a></div>
+<div><b><a href="#stage-2-재실행-실험-설계">3부. Stage-2 재실행 실험 설계</a></b><br><a href="#0-재현-실험이-바꾼-전제">0. 재현 실험이 바꾼 전제</a> · <a href="#1-요약">1. 항목별 실측 효과와 결정</a> · <a href="#2-좋은-소식--ms-swift-413-이-이미-지원한다">2. ms-swift 4.1.3 지원 현황</a> · <a href="#3-변경-항목-상세">3. 항목 상세</a> · <a href="#5-2-보상-설정-전면-점검">4. 보상 설정 점검</a> · <a href="#6-바꾸지-않는-것과-이유">5. 바꾸지 않는 것과 이유</a> · <a href="#8-레퍼런스">6. 레퍼런스</a></div>
+<div><b><a href="#deepseek-v4-파이프라인-도입안--도메인별-전문가--통합">4부. DeepSeek-V4 파이프라인 도입안 — 도메인별 전문가 + 통합</a></b><br><a href="#0-리포트에서-확인된-것과-안-된-것">0. 리포트에서 확인된 것과 안 된 것</a> · <a href="#1-도메인-분리가-왜-옳은가--실측">1. 도메인 분리의 근거: 노출량</a> · <a href="#2-새-구조">2. 전문가 구조</a> · <a href="#3-실현-가능성--ms-swift-413">3. 증류 도구: ms-swift 4.1.3 GKD</a> · <a href="#4-전이되지-않을-수-있는-것--정직하게">4. 전이되지 않을 수 있는 것</a> · <a href="#7-lora-설정-점검">5. LoRA 설정</a> · <a href="#7-2-베이스-모델--sft_mixed_merged-인가-raw-base-인가">6. 출발 모델: SFT 모델을 유지한다</a> · <a href="#8-계단식-통합--공짜부터">7. 계단식 통합: 학습 없는 병합부터</a> · <a href="#10-레퍼런스">8. 레퍼런스</a></div>
 <div><b><a href="#stage-2-데이터-rlvr-풀확장--정리">5부. Stage-2 데이터 (RLVR 풀확장) — 구축과 빌드 런북</a></b><br><a href="#1-배경--동기">1. 배경과 동기</a> · <a href="#2-데이터셋-스크리닝-전부-다운로드실측--이름규모로-안-고름">2. 데이터셋 스크리닝</a> · <a href="#3-심층-분석-결과">3. 심층 분석 결과</a> · <a href="#4-혼합비율-결정">4. 혼합 비율 결정</a> · <a href="#5-현재-상태--빌드-파이프라인">5. 현재 상태와 빌드 파이프라인</a> · <a href="#6-학습-연결-stage-2-gdpo">6. 학습 연결 (Stage-2 GDPO, 폐기한 혼합 실행의 설정)</a></div>
 <div><b><a href="#stage-2--범용-rlvr-grpo--실험-상세">6부. Stage-2 범용 RLVR (GRPO) — 변형 A/B 실험 상세</a></b></div>
 </nav>
@@ -76,7 +78,7 @@ li{margin:3px 0}
 <div class="note"><p>조사일은 2026-08-13 이다. 목적은 Stage-2 재설계의 외부 근거 확보다. 질문은 두 개다. ① 최근 모델은 학습 단계를 어떻게 나누는가. ② <code>&lt;think&gt;&lt;/think&gt;&lt;answer&gt;&lt;/answer&gt;</code> 형식을 버리면 Stage-1 콜드스타트 SFT 도 필요 없어지는가.</p></div>
 <h3 id="0-신뢰도-표기">0. 신뢰도 표기</h3>
 <p>근거는 세 등급이다. 등급을 섞어 읽지 않는다.</p>
-<table><thead><tr><th>등급</th><th>뜻</th><th>해당 자료</th></tr></thead><tbody><tr><td>A</td><td>arXiv 테크리포트 본문에서 직접 확인</td><td>K-EXAONE 2.0 · EXAONE 4.5 · Kimi K3 · HyperCLOVA X 32B Think · SAPO · IcePop</td></tr><tr><td>B</td><td>테크리포트 초록 + 2차 정리 글 교차</td><td>DeepSeek-V4 · Qwen3.5-Omni · Qwen3-VL</td></tr><tr><td>C</td><td>2차 출처만 (벤더 블로그·비교 사이트)</td><td>GLM-5.2 · MiniMax M3 · Kimi K3 일부 수치</td></tr></tbody></table>
+<table><thead><tr><th>등급</th><th>뜻</th><th>해당 자료</th></tr></thead><tbody><tr><td>A</td><td>arXiv 테크리포트 본문에서 직접 확인</td><td>K-EXAONE 2.0 · EXAONE 4.5 · Kimi K3 · HyperCLOVA X 32B Think · SAPO · IcePop</td></tr><tr><td>B</td><td>테크리포트 초록 + 2차 정리 글 교차</td><td>DeepSeek-V4 · Qwen3.5-Omni · Qwen3-VL · GLM-4.1V</td></tr><tr><td>C</td><td>2차 출처만 (벤더 블로그·비교 사이트)</td><td>GLM-5.2 · MiniMax M3 · Kimi K3 일부 수치</td></tr></tbody></table>
 <p>C 등급은 방향 참고용이다. C 등급을 설계 근거로 쓰지 않는다.</p>
 <h3 id="1-한눈에-보는-학습-단계">1. 한눈에 보는 학습 단계</h3>
 <table><thead><tr><th>모델</th><th>공개</th><th>규모</th><th>사전학습 이후 단계</th></tr></thead><tbody><tr><td>K-EXAONE 2.0 (LG)</td><td>26-08-05</td><td>750B MoE / 37B 활성</td><td>upcycling → healing → CPT 8T → mid-train 64K(400B) → mid-train 256K(400B) → SFT 350B → 선호학습① 검증가능보상 → 선호학습② 안전</td></tr><tr><td>EXAONE 4.5 (LG, VLM)</td><td>26-04-09</td><td>—</td><td>비전인코더 1.2B 스크래치 → 멀티모달 사전학습 S1(420B img+400B txt) → S2(225B+110B) → SFT → 오프라인 선호(비전 DPO·텍스트 GROUPER) → 멀티모달 RL 합동</td></tr><tr><td>HyperCLOVA X 32B Think (Naver)</td><td>26-01</td><td>32B</td><td>TSFT → MSFT → MRLVR 4단: 도메인통합 → 길이제어 → 멀티턴 → 지시따르기 → PPO 정렬</td></tr><tr><td>Kimi K3 (Moonshot)</td><td>26-07</td><td>2.8T MoE / 104B 활성, 네이티브 비전</td><td>SFT(콜드스타트) → RL 3도메인 × 3추론강도 = 전문가 9개 → MOPD 다교사 온폴리시 증류</td></tr><tr><td>DeepSeek-V4</td><td>26-06</td><td>1.6T MoE / 49B 활성</td><td>도메인별 SFT→GRPO 전문가 개별 육성 → OPD 전어휘 KL 증류로 단일 모델 통합</td></tr><tr><td>Qwen3.5-Omni (Alibaba)</td><td>26-04-17</td><td>수천억 MoE</td><td>Qwen3 계보 4단: long-CoT 콜드스타트 → 추론 RL → thinking-mode fusion → 범용 RL, Thinker 3단 후처리</td></tr><tr><td>GLM-5.2 (Zhipu, C 등급)</td><td>26-06</td><td>753B</td><td>OPD + critic 기반 PPO 회귀 (GRPO 이탈)</td></tr><tr><td>MiniMax M3 (C 등급)</td><td>26-06-01</td><td>—</td><td>희소어텐션·네이티브 멀티모달</td></tr></tbody></table>
@@ -91,19 +93,19 @@ li{margin:3px 0}
 <h4 id="②-표준편차-정규화를-뺀다">② 표준편차 정규화를 뺀다</h4>
 <ul>
 <li>EXAONE 4.5(A)는 GRPO 에서 표준편차 정규화를 생략한다. 목적은 학습 안정성이다. 그룹 평균만 빼고 나누지 않는다.</li>
-<li>우리 실행은 <code>scale_rewards=gdpo</code> 를 썼다. gdpo 는 보상 함수별 z-score 를 가중합하고 배치 화이트닝을 한다. 사후 분석은 이 설정을 원인에서 제외했다(재가중 ±15%). 외부 관행은 나눗셈을 빼는 쪽이다.</li>
-<li>EXAONE 4.5 는 zero-variance filtering 도 쓴다. advantage 가 모두 0 인 그룹을 버린다. 우리 <code>frac_reward_zero_std</code> 평균은 0.0106 이라 영향이 작다. 이 필터는 추가 비용이 없다.</li></ul>
+<li>우리 실행은 <code>scale_rewards=gdpo</code> 를 썼다. gdpo 는 보상 함수별 z-score 를 가중합하고 배치 화이트닝을 한다. 사후 분석은 표본 안에서 가중치를 ±15% 바꿔 다시 계산했다. 그 결과로 이 설정을 원인에서 제외했다. 외부 관행은 나눗셈을 빼는 쪽이다.</li>
+<li>EXAONE 4.5 는 zero-variance filtering 도 쓴다. advantage 가 모두 0 인 그룹을 버린다. 우리 <code>frac_reward_zero_std</code> 평균은 0.0106 이다. 그러나 정확도만 보면 균일 그룹이 붕괴 전 13.8% 다(3부 4절 ⑥). 이 필터는 추가 비용이 없다.</li></ul>
 <h4 id="③-2026년-불안정의-주범은-학습추론-확률-불일치다-">③ 2026년 불안정의 주원인은 학습↔롤아웃 확률 불일치다</h4>
-<table><thead><tr><th>기법</th><th>출처</th><th>내용</th></tr></thead><tbody><tr><td>IcePop</td><td>Ant Ling, EXAONE 4.5 채택(A)</td><td>학습·추론 엔진의 토큰 확률차가 5% 를 넘으면 학습이 사실상 실패한다. 토큰별 마스킹과 양방향 절단으로 불일치 토큰의 업데이트를 버린다. GRPO 는 180~200 step 에서 붕괴하고, IcePop 은 계속 오른다.</td></tr><tr><td>SAPO</td><td>Qwen3-VL 채택(A, arXiv 2511.20347)</td><td>하드 클리핑을 온도 제어 soft gate 로 바꾼다. 비대칭 온도 <code>τ_neg &gt; τ_pos</code> 가 안정성의 핵심이다(어블레이션 확인).</td></tr><tr><td>per-token regularization</td><td>Kimi K3(A)</td><td>partial rollout 이 여러 iteration 에 걸치면 극단적 off-policy 가 생긴다. 토큰 단위 정규화가 이것을 흡수한다.</td></tr></tbody></table>
+<table><thead><tr><th>기법</th><th>출처</th><th>내용</th></tr></thead><tbody><tr><td>IcePop</td><td>Ant Ling, EXAONE 4.5 채택(A)</td><td>학습·추론 엔진의 토큰 확률차가 5% 를 넘으면 학습이 사실상 실패한다. 토큰별 마스킹과 양방향 절단으로 불일치 토큰의 업데이트를 버린다. GRPO 는 180~200 step 에서 붕괴하고, IcePop 은 계속 오른다.</td></tr><tr><td>SAPO</td><td>Qwen3-VL 채택(SAPO 논문 A, arXiv 2511.20347)</td><td>하드 클리핑을 온도 제어 soft gate 로 바꾼다. 비대칭 온도 <code>τ_neg &gt; τ_pos</code> 가 안정성의 핵심이다(어블레이션 확인).</td></tr><tr><td>per-token regularization</td><td>Kimi K3(A)</td><td>partial rollout 이 여러 iteration 에 걸치면 극단적 off-policy 가 생긴다. 토큰 단위 정규화가 이것을 흡수한다.</td></tr></tbody></table>
 <div class="warn"><p>우리 구성도 같은 위험이 있다. vLLM colocate + LoRA 구성에서 롤아웃(추론)과 업데이트(학습)는 서로 다른 수치 경로를 쓴다. 우리 붕괴는 180~200 이 아니라 step 899 에서 시작했다. 그러나 확률차가 쌓여 임계를 넘으면 절벽이 생긴다는 형태는 관찰과 맞는다. 그래서 롤아웃 logprob 과 학습 logprob 의 차이 분포를 계측한다(3부 F).</p></div>
 <h4 id="④-길이는-소프트-패널티가-아니라-하드-예산으로-다룬다">④ 길이는 소프트 패널티가 아니라 하드 예산으로 다룬다</h4>
 <ul>
 <li>Kimi K3(A)는 콜드스타트 모델로 문제별 초기 예산 <code>b₀(x)</code> 를 추정한다. 응답이 예산의 σ 배를 넘으면 이진 비교에서 자동으로 진다. 토큰 임계를 넘으면 보상을 −1 로 덮어쓴다.</li>
 <li>HyperCLOVA X 32B Think(A)는 길이 제어 RLVR 을 독립 단계로 둔다.</li>
 <li>ReVisual-R1(ICLR 2026)은 Efficient-Length Reward 를 쓴다.</li></ul>
-<div class="note"><p>우리 <code>soft_overlong</code> 은 가중치 0.2 의 연속 감점이다. 붕괴 후 길이는 1,376 에서 3,010 으로 늘었다. 그동안 이 항은 −0.104 근처에 머물렀다. 하드 예산이었다면 보상이 즉시 −1 이 된다.</p></div>
+<div class="note"><p>우리 <code>soft_overlong</code> 은 가중치 0.2 의 연속 감점이다. 붕괴 후 길이는 1,376 에서 3,010 으로 늘었다. 이 항은 연속 감점이라 그동안 보상을 끊지 못했다(구간별 값은 3부 4절 ①). 하드 예산이었다면 보상이 즉시 −1 이 된다.</p></div>
 <h4 id="⑤-도메인-전문가를-따로-키우고-증류로-합친다-">⑤ 도메인 전문가를 따로 키우고 증류로 합친다</h4>
-<p>2026년의 가장 큰 구조 변화다. DeepSeek-V4 와 Kimi K3 가 각자 같은 구조를 택했다.</p>
+<p>2026년의 가장 큰 구조 변화다. DeepSeek-V4 와 Kimi K3 가 같은 구조를 따로 택했다.</p>
 <pre><code>        [단일 모델에 순차 RL]              [2026년 관행]
         base → SFT → RL(일반)          base → SFT ─┬→ RL(일반)   ┐
                    → RL(의료)                      ├→ RL(코딩)   ├→ 온폴리시 증류 → 단일 모델
@@ -111,7 +113,7 @@ li{margin:3px 0}
 <ul>
 <li>DeepSeek-V4(B)는 도메인별 SFT→GRPO 전문가를 따로 키운다. 그 뒤 전어휘 KL 온폴리시 증류로 합친다. 토큰 단위 추정 대신 전어휘 손실을 쓰면 전문가끼리 불일치할 때 그래디언트가 안정된다.</li>
 <li>Kimi K3(A)는 3도메인 × 3추론강도로 전문가 9개를 만들고 MOPD 로 합친다. 학생이 자기 롤아웃을 만든다. 해당 도메인 교사가 토큰별 밀집 보상을 준다.</li></ul>
-<div class="note"><p>우리 Stage-2(일반) → Stage-3(의료) 순차 구조가 이 패턴이 대체하는 구조다. Stage-2 는 일반 +8.18pp 를 얻었다. 의료는 여섯 지점 모두 미검출(p&gt;0.5)이었다. 순차 RL 은 목표 도메인으로 전이되지 않았다.</p></div>
+<div class="note"><p>이 패턴은 우리의 Stage-2(일반) → Stage-3(의료) 순차 구조를 대체한다. 혼합 Stage-2 는 holdout 전체에서 +8.18pp 를 얻었다. 의료는 holdout 을 잰 체크포인트 여섯 곳 모두에서 유의한 향상이 없었다(p&gt;0.5). 혼합 학습은 의료 데이터를 포함했는데도 의료 holdout 을 올리지 못했다.</p></div>
 <h4 id="⑥-rl-알고리즘은-수렴이-아니라-분화-중이다">⑥ RL 알고리즘은 한 방향으로 모이지 않고 갈라진다</h4>
 <table><thead><tr><th>진영</th><th>대표</th><th>근거</th></tr></thead><tbody><tr><td>GRPO + 안정화 패치</td><td>EXAONE 4.5(IcePop), HyperCLOVA X(KL 제거·비대칭 클리핑·동적 샘플링)</td><td>메모리 효율</td></tr><tr><td>GRPO 대체</td><td>Qwen3-VL(SAPO)</td><td>하드 클리핑의 정보 손실</td></tr><tr><td>PPO 회귀</td><td>GLM-5.2 (C 등급)</td><td>보상 해킹 억제에 critic 이 유리</td></tr></tbody></table>
 <p>HyperCLOVA X 32B Think(A)는 GRPO 를 다음과 같이 고쳤다.</p>
@@ -132,16 +134,16 @@ li{margin:3px 0}
 <p>(b) 2026년 연구는 "SFT 는 많을수록 좋다"를 뒤집었다.</p>
 <table><thead><tr><th>논문</th><th>발견</th></tr></thead><tbody><tr><td><a href="https://arxiv.org/pdf/2606.18487">SFT Overtraining Predicts Rank Inversion via Entropy Collapse Under RLVR</a></td><td>SFT 를 과하게 하면 출력 분포가 저엔트로피로 모인다. 그러면 RLVR 신호가 듣지 않는다. SFT 후 순위와 RLVR 후 순위가 뒤집힌다(rank inversion). 최적점은 최대치가 아니다.</td></tr><tr><td><a href="https://arxiv.org/pdf/2507.07562">The Synergy Dilemma of Long-CoT SFT and RL</a> (추론 VLM 대상)</td><td>과도한 long-CoT SFT 는 후속 RL 을 방해한다.</td></tr></tbody></table>
 <p>(c) 멀티모달에서는 콜드스타트의 종류가 중요하다. <a href="https://github.com/CSfufu/Revisual-R1">ReVisual-R1</a>(ICLR 2026)은 3단 커리큘럼을 쓴다. 순서는 텍스트 전용 콜드스타트, 멀티모달 RL, 텍스트 전용 RL 이다.</p>
-<div class="note"><p>"Lazy Attention Localization" 연구에 따르면 멀티모달 콜드스타트는 시각 주의 범위를 키우지 못한다. 주의 분포가 베이스 모델과 거의 같다. 텍스트 전용 콜드스타트는 시각 주의 범위를 뚜렷이 키운다.</p></div>
-<p>우리 Stage-1 은 멀티모달 혼합 콜드스타트(<code>sft_mixed_merged</code>)다. 이 발견이 맞다면 우리 콜드스타트는 시각 주의를 키우지 못했을 수 있다. 이 가설은 의료(pmcvqa) 여섯 지점 미검출과 맞는다. 확증은 없다.</p>
+<div class="note"><p>"Lazy Attention Localization" 연구에 따르면 멀티모달 콜드스타트는 시각 주의 범위를 키우지 못한다. 주의 분포가 기본 모델과 거의 같다. 텍스트 전용 콜드스타트는 시각 주의 범위를 뚜렷이 키운다.</p></div>
+<p>우리 Stage-1 은 멀티모달 혼합 콜드스타트(<code>sft_mixed_merged</code>)다. 이 발견이 맞다면 우리 콜드스타트는 시각 주의를 키우지 못했을 수 있다. 이 가설은 의료(pmcvqa) holdout 이 체크포인트 여섯 곳 모두에서 오르지 않은 결과와 맞는다. 확증은 없다.</p>
 <h4 id="그래서-태그를-버리면">태그를 버리면 콜드스타트의 어떤 역할이 남는가</h4>
-<table><thead><tr><th>콜드스타트의 역할</th><th>태그를 버리면</th></tr></thead><tbody><tr><td>① 출력 형식 학습 (<code>&lt;think&gt;…&lt;/think&gt;&lt;answer&gt;…&lt;/answer&gt;</code>)</td><td>사라진다. 형식이 템플릿으로 가면 SFT 가 가르칠 것이 없다.</td></tr><tr><td>② 긴 사고사슬 행동 자체 (태그와 무관)</td><td>남는다. 베이스는 짧게 답한다. RL 만으로 long-CoT 를 세우면 훨씬 비싸다.</td></tr><tr><td>③ RL 출발 정책 품질 (탐색 부담 경감)</td><td>남는다. 우리 실측에서 형식은 v2 0.185 → v3 0.909, holdout 은 0.295 → 0.348(+18%)이다. 정확도도 같이 올랐다.</td></tr><tr><td>④ 길이 예산 <code>b₀(x)</code> 등 후속 RL 의 기준선 공급</td><td>남는다 (Kimi K3 방식).</td></tr><tr><td>⑤ 멀티모달: 시각 주의 유도</td><td>남는다. 단 텍스트 전용이 더 나을 수 있다.</td></tr></tbody></table>
-<p>①만 사라지고 ②~⑤는 남는다. 우리 Stage-1 실측도 이것을 뒷받침한다. v3 콜드스타트는 형식만 고치지 않았다. holdout 정확도를 18% 올렸다. 이 이득은 태그와 무관하다.</p>
+<table><thead><tr><th>콜드스타트의 역할</th><th>태그를 버리면</th></tr></thead><tbody><tr><td>① 출력 형식 학습 (<code>&lt;think&gt;…&lt;/think&gt;&lt;answer&gt;…&lt;/answer&gt;</code>)</td><td>사라진다. 형식이 템플릿으로 가면 SFT 가 가르칠 것이 없다.</td></tr><tr><td>② 긴 사고사슬 행동 자체 (태그와 무관)</td><td>남는다. 기본 모델은 long-CoT 를 끝까지 쓰지 못하고 잘린다(4부 6절). RL 만으로 long-CoT 를 세우면 훨씬 비싸다.</td></tr><tr><td>③ RL 출발 정책 품질 (탐색 부담 경감)</td><td>남는다. 우리 실측에서 형식은 v2 0.185 → v3 0.909, holdout 정확도는 0.295 → 0.348(상대 +18%)이다.</td></tr><tr><td>④ 길이 예산 <code>b₀(x)</code> 등 후속 RL 의 기준선 공급</td><td>남는다 (Kimi K3 방식).</td></tr><tr><td>⑤ 멀티모달: 시각 주의 유도</td><td>남는다. 단 텍스트 전용이 더 나을 수 있다.</td></tr></tbody></table>
+<p>①만 사라지고 ②~⑤는 남는다. 우리 Stage-1 실측도 이것을 뒷받침한다. v3 콜드스타트는 형식만 고치지 않았다. holdout 정확도를 0.295 에서 0.348 로 올렸다(상대 +18%). 이 이득은 태그와 무관할 가능성이 높다.</p>
 <h3 id="4-이-프로젝트에-대한-함의">4. 이 프로젝트에 대한 함의</h3>
 <p>처음부터 다시 돌린다면 아래 순서로 적용한다.</p>
 <table><thead><tr><th>순서</th><th>조치</th><th>근거 등급</th><th>비용</th></tr></thead><tbody><tr><td>1</td><td>정확도 보상을 형식에서 분리 (완료, <code>2a0458a</code>)</td><td>자체 실측 + 패턴 ①</td><td>0</td></tr><tr><td>2</td><td>형식 태그를 채팅 템플릿으로 내린다. 보상의 format 항은 언어 일관성·반복 억제와 같은 급의 보조 항으로 줄인다.</td><td>A (HyperCLOVA X)</td><td>낮음</td></tr><tr><td>3</td><td>길이를 하드 예산으로 다룬다. <code>b₀(x)</code> 추정 후 σ 배를 넘으면 보상 −1.</td><td>A (Kimi K3)</td><td>낮음</td></tr><tr><td>4</td><td>학습↔롤아웃 logprob 불일치 계측을 추가한다. 5% 임계를 감시한다.</td><td>A (IcePop)</td><td>낮음</td></tr><tr><td>5</td><td><code>scale_rewards</code> 나눗셈 제거 + zero-variance 그룹 필터</td><td>A (EXAONE 4.5)</td><td>0</td></tr><tr><td>6</td><td><code>overlong_filter=False</code></td><td>자체 실측 (사후 분석 §4-4)</td><td>0</td></tr><tr><td>7</td><td>콜드스타트를 텍스트 전용으로 바꿔 시각 주의를 확인한다.</td><td>B (ReVisual-R1)</td><td>중간 (Stage-1 재실행)</td></tr><tr><td>8</td><td>Stage-2/3 를 순차 구조에서 병렬 전문가 + 증류로 바꾼다.</td><td>B (DeepSeek-V4, Kimi K3)</td><td>높음 (구조 변경)</td></tr></tbody></table>
 <p>1~6 은 다음 실행에 바로 넣을 수 있다. GPU 추가 비용은 거의 없다. 7~8 은 설계 변경이라 따로 판단한다.</p>
-<p>8번의 근거는 우리 데이터에 있다. Stage-2 는 일반 +8.18pp, 의료 +0.75pp(p&gt;0.5, n=400)였다. 계획서의 산출물은 의료다. 두 프런티어 랩이 같은 구조를 택했다. 따라서 순차 RL 의 도메인 전이 실패는 우리만의 문제가 아니다.</p>
+<p>8번의 근거는 우리 데이터에 있다. 혼합 Stage-2 는 holdout 전체 +8.18pp, 의료 +0.75pp(p&gt;0.5, n=400)였다. 계획서의 산출물은 의료다. 두 프런티어 랩도 도메인별 전문가 구조를 택했다. 그래서 이 구조를 우리 문제의 대안으로 시험한다.</p>
 <p>우리 하드웨어(A100 80GB PCIe, NVLink 없음)에서는 전어휘 KL 증류의 통신 비용이 크다. 그래서 작게 시작한다. 증류 전에 가중 평균 병합부터 시험한다.</p>
 <h3 id="5-출처">5. 출처</h3>
 <p>테크니컬 리포트 (A/B 등급)</p>
@@ -162,7 +164,7 @@ li{margin:3px 0}
 <li><a href="https://arxiv.org/pdf/2510.11370">Stabilizing MoE RL by Aligning Training and Inference Routers (arXiv 2510.11370)</a></li>
 <li><a href="https://arxiv.org/pdf/2509.26114">Clip-Low Increases Entropy and Clip-High Decreases Entropy (arXiv 2509.26114)</a></li>
 <li><a href="https://arxiv.org/html/2605.11491v1">Understanding and Preventing Entropy Collapse in RLVR (arXiv 2605.11491)</a></li>
-<li><a href="https://arxiv.org/abs/2503.14476">DAPO (arXiv 2503.14476)</a> · <a href="https://arxiv.org/abs/2503.20783">Dr. GRPO (arXiv 2503.20783)</a> · <a href="https://arxiv.org/abs/2507.18071">GSPO (arXiv 2507.18071)</a></li></ul>
+<li><a href="https://arxiv.org/abs/2503.14476">DAPO (arXiv 2503.14476)</a> · <a href="https://arxiv.org/abs/2503.20783">Dr.GRPO (arXiv 2503.20783)</a> · <a href="https://arxiv.org/abs/2507.18071">GSPO (arXiv 2507.18071)</a></li></ul>
 <p>콜드스타트 SFT 의 양·종류</p>
 <ul>
 <li><a href="https://arxiv.org/pdf/2606.18487">SFT Overtraining Predicts Rank Inversion via Entropy Collapse Under RLVR (arXiv 2606.18487)</a></li>
@@ -179,23 +181,23 @@ li{margin:3px 0}
 <!-- ===== rlvr_hparams_external.md ===== -->
 <h2 data-part="2" id="rlvr-하이퍼파라미터--외부-관행-대조-2026-리포트-조사">2부 · RLVR 하이퍼파라미터 — 외부 관행 대조 (2026 리포트 조사)</h2>
 <div class="meta">원본: <code>docs/rlvr_hparams_external.md</code> (2026-10-22 HTML 로 통합)</div>
-<div class="note"><p>이 부는 Stage-2 RLVR(GRPO/GDPO) 설정을 외부 관행과 대조한다. 자원 제약으로 관행과 다른 지점도 적는다. 프로젝트 실측 근거는 <a href="../README.md"><code>../README.md</code></a>(Stage-2 · step600 포화)와 <a href="../HANDOFF.md"><code>../HANDOFF.md</code></a> 에 있다. 실행 절차는 <a href="../README.md"><code>../README.md</code></a> "빠른 실행", 데이터 빌드는 <a href="21_stage2a_design.html#5-1-빌드-런북"><code>21_stage2a_design.html</code> §5-1</a> 에 있다.</p></div>
+<div class="note"><p>이 부는 Stage-2 RLVR(GRPO/GDPO) 설정을 외부 관행과 대조한다. 자원 제약으로 관행과 다른 지점도 적는다(1절 표 아래). 프로젝트 실측 근거는 <a href="../README.md"><code>../README.md</code></a>(Stage-2 · step600 포화)와 <a href="../HANDOFF.md"><code>../HANDOFF.md</code></a> 에 있다. 실행 절차는 <a href="../README.md"><code>../README.md</code></a> "빠른 실행", 데이터 빌드는 <a href="#5-1-빌드-런북">5부 §5-1</a> 에 있다.</p></div>
 <h3 id="0-조사-프레이밍-솔직한-한계">0. 조사 범위와 한계</h3>
 <ul>
-<li>2026년 프런티어 리포트(Qwen3.6·DeepSeek V4·Kimi K2.6·MiniMax M2 등)는 아키텍처를 자세히 공개한다. 그러나 RL 하이퍼파라미터 전체 표는 거의 공개하지 않는다.</li>
+<li>2026년 프런티어 리포트(Qwen3.6·DeepSeek-V4·Kimi K2.6·MiniMax M2 등)는 아키텍처를 자세히 공개한다. 그러나 RL 하이퍼파라미터 전체 표는 거의 공개하지 않는다.</li>
 <li>구체적 RLVR 레시피는 주로 2025년 중반 리포트(Magistral, MiniMax-M1, DAPO, Dr.GRPO)에 있다.</li>
 <li>2026년 연구는 주로 학습 기간(과학습·다양성 붕괴)을 다룬다.</li>
-<li>아래 표는 이 둘을 합친 다수설과 근거 출처다. 절대 정답은 아니다.</li></ul>
+<li>아래 표는 이 둘을 합친 다수설과 근거 출처다.</li></ul>
 <h3 id="1-하이퍼파라미터-대조표">1. 하이퍼파라미터 대조표</h3>
 <table><thead><tr><th>파라미터</th><th>외부 관행(다수설)</th><th>근거</th></tr></thead><tbody><tr><td>KL 페널티 β</td><td>0 으로 제거</td><td>Magistral "remove KL entirely" · MiniMax-M1(CISPO) "no KL penalty" · DAPO · Open-Reasoner-Zero("removing KL→optimal")</td></tr><tr><td>학습률(actor)</td><td>작은 상수, full-FT ~1e-6</td><td>DAPO/Dr.GRPO 계열. 스윕 이득이 작다</td></tr><tr><td>그룹 크기(rollouts/prompt)</td><td>8~16</td><td>DAPO/NeMo=16 · 다수=8 · "8→4는 정확도 하락"</td></tr><tr><td>배치(prompt/step)</td><td>매우 큼(512~수천 시퀀스)</td><td>DAPO/NeMo=512×16 · Magistral 2k~8k</td></tr><tr><td>clip ε</td><td>εlow 0.2 / εhigh 0.26~0.30(clip-higher)</td><td>DAPO 0.28 · Magistral 0.26~0.3</td></tr><tr><td>손실 정규화</td><td>길이 편향 제거(토큰 레벨/상수)</td><td>Dr.GRPO · DAPO · Magistral 공통</td></tr><tr><td>advantage 스케일</td><td>std 나눗셈 제거 또는 minibatch 정규화</td><td>Dr.GRPO <code>scale_rewards=none</code> · Magistral minibatch</td></tr><tr><td>dynamic sampling / overlong filter</td><td>표준(acc 0·1 그룹 폐기, 잘림 제외)</td><td>DAPO</td></tr><tr><td>롤아웃 temperature</td><td>~1.0(탐색)</td><td>ORZ "T=1 best" · Magistral 0.7~1.0</td></tr></tbody></table>
-<p>손실·advantage·필터링(코어 알고리즘)은 최신 관행과 맞는다.</p>
+<p>손실·advantage·필터링(코어 알고리즘)은 최신 관행과 맞는다. 우리 설정은 세 곳에서 관행과 다르다. KL β 는 0.04 다(<code>21_rlvr_grpo_adv.slurm</code>). 그룹 크기는 4 다. 배치는 step 당 프롬프트 8개다(2절).</p>
 <h3 id="2-에포크--많이가-아니라-1수-에포크--조기중단">2. 에포크: ≤1 epoch + 조기 중단</h3>
-<p>RLVR 은 SFT 와 달리 에포크를 많이 돌리지 않는다. 프로젝트 실측(step600 포화)과 외부 근거가 같은 결론이다.</p>
+<p>RLVR 은 SFT 와 달리 에포크를 많이 돌리지 않는다. 프로젝트 실측은 step600(약 0.064 epoch)에서 포화했다. 외부 근거도 과학습 뒤 조기 중단을 권한다.</p>
 <ul>
 <li>《Understanding Diversity Collapse in RLVR via Overtraining》(arXiv 2606.15455, 2026-06)<ul>
 <li>MATH/Qwen2.5-Math-7B 에서 검증 Pass@1 은 ~5 에포크에서 멈춘다. 그 뒤 train 성공률은 68.7% 에서 77.1% 로 오른다. 검증은 ~72% 에서 평평하다.</li>
 <li>후반 에포크는 Pass@1 이득 없이 high-k Pass@k(다양성)만 깎는다. 논문은 5 에포크 조기 중단을 권고한다.</li>
-<li>논문에 따르면 표준 n=8 설정에서 대부분의 업데이트는 추론 경계에 대해 과학습이다.</li>
+<li>논문에 따르면 표준 n=8 설정에서 대부분의 업데이트는 추론 경계를 넓히지 않는다. 이 업데이트는 이미 푸는 문제를 더 학습한다.</li>
 <li>기전: 문제별 기여가 포화한다. 그 뒤 업데이트는 능력을 넓히지 않고 선호 궤적에 확률 질량을 모은다(policy sharpening). 결과는 다양성 붕괴다.</li></ul></li>
 <li>프런티어 리포트는 에포크로 세지 않는다. Magistral 과 MiniMax-M1 은 큰 배치, 새 롤아웃, 길이 점증(16k→24k→32k)으로 스텝 단위 학습을 한다. 멈추는 시점은 평가 곡선으로 정한다.</li></ul>
 <p>이 프로젝트의 환산(2026-08-02 정정)은 다음과 같다. GRPO 의 <code>per_device_train_batch_size</code> 는 프롬프트가 아니라 completion 수다. <code>generation_batch_size = 1 × 8gpu × accum4 = 32 completions</code> 이다. <code>프롬프트/step = 32 ÷ num_generations(4) = 8</code> 이다. 확장셋 74,787 ÷ 8 이므로 1 epoch 은 9,348 step 이다. 종전 표기 2,337 은 num_generations 로 나누지 않은 값이었다. step600 은 4,800 prompt, 약 0.064 epoch 이다. 계획한 2,337 step 도 0.25 epoch 이다. 따라서 포화는 에포크가 아니라 스텝 수준에서 생겼다. 실측 확인과 영향은 <a href="22_stage2b_mixed_run.html"><code>22_stage2b_mixed_run.html</code></a> §3 에 있다.</p>
@@ -209,45 +211,46 @@ li{margin:3px 0}
 <li>Interconnects: base model RL &amp; GRPO tweaks (Open-Reasoner-Zero, Dr.GRPO) <a href="https://www.interconnects.ai/p/papers-im-reading-base-model-rl-grpo">https://www.interconnects.ai/p/papers-im-reading-base-model-rl-grpo</a></li>
 <li>DAPO explainer <a href="https://medium.com/@syed_hasan/dapo-decoupled-clip-and-dynamic-sampling-policy-optimization-grpo-on-steroids-9c571a0536f3">https://medium.com/@syed_hasan/dapo-decoupled-clip-and-dynamic-sampling-policy-optimization-grpo-on-steroids-9c571a0536f3</a></li>
 <li>GRPO fine-tuning 2026 practical guide (Spheron) <a href="https://www.spheron.network/blog/grpo-fine-tuning-gpu-cloud/">https://www.spheron.network/blog/grpo-fine-tuning-gpu-cloud/</a></li></ul>
-<p>조사일은 2026-07-24 다. ms-swift 4.13 의 rollout temperature 기본값은 0.9 다(<code>swift/arguments/rlhf_args.py</code>).</p>
+<p>조사일은 2026-07-24 다. ms-swift 4.1.3 의 rollout temperature 기본값은 0.9 다(<code>swift/arguments/rlhf_args.py</code>).</p>
 
 <!-- ===== stage2_redesign_2026.md ===== -->
 <h2 data-part="3" id="stage-2-재실행-실험-설계">3부 · Stage-2 재실행 실험 설계</h2>
 <div class="meta">원본: <code>docs/stage2_redesign_2026.md</code> (2026-10-22 HTML 로 통합)</div>
-<div class="note"><p>작성일은 2026-08-13 이다. 대상은 job 73924/73925 붕괴 뒤의 Stage-2 재실행 설정이다. 근거는 <a href="#2026년-중국한국-모델-학습-단계-조사-2026-05--08-중심">1부 서베이</a>와 <a href="22_stage2b_mixed_run.html">붕괴 사후 분석 rev.2</a> 다. 혼합 재실행 대신 도메인 전문가 구조로 바꿨다(4부). 그래서 이 부에는 실측 결과와 전문가 학습에 이어진 결정만 남긴다. 전문가 학습의 실제 설정은 <a href="23_stage2ce_experts.html">23_stage2ce_experts.html</a> A.2 에 있다.</p>
-<p>설계 원칙: 서베이에서 가져온 것과 우리 로그에서 잰 것을 섞지 않는다. 각 항목에 근거 출처와 실측 효과를 따로 적는다. 실측이 없으면 없다고 적는다.</p></div>
+<div class="note"><p>작성일은 2026-08-13 이다. 대상은 job 73924/73925 붕괴 뒤의 Stage-2 재실행 설정이다. 근거는 <a href="#2026년-중국한국-모델-학습-단계-조사-2026-05--08-중심">1부 조사</a>와 <a href="22_stage2b_mixed_run.html">붕괴 사후 분석 rev.2</a> 다. 혼합 재실행 대신 도메인 전문가 구조로 바꿨다(4부). 그래서 이 부에는 실측 결과와 전문가 학습에 이어진 결정만 남긴다. 전문가 학습의 실제 설정은 <a href="23_stage2ce_experts.html">23_stage2ce_experts.html</a> A.2 에 있다.</p>
+<p>설계 원칙: 조사에서 가져온 것과 우리 로그에서 잰 것을 섞지 않는다. 각 항목에 근거 출처와 실측 효과를 따로 적는다. 실측이 없으면 없다고 적는다.</p></div>
 <h3 id="0-재현-실험이-바꾼-전제">0. 재현 실험이 바꾼 전제</h3>
 <p>checkpoint-800 에서 설정 28개를 모두 같게 맞춰 재실행했다(job 74583, step 801→927). 붕괴는 재현되지 않았다. 전조 램프(KL 0.030→0.121)도 재현되지 않았다. 재개는 옵티마이저·LR·데이터로더 위치까지 복원했다. 따라서 달랐던 자유 변수는 vLLM 롤아웃 샘플링뿐이다.</p>
 <div class="note"><p>붕괴 개시는 확률적이다. "step 900 에 터지게 되어 있었다"는 설명은 틀렸다. 그래서 설계 목표를 바꿨다. 목표는 개시를 막는 것이 아니라 개시가 절벽으로 이어지지 않게 하는 것이다. 아래 항목은 모두 이 목표를 따른다.</p></div>
 <h3 id="1-요약">1. 항목별 실측 효과와 결정</h3>
 <table><thead><tr><th>항목</th><th>변경</th><th>근거</th><th>실측 효과</th><th>결정</th></tr></thead><tbody>
-<tr><td>A</td><td>정확도 보상을 형식에서 분리</td><td>자체 실측 + 1부 ①</td><td>개시 낙폭 −0.324 → −0.254</td><td>완료 (<code>2a0458a</code>)</td></tr>
-<tr><td>B</td><td>형식 보상을 이진에서 단계형으로</td><td>자체 실측 + GLM-4.1V</td><td>개시 낙폭 −0.254 → −0.195</td><td>구현</td></tr>
+<tr><td>A</td><td>정확도 보상을 형식에서 분리</td><td>자체 실측 + 1부 ①</td><td>개시 구간 총보상 −0.324 → −0.254 (재채점)</td><td>완료 (<code>2a0458a</code>)</td></tr>
+<tr><td>B</td><td>형식 보상을 이진에서 단계형으로</td><td>자체 실측 + GLM-4.1V</td><td>개시 구간 총보상 −0.254 → −0.195 (재채점)</td><td>구현</td></tr>
 <tr><td>C</td><td><code>overlong_filter</code> → false</td><td>자체 실측 (사후 분석 §4-4)</td><td>회복을 막는 요인 제거</td><td>false 로 바꿈</td></tr>
 <tr><td>E</td><td><code>max_steps</code> 를 실제 정지 step 으로</td><td>설계 오류 수정</td><td>없음</td><td>실제로 돌릴 step 수를 넣음</td></tr>
 <tr><td>F</td><td>rollout logprob 불일치 계측</td><td><a href="https://ant-ling.medium.com/ring-flash-2-0-4bf5b62204f5">IcePop</a></td><td>미측정. 재는 것이 목적</td><td>1차는 계측만</td></tr>
 <tr><td>G</td><td>감시자 상시 가동</td><td>자체 검증</td><td>실제 발견보다 146 step 빠름</td><td>상시 가동</td></tr>
 <tr><td>H</td><td>길이 하드 예산</td><td><a href="https://arxiv.org/abs/2607.24653">Kimi K3</a></td><td>미측정</td><td>2차 방어선으로 보류</td></tr>
 <tr><td>I</td><td><code>loss_type=sapo</code></td><td><a href="https://arxiv.org/html/2511.20347v1">Qwen3-VL/SAPO</a></td><td>미측정</td><td>보류 (트레이드오프)</td></tr>
-<tr><td>보상</td><td>가중치 1.0 / 0.2 / 0.2</td><td>건강 구간 점유 92.3 / 4.3 / 3.4%</td><td>4절 ⑤</td><td>유지</td></tr>
+<tr><td>보상</td><td>가중치 1.0 / 0.2 / 0.2 (변경 없음)</td><td>자체 실측 (4절 ④⑤)</td><td>건강 구간 점유 92.3 / 4.3 / 3.4%</td><td>유지</td></tr>
 <tr><td>보상</td><td><code>soft_max_length</code> 도메인별</td><td>Kimi K3 + 자체 실측</td><td>4절 ①</td><td>의료 하향</td></tr>
 <tr><td>보상</td><td><code>repetition</code> 보상 추가</td><td>자체 실측</td><td>정상 구간 잡음, 퇴화 미검출 (4절 ②)</td><td>기각</td></tr>
 <tr><td>보상</td><td>언어 일관성 보상 추가</td><td>자체 실측</td><td>한글 0%, 한자는 정당한 기저 (4절 ③)</td><td>기각</td></tr>
 <tr><td>계측</td><td>정확도 균일도</td><td>자체 실측</td><td><code>frac_reward_zero_std</code> 는 이것을 못 잡음 (4절 ⑥⑦)</td><td>추가</td></tr>
 </tbody></table>
-<p>A+B 만으로 개시 시점 총보상 낙폭이 −0.324 에서 −0.195 로 40% 줄어든다. 둘 다 GPU 비용이 0 이다.</p>
-<h3 id="2-좋은-소식--ms-swift-413-이-이미-지원한다">2. ms-swift 4.13 지원 현황</h3>
-<p>서베이에서 찾은 2026년 기법 대부분은 ms-swift 4.13 에 플래그로 있다. 커스텀 코드가 필요 없다. 설치본 <code>work/images/ms-swift-413-sandbox/.../swift/rlhf_trainers/args_mixin.py</code> 에서 직접 확인했다.</p>
-<table><thead><tr><th>서베이 발견</th><th>ms-swift 인자</th><th>상태</th></tr></thead><tbody><tr><td>SAPO 소프트 게이트 (Qwen3-VL)</td><td><code>--loss_type sapo</code> + <code>--tau_pos --tau_neg</code></td><td>구현 확인 (<code>grpo_trainer.py:1205</code>)</td></tr><tr><td>IcePop 계열 학습↔롤아웃 불일치 마스킹</td><td><code>--rollout_importance_sampling_mode token_mask</code> + <code>--rollout_importance_sampling_threshold</code></td><td>구현 확인 (<code>:2410</code>)</td></tr><tr><td>불일치 계측만</td><td><code>--log_rollout_offpolicy_metrics true</code></td><td>구현 확인 (<code>:2502</code>). KL·k3_kl·ppl_ratio·chi2_token·chi2_seq</td></tr><tr><td>GSPO 시퀀스 단위 IS</td><td><code>--importance_sampling_level sequence</code></td><td>사용 중(recipe gspo)</td></tr><tr><td>std 정규화 생략 (EXAONE 4.5)</td><td><code>--scale_rewards none</code></td><td>사용 중(recipe dr_grpo)</td></tr><tr><td>zero-variance 그룹 처리</td><td><code>--dynamic_sample true</code></td><td>켜져 있음. 폐기가 아니라 재샘플(DAPO 방식)</td></tr><tr><td>엔트로피 상위 토큰만 학습</td><td><code>--top_entropy_quantile</code></td><td>미사용</td></tr><tr><td>off-policy 시퀀스 마스킹</td><td><code>--off_policy_sequence_mask_delta</code></td><td>미사용</td></tr></tbody></table>
-<div class="note"><p>EXAONE 4.5 는 zero-variance 그룹을 버린다. 우리는 <code>dynamic_sample</code> 로 재샘플한다. 재샘플은 표본을 더 쓰는 대신 롤아웃 비용이 든다. <code>frac_reward_zero_std</code> 평균이 0.0106 이라 어느 쪽이든 영향이 작다. 설정을 바꾸지 않는다.</p></div>
+<p>항목 D 는 실행하지 않아 지웠다.</p>
+<p>기존 롤아웃을 A+B 로 다시 채점하면 개시 구간 총보상이 −0.324 에서 −0.195 로 오른다. 하락 폭은 40% 준다. 재학습에서는 정책이 달라지므로 이 값은 추정치다. 둘 다 GPU 비용이 0 이다.</p>
+<h3 id="2-좋은-소식--ms-swift-413-이-이미-지원한다">2. ms-swift 4.1.3 지원 현황</h3>
+<p>조사에서 찾은 2026년 기법 대부분은 ms-swift 4.1.3 에 플래그로 있다. 커스텀 코드가 필요 없다. 설치본 <code>work/images/ms-swift-413-sandbox/.../swift/rlhf_trainers/args_mixin.py</code> 에서 직접 확인했다.</p>
+<table><thead><tr><th>조사 발견</th><th>ms-swift 인자</th><th>상태</th></tr></thead><tbody><tr><td>SAPO 소프트 게이트 (Qwen3-VL)</td><td><code>--loss_type sapo</code> + <code>--tau_pos --tau_neg</code></td><td>구현 확인 (<code>grpo_trainer.py:1205</code>)</td></tr><tr><td>IcePop 계열 학습↔롤아웃 불일치 마스킹</td><td><code>--rollout_importance_sampling_mode token_mask</code> + <code>--rollout_importance_sampling_threshold</code></td><td>구현 확인 (<code>:2410</code>)</td></tr><tr><td>불일치 계측만</td><td><code>--log_rollout_offpolicy_metrics true</code></td><td>구현 확인 (<code>:2502</code>). KL·k3_kl·ppl_ratio·chi2_token·chi2_seq</td></tr><tr><td>GSPO 시퀀스 단위 IS</td><td><code>--importance_sampling_level sequence</code></td><td>사용 중(recipe gspo)</td></tr><tr><td>std 정규화 생략 (EXAONE 4.5)</td><td><code>--scale_rewards none</code></td><td>사용 중(recipe dr_grpo)</td></tr><tr><td>zero-variance 그룹 처리</td><td><code>--dynamic_sample true</code></td><td>켜져 있음. 버린 그룹을 다시 뽑는다(DAPO 방식)</td></tr><tr><td>엔트로피 상위 토큰만 학습</td><td><code>--top_entropy_quantile</code></td><td>미사용</td></tr><tr><td>off-policy 시퀀스 마스킹</td><td><code>--off_policy_sequence_mask_delta</code></td><td>미사용</td></tr></tbody></table>
+<div class="note"><p>EXAONE 4.5 는 zero-variance 그룹을 버리기만 한다. 우리는 <code>dynamic_sample</code> 로 다시 뽑는다. 재샘플은 학습 신호가 있는 그룹을 늘린다. 대신 롤아웃 비용이 는다. <code>frac_reward_zero_std</code> 평균은 0.0106 이다. 이 지표로는 두 방식의 차이가 작다. 다만 정확도 균일 그룹은 붕괴 전 13.8% 다(4절 ⑥). 설정을 바꾸지 않는다.</p></div>
 <h3 id="3-변경-항목-상세">3. 항목 상세</h3>
 <h4 id="a-정확도-보상을-형식에서-분리--완료-2a0458a">A. 정확도 보상을 형식에서 분리 (완료, <code>2a0458a</code>)</h4>
 <p>근거: 조사한 모델 중 정확도 보상을 형식 태그에 묶은 사례가 없다(1부 ①).</p>
-<p>문제: <code>_strip_answer</code> 는 태그가 없으면 추론 전문을 답안으로 넘겼다. <code>_LETTER_PICK</code> 은 <code>^</code> 앵커를 써서 letter 경로가 구조적으로 항상 0 이었다. 그래서 의료(letter)는 −47.5pp, 수학(본문 숫자 추출 가능)은 −6.5pp 로 갈렸다.</p>
+<p>문제: <code>_strip_answer</code> 는 태그가 없으면 추론 전문을 답안으로 넘겼다. <code>_LETTER_PICK</code> 은 <code>^</code> 앵커를 쓴다. 그래서 태그가 없으면 letter 경로의 점수가 항상 0 이었다. 붕괴 구간(step 850 → 900) holdout 하락 폭은 의료(letter)가 −47.5pp 였다. 수학(본문 숫자 추출 가능)은 −7.5pp 였다(<a href="22_stage2b_mixed_run.html">22</a>).</p>
 <p>실측 (73924 롤아웃 9,504건, <code>scripts/probe_answer_fallback.py</code>):</p>
-<table><thead><tr><th>측정</th><th>값</th></tr></thead><tbody><tr><td>태그를 인위로 제거한 뒤 복원 일치</td><td>94.6% (거짓양성 1.13%)</td></tr><tr><td>순열검정</td><td>z = 3.6 / 4.9 / 6.6 (우연 아님)</td></tr><tr><td>회귀: 태그 있는 롤아웃 6,633건</td><td>모두 변화 없음 (완전한 no-op)</td></tr></tbody></table>
+<table><thead><tr><th>측정</th><th>값</th></tr></thead><tbody><tr><td>태그를 지운 롤아웃에서 원래 답을 되찾은 비율</td><td>94.6% (거짓양성 1.13%)</td></tr><tr><td>순열검정 z 값 3개</td><td>3.6 / 4.9 / 6.6 (모두 우연으로 설명되지 않음)</td></tr><tr><td>회귀: 태그 있는 롤아웃 6,633건</td><td>모두 변화 없음 (완전한 no-op)</td></tr></tbody></table>
 <h4 id="b-형식-보상을-이진--단계형--신규">B. 형식 보상을 이진에서 단계형으로</h4>
-<p>근거: <a href="https://arxiv.org/pdf/2507.01006">GLM-4.1V</a> 의 <code>r_format ∈ {0, 0.5}</code> 는 이미 이진이 아니다. 직접 근거는 우리 실측이다.</p>
+<p>근거: <a href="https://arxiv.org/pdf/2507.01006">GLM-4.1V</a> 의 <code>r_format ∈ {0, 0.5}</code> 는 형식 보상의 최댓값을 정확도의 절반으로 둔다. 단계형의 직접 근거는 우리 실측이다.</p>
 <p>붕괴 개시 시점의 출력은 다음 모양이다.</p>
 <pre><code>"...This corresponds to option B.\n&lt;/think&gt;&lt;|im_end|&gt;"</code></pre>
 <p>모델은 <code>&lt;/think&gt;</code> 를 냈다. <code>&lt;answer&gt;</code> 만 없다. 추론을 끝낸 뒤 답 태그 없이 멈춘다.</p>
@@ -259,24 +262,24 @@ li{margin:3px 0}
 0.0  구조 자체가 없음                            (현행 유지)</code></pre>
 <p>실측 효과 (총보상 = acc×1.0 + fmt×0.2 + soft_overlong×0.2):</p>
 <table><thead><tr><th>구간</th><th>현행</th><th>+A</th><th>+A+B</th><th>낙폭 완화</th></tr></thead><tbody><tr><td>붕괴 전 751-898</td><td class="n">0.6180</td><td class="n">0.6223</td><td class="n">0.6225</td><td class="n">(기준선, +0.7%)</td></tr><tr><td>개시 899-910</td><td class="n">−0.3240</td><td class="n">−0.2537</td><td class="n">−0.1948</td><td class="n">39.9%</td></tr><tr><td>확산 911-950</td><td class="n">−0.3733</td><td class="n">−0.3069</td><td class="n">−0.2748</td><td class="n">26.4%</td></tr><tr><td>퇴화 951-1047</td><td class="n">−0.2323</td><td class="n">−0.2033</td><td class="n">−0.1713</td><td class="n">26.3%</td></tr></tbody></table>
-<div class="note"><p>정상 구간은 +0.0045 만 움직인다. 효과는 붕괴 구간에만 있다. 이것이 안전 속성이다.</p></div>
-<div class="warn"><p>보상 해킹 위험이 있다. 부분 점수를 주면 <code>&lt;answer&gt;</code> 를 쓰지 않는 손해가 줄어든다. 그래도 0.5 는 절반 손실이다. A 의 폴백도 일부러 불완전하다(개시 구간 정확도 0.469→0.347). 형식을 잃으면 총보상의 32% 를 잃는다(−0.195 / 0.618). 형식을 지킬 유인은 남는다. 재실행 로그에서 <code>rewards/FormatThink/mean</code> 이 0.9 아래로 계속 내려가면 B 를 되돌린다.</p></div>
+<div class="note"><p>정상 구간은 +0.0045 만 움직인다. 효과는 붕괴 구간에만 있다. 그래서 정상 구간의 학습 신호는 거의 바뀌지 않는다.</p></div>
+<div class="warn"><p>보상 해킹 위험이 있다. 부분 점수를 주면 <code>&lt;answer&gt;</code> 를 쓰지 않는 손해가 줄어든다. 그래도 0.5 는 절반 손실이다. A 의 폴백도 일부러 불완전하다(개시 구간 정확도 0.469→0.347). A+B 를 넣어도 개시 구간 총보상(−0.195)은 붕괴 전(0.6225)보다 0.82 낮다. 그래서 형식을 지킬 유인은 남는다. 재실행 로그에서 <code>rewards/FormatThink/mean</code> 이 0.9 아래로 계속 내려가면 B 를 되돌린다.</p></div>
 <h4 id="c-overlong_filter--false">C. <code>overlong_filter</code> → false</h4>
-<p>근거는 자체 실측(사후 분석 §4-4)이다. 서베이 근거는 없다. 우리 상황에서는 DAPO 원 논문의 의도와 달리 이 필터가 해롭다.</p>
+<p>근거는 자체 실측(사후 분석 §4-4)이다. 조사 근거는 없다. 우리 상황에서는 DAPO 원 논문의 의도와 달리 이 필터가 해롭다.</p>
 <p>ms-swift 는 잘린 completion 을 <code>completion_mask</code> 에서 뺀다(<code>grpo_trainer.py:1132</code>). KL 계산도 같은 마스크를 쓴다(1140행). 절단이 늘수록 손실과 KL 앵커 양쪽에서 빠지는 샘플이 는다. 그러면 정책을 되돌리는 힘이 사라진다. KL 계측도 둔해진다. step 910~949 의 KL 하락(0.081→0.068)은 개선이 아니라 계측 실패였다.</p>
 <div class="note"><p>C 는 F 와 상호작용한다. <code>overlong_filter=True</code> 이면 절단 샘플이 rollout logprob 정렬 대상에서 빠진다. 그러면 계측 값이 틀어진다. C 를 먼저 꺼야 F 를 믿을 수 있다.</p></div>
 <h4 id="e-max_steps-를-실제-정지-step-으로">E. <code>max_steps</code> 를 실제 정지 step 으로</h4>
-<p>근거는 설계 오류다. <code>--max_steps</code> 는 정지 지점이자 cosine LR 스케줄의 분모다. 2,337 로 잡고 1,200 에서 멈추면 LR 이 끝까지 내려오지 않는다. step 900 의 LR 은 6.77e-6 이었다. 분모가 1,200 이면 1.46e-6 이다. 차이는 4.62배다. 재실행에는 실제로 돌릴 step 수를 넣는다.</p>
+<p>근거는 설계 오류다. <code>--max_steps</code> 는 정지 지점이자 cosine LR 스케줄의 분모다. 2,337 로 잡고 1,200 에서 멈추면 LR 이 끝까지 내려오지 않는다. step 900 의 LR 은 6.77e-6 이었다. 분모가 1,200 이면 1.46e-6 이다. 차이는 약 4.6배다. 재실행에는 실제로 돌릴 step 수를 넣는다.</p>
 <h4 id="f-rollout-logprob-불일치-계측--신규">F. rollout logprob 불일치 계측</h4>
 <p>근거는 1부 ③이다. 2026년 리포트가 불안정 원인으로 가장 많이 지목한 항목이다. vLLM colocate + LoRA 구성은 롤아웃과 학습이 서로 다른 수치 경로를 쓴다. 우리는 이 불일치를 한 번도 잰 적이 없었다.</p>
 <p>1차는 계측만 켠다. 보정은 켜지 않는다.</p>
 <pre><code>--log_rollout_offpolicy_metrics true</code></pre>
 <p>기록 지표(<code>grpo_trainer.py:2502</code>): <code>kl</code>(KL(π_rollout‖π_train)) · <code>k3_kl</code> · <code>training_ppl</code> · <code>rollout_ppl</code> · <code>log_ppl_diff</code> · <code>ppl_ratio</code> · <code>chi2_token</code> · <code>chi2_seq</code></p>
-<div class="note"><p>보정(<code>rollout_importance_sampling_mode</code>)을 같이 켜면 변수가 하나 늘어난다. 그러면 붕괴가 없어도 무엇 덕분인지 알 수 없다. 먼저 잰다. 5% 임계를 넘으면 그때 보정을 켠다. 보정은 <code>token_mask</code> + threshold 2.0 이다. <code>token_mask</code> 는 IcePop 과 같은 기전으로, 임계를 넘는 토큰의 업데이트를 0 으로 만든다.</p></div>
-<p>전제 조건은 <code>use_fast_infer</code>(vLLM)이고 충족한다. 정렬에 실패하면 경고를 내고 계측을 자동으로 건너뛴다.</p>
+<div class="note"><p>보정(<code>rollout_importance_sampling_mode</code>)을 같이 켜면 변수가 하나 늘어난다. 그러면 붕괴가 없어도 무엇 덕분인지 알 수 없다. 먼저 잰다. 학습↔롤아웃 토큰 확률차가 IcePop 의 5% 임계를 넘으면 그때 보정을 켠다. 보정은 <code>token_mask</code> + threshold 2.0 이다. <code>token_mask</code> 는 IcePop 과 같은 기전이다. 이 방식은 임계를 넘는 토큰의 업데이트를 0 으로 만든다.</p></div>
+<p>전제 조건은 <code>use_fast_infer</code>(vLLM)다. 우리 설정은 이 조건을 충족한다. ms-swift 는 정렬에 실패하면 경고를 내고 계측을 건너뛴다.</p>
 <h4 id="g-감시자-상시-가동">G. 감시자 상시 가동</h4>
 <p>근거는 자체 검증이다. <code>scripts/watch_format_collapse.py</code> 를 과거 로그로 재생했다. 감시자는 step 901 에서 발화했다. 1,047 step 전 구간에서 오경보는 0회였다. 실제 발견보다 146 step(13.5h·109 GPU-h) 빨랐다.</p>
-<p><code>WATCHDOG=1</code> 로 21 스크립트에 연결했다. 재현 실험(74583)에서도 오발화는 0회였다.</p>
+<p><code>WATCHDOG=1</code> 로 <code>scripts/21_rlvr_grpo_adv.slurm</code> 에 연결했다. 재현 실험(74583)에서도 오발화는 0회였다.</p>
 <table><thead><tr><th>발화 시 정책</th><th>동작</th><th>적용 조건</th></tr></thead><tbody><tr><td>정지</td><td>job 을 세우고 마지막 정상 체크포인트를 확정한다</td><td>기본값 (현재 구현)</td></tr><tr><td>되감기</td><td>마지막 정상 체크포인트에서 LR 을 낮춰 재개한다</td><td>붕괴가 반복될 때</td></tr></tbody></table>
 <h4 id="h-길이를-소프트-감점--하드-예산-2차-방어선">H. 길이를 하드 예산으로 (2차 방어선)</h4>
 <p>근거는 Kimi K3 의 문제별 예산 <code>b₀(x)</code> 와 HyperCLOVA X 32B Think 의 독립 길이 제어 단계다(1부 ④).</p>
@@ -302,7 +305,7 @@ elif self.loss_type == 'dr_grpo':
 format_think    0.2   이진 0|1 · think 실질 ≥16자 요구
 soft_overlong   0.2   min( −(len − 4096) / 2048 , 0 )      ← rewards/orm.py:216</code></pre>
 <h4 id="-발견-①--soft_overlong-은-정상-구간에서-죽어-있다">① <code>soft_overlong</code> 은 정상 구간에서 신호가 없다</h4>
-<p><code>soft_max_length=6144</code>, <code>soft_cache_length=2048</code> 이면 4,096 토큰 아래에서 항상 0 이다. 붕괴 전 평균 길이는 1,376 이다. 따라서 정상 구간 전체에서 신호가 없다.</p>
+<p><code>soft_max_length=6144</code>, <code>soft_cache_length=2048</code> 이면 4,096 토큰 아래에서 항상 0 이다. 붕괴 전 평균 길이는 1,376 이다. 그래서 정상 구간 대부분에서 이 항은 0 이다(구간 평균 −0.0597).</p>
 <table><thead><tr><th>구간</th><th>soft_overlong 평균</th></tr></thead><tbody><tr><td>붕괴 전 751-898</td><td class="n">−0.0597</td></tr><tr><td>개시 899-910</td><td class="n">−0.0689 (거의 움직이지 않음)</td></tr><tr><td>확산 911-950</td><td class="n">−0.3593</td></tr><tr><td>퇴화 951-1047</td><td class="n">−0.1739</td></tr></tbody></table>
 <p>이 항은 개시 시점에 반응하지 않는다. 사후 분석의 "길이는 원인이 아니라 결과" 판정과 맞는다. 이 항은 길이 제어기가 아니라 절단 방지 장치다. Kimi K3 의 문제별 적응 예산 <code>b₀(x)</code> 와 다르다.</p>
 <p>조치: 도메인 분리 후 <code>soft_max_length</code> 를 도메인별로 잡는다. 의료 pmcvqa 는 답이 letter 하나라 6,144 가 과하다.</p>
@@ -310,35 +313,35 @@ soft_overlong   0.2   min( −(len − 4096) / 2048 , 0 )      ← rewards/orm.p
 <p>ms-swift 에 내장 보상이 있다(<code>rewards/orm.py:176</code>, 단어 3-gram, <code>max_penalty=-1.0</code>). HyperCLOVA X 도 반복 억제를 쓴다. 우리 붕괴 출력에는 <code>AAAA…</code> 4만 자와 <code>&lt;think&gt;</code> 1,497회가 있었다. 그래서 후보였다. 실제 롤아웃에 적용하니 세 가지 문제가 나왔다.</p>
 <table><thead><tr><th>구간</th><th>반복 벌점</th><th>−0.3 미만 비율</th></tr></thead><tbody><tr><td>붕괴 전</td><td class="n">−0.1118</td><td class="n">3.4%</td></tr><tr><td>개시</td><td class="n">−0.1317</td><td class="n">6.2%</td></tr><tr><td>확산</td><td class="n">−0.3151</td><td class="n">40.3%</td></tr><tr><td>퇴화</td><td class="n">−0.1531</td><td class="n">12.9%</td></tr></tbody></table>
 <ol>
-<li>정상 구간에도 −0.11 이 늘 붙는다. 건강한 추론에도 3-gram 반복이 있다. 이 벌점은 순수 잡음이다.</li>
+<li>정상 구간에서도 평균 −0.11 이 붙는다. 건강한 추론에도 3-gram 반복이 있다. 그래서 이 벌점은 건강한 응답도 벌한다.</li>
 <li>최악의 퇴화를 놓친다. 퇴화(−0.153)가 확산(−0.315)보다 약하다. <code>zipngram</code> 은 <code>text.lower().split()</code> 을 쓴다. 공백 없는 <code>AAAA…</code> 는 단어 1개다. 그래서 <code>len(completion.split()) &lt; ngram_size</code> 조건에 걸려 0.0 을 받는다.</li>
 <li>확산 구간에서만 반응한다. 그때는 이미 늦다.</li></ol>
 <h4 id="-발견-③--언어-일관성-보상도-불필요-실측-기각">③ 언어 일관성 보상: 실측으로 기각</h4>
 <p>HyperCLOVA X 와 Qwen3-VL 은 code-switching 페널티를 둔다. 우리 롤아웃을 쟀다.</p>
 <table><thead><tr><th>구간</th><th>한글 포함</th><th>한자 포함</th></tr></thead><tbody><tr><td>붕괴 전</td><td class="n">0.00%</td><td class="n">5.45%</td></tr><tr><td>퇴화</td><td class="n">0.29%</td><td class="n">11.60%</td></tr></tbody></table>
-<p>한글 code-switching 은 사실상 0 이다. 한자는 5.45% 기저가 있다. mmk12 가 중국어 원 출처라 정당한 내용일 가능성이 높다. 페널티를 걸면 정상 내용을 벌한다.</p>
+<p>한글 code-switching 은 사실상 0 이다. 한자는 붕괴 전에도 5.45% 있다. 이 한자의 출처는 확인하지 않았다. MMK12 데이터의 한자 잔존은 0.3% 다(5부 3절). 페널티를 걸면 정상 응답을 벌할 위험이 있다.</p>
 <h4 id="️-발견-④--형식-가중치-02-는-참조-대비-낮지만-올리지-않는다">④ 형식 가중치 0.2 는 유지한다</h4>
-<p><a href="https://arxiv.org/pdf/2507.01006">GLM-4.1V</a> 에서 형식은 정확도의 50%(0.5 대 1.0)다. 우리는 20%(0.2 대 1.0)다. 그러나 올리는 것이 항상 옳지는 않다. 형식 가중치는 두 가지를 함께 조절한다. 하나는 형식을 지킬 유인이다. 다른 하나는 형식을 잃었을 때의 낙폭이다. 가중치를 올리면 둘 다 커져 되먹임 고리가 세진다. 우리가 겪은 것은 낙폭 쪽이다. 단계형 보상(B)은 부분 점수라서 낙폭이 가중치에 선형 비례하지 않는다. 그래서 0.2 를 유지하고 단계형부터 넣는다.</p>
+<p><a href="https://arxiv.org/pdf/2507.01006">GLM-4.1V</a> 에서 형식은 정확도의 50%(0.5 대 1.0)다. 우리는 20%(0.2 대 1.0)다. 그러나 올리는 것이 항상 옳지는 않다. 형식 가중치는 두 가지를 함께 조절한다. 하나는 형식을 지킬 유인이다. 다른 하나는 형식을 잃었을 때의 낙폭이다. 가중치를 올리면 둘 다 커져 되먹임 고리가 세진다. 우리가 겪은 것은 낙폭 쪽이다. 단계형 보상(B)은 같은 가중치에서 형식 손실 시 낙폭을 절반으로 줄인다. 그래서 0.2 를 유지하고 단계형부터 넣는다.</p>
 <h4 id="-발견-⑥--가중치가-아니라-advantage-분산-점유를-봐야-한다">⑤ 보상 항의 영향력은 advantage 분산 점유로 본다</h4>
 <p>GRPO 는 그룹 평균을 뺀다. 따라서 보상 항의 실제 영향력은 가중치가 아니라 <code>가중치 × 그룹 내 SD</code> 다. 그룹은 프롬프트 1개 × 4생성이다. 로그에서 연속 4칸이 한 그룹임을 확인했다.</p>
-<table><thead><tr><th>구간</th><th>AccuracyMix</th><th>FormatThink</th><th>SoftOverlong</th><th>정확도 균일 그룹</th><th>그때의 결정자</th></tr></thead><tbody><tr><td>붕괴 전 751-898</td><td class="n">92.3%</td><td class="n">4.3%</td><td class="n">3.4%</td><td class="n">13.8%</td><td>형식</td></tr><tr><td>개시 899-910</td><td class="n">87.7%</td><td class="n">5.8%</td><td class="n">6.5%</td><td class="n">54.2%</td><td>길이</td></tr><tr><td>확산 911-950</td><td class="n">70.1%</td><td class="n">12.6%</td><td class="n">17.3%</td><td class="n">46.6%</td><td>길이</td></tr></tbody></table>
+<table><thead><tr><th>구간</th><th>AccuracyMix</th><th>FormatThink</th><th>SoftOverlong</th><th>정확도 균일 그룹</th><th>정확도 균일 그룹에서 순위를 정한 항</th></tr></thead><tbody><tr><td>붕괴 전 751-898</td><td class="n">92.3%</td><td class="n">4.3%</td><td class="n">3.4%</td><td class="n">13.8%</td><td>형식</td></tr><tr><td>개시 899-910</td><td class="n">87.7%</td><td class="n">5.8%</td><td class="n">6.5%</td><td class="n">54.2%</td><td>길이</td></tr><tr><td>확산 911-950</td><td class="n">70.1%</td><td class="n">12.6%</td><td class="n">17.3%</td><td class="n">46.6%</td><td>길이</td></tr></tbody></table>
 <p>건강한 구간에서는 정확도가 92.3% 를 점유한다. 이 구간에서 1.0/0.2/0.2 는 적절하다.</p>
-<p>문제는 퇴화 구간의 통제권 이양이다. 4생성이 모두 같은 정확도 점수를 받으면 정확도의 advantage 기여는 정확히 0 이다. 그러면 부수 항인 형식과 길이가 목적 함수 전체가 된다. 이런 그룹은 개시 시점에 13.8% 에서 54.2% 로 4배가 된다. 그때 정책을 이끄는 항은 길이다.</p>
+<p>문제는 개시 구간에서 정책을 이끄는 항이 바뀌는 것이다. 4생성이 모두 같은 정확도 점수를 받으면 정확도의 advantage 기여는 정확히 0 이다. 그러면 부수 항인 형식과 길이가 목적 함수 전체가 된다. 이런 그룹은 개시 시점에 13.8% 에서 54.2% 로 4배가 된다. 그때 정책을 이끄는 항은 길이다.</p>
 <div class="warn"><p>가중치 0.2 는 점유율 4.3% 일 때 안전하도록 고른 값이다. 목적 함수 전체를 맡기려고 고른 값이 아니다.</p></div>
 <h4 id="-발견-⑦--그룹은-끝까지-건강했다는-판정을-정정해야-한다">⑥ "그룹은 끝까지 건강했다"는 판정을 정정한다</h4>
-<p><a href="22_stage2b_mixed_run.html">사후 분석</a>과 <a href="../README.md">README</a> 는 <code>num_generations=4</code> 부족 가설을 기각했다. 근거는 <code>frac_reward_zero_std</code> 평균 0.0106 이었다. 이 지표는 총보상의 그룹 내 SD 가 0 인 비율이다. 형식과 길이가 동점을 깨므로, 정확도 신호가 죽어도 총보상은 varied 로 보인다.</p>
+<p><a href="22_stage2b_mixed_run.html">사후 분석</a>과 <a href="../README.md">README</a> 는 <code>num_generations=4</code> 부족 가설을 기각했다. 근거는 <code>frac_reward_zero_std</code> 평균 0.0106 이었다. 이 지표는 총보상의 그룹 내 SD 가 0 인 비율이다. 형식과 길이가 동점을 깬다. 그래서 정확도 신호가 죽어도 총보상의 그룹 내 SD 는 0 이 아니다.</p>
 <table><thead><tr><th>지표</th><th>붕괴 전</th><th>개시</th></tr></thead><tbody><tr><td><code>frac_reward_zero_std</code> (총보상 기준)</td><td class="n">0.0106</td><td class="n">~0</td></tr><tr><td>정확도만의 그룹 균일 비율</td><td class="n">13.8%</td><td class="n">54.2%</td></tr></tbody></table>
-<p>두 지표는 다른 것을 잰다. 총보상은 끝까지 varied 였지만 정확도는 그렇지 않았다. 기각은 유지한다(붕괴 전 13.8% 는 정상 범위). 기각 근거는 <code>frac_reward_zero_std</code> 에서 정확도 균일도로 바꾼다.</p>
+<p>두 지표는 다른 것을 잰다. 총보상의 그룹 내 SD 는 끝까지 0 이 아니었다. 정확도는 그렇지 않았다. 기각은 유지한다(붕괴 전 13.8% 는 정상 범위). 기각 근거는 <code>frac_reward_zero_std</code> 에서 정확도 균일도로 바꾼다.</p>
 <h4 id="발견-⑧--정확도-균일도는-붕괴보다-50-step-앞선다후보">⑦ 정확도 균일도는 붕괴보다 50 step 앞선다 (후보)</h4>
 <table><thead><tr><th>구간</th><th>정확도 균일%</th><th>FormatThink</th><th>정확도 그룹 SD</th></tr></thead><tbody><tr><td>751-800</td><td class="n">10.0%</td><td class="n">0.969</td><td class="n">0.406</td></tr><tr><td>801-850</td><td class="n">9.8%</td><td class="n">0.945</td><td class="n">0.408</td></tr><tr><td>851-880</td><td class="n">22.5%</td><td class="n">0.892</td><td class="n">0.352</td></tr><tr><td>891-898</td><td class="n">23.4%</td><td class="n">0.813</td><td class="n">0.349</td></tr><tr><td>899-904</td><td class="n">62.5%</td><td class="n">0.198</td><td class="n">0.172</td></tr></tbody></table>
 <p>형식이 아직 0.89 일 때 균일도는 이미 2배다. 이 시기는 KL·grad_norm 이 오르는 구간(850~899)과 같다.</p>
-<div class="warn"><p>아직 검증된 규칙이 아니다. <a href="22_stage2b_mixed_run.html">§1-5-1</a> 에서 KL 은 오프라인으로는 선행했지만 온라인 규칙으로는 1 step 만 앞섰다. 감시자에 넣기 전에 같은 오경보 스윕을 통과해야 한다. 다만 기저(751-850 에서 10%)가 안정적이라 KL 보다 조건이 낫다.</p></div>
+<div class="warn"><p>아직 검증된 규칙이 아니다. <a href="22_stage2b_mixed_run.html"><code>22_stage2b_mixed_run.html</code> §1-5-1</a> 에서 KL 은 오프라인으로는 선행했지만 온라인 규칙으로는 1 step 만 앞섰다. 감시자에 넣기 전에 G 와 같은 오경보 스윕(과거 로그 재생)을 통과해야 한다. 다만 기저(751-850 에서 10%)가 안정적이라 KL 보다 조건이 낫다.</p></div>
 <h4 id="발견-⑨--균일도가-소스마다-크게-다르다--전문가별-num_generations">⑧ 균일도는 소스마다 크게 다르다</h4>
 <p>붕괴 전 구간(751-898) 기준이다.</p>
 <table><thead><tr><th>소스</th><th>그룹 수</th><th>정확도 균일</th><th>전원 오답</th><th>평균 정답률</th></tr></thead><tbody><tr><td>deepvision</td><td class="n">801</td><td class="n">13.5%</td><td class="n">12.0%</td><td class="n">0.418</td></tr><tr><td>mmk12</td><td class="n">192</td><td class="n">25.0%</td><td class="n">15.6%</td><td class="n">0.508</td></tr><tr><td>pmcvqa</td><td class="n">191</td><td class="n">3.7%</td><td class="n">1.6%</td><td class="n">0.488</td></tr></tbody></table>
-<p>의료가 가장 건강하고(3.7%) 수학이 가장 나쁘다(25.0%). 예상과 반대다. mmk12 는 그룹 넷 중 하나에서 정확도 신호가 0 이다. 그래서 mmk12 전문가만 <code>num_generations</code> 8 을 검토했다. 도메인 분리 덕분에 이런 국소 조정이 가능하다.</p>
+<p>의료가 가장 건강하고(3.7%) 수학이 가장 나쁘다(25.0%). 의료 실패를 예상한 것과 반대다. mmk12 는 그룹 넷 중 하나에서 정확도 신호가 0 이다. 그래서 mmk12 전문가만 <code>num_generations</code> 8 을 검토했다. 도메인 분리 덕분에 이런 국소 조정이 가능하다.</p>
 <h3 id="6-바꾸지-않는-것과-이유">5. 바꾸지 않는 것과 이유</h3>
-<table><thead><tr><th>항목</th><th>유지 이유</th></tr></thead><tbody><tr><td><code>epsilon_high</code> 미설정(대칭 0.2)</td><td><a href="https://arxiv.org/pdf/2509.26114">clip-low 는 엔트로피를 올리고 clip-high 는 내린다</a>. 상단 클립을 열면 큰 상승 업데이트를 허용한다. 지금 원하는 방향의 반대다.</td></tr><tr><td><code>freeze_vit=True</code></td><td>Kimi K3 가 비전 타워 최적화 불안정(gradient norm 스파이크)을 보고했다. RL 에서 비전 타워를 여는 것은 별도 실험이다.</td></tr><tr><td><code>dynamic_sample=true</code></td><td>EXAONE 4.5 는 zero-variance 그룹을 버리고 우리는 재샘플한다. 영향은 작다(0.0106).</td></tr><tr><td>모델 크기 9B</td><td>A100 80GB PCIe(NVLink 없음, P2P 차단)에 vLLM colocate 가중치 2벌을 올리면 실효 상한은 ~12B 다. 14B 는 예산의 47% 를 쓴다. 붕괴는 용량 문제가 아니었다.</td></tr></tbody></table>
+<table><thead><tr><th>항목</th><th>유지 이유</th></tr></thead><tbody><tr><td><code>epsilon_high</code> 미설정(대칭 0.2)</td><td><a href="https://arxiv.org/pdf/2509.26114">clip-low 는 엔트로피를 올리고 clip-high 는 내린다</a>. 지금 목표는 업데이트 폭을 줄이는 것이다. 상단 클립을 열면 큰 상승 업데이트를 허용한다.</td></tr><tr><td><code>freeze_vit=True</code></td><td>Kimi K3 가 비전 타워 최적화 불안정(gradient norm 스파이크)을 보고했다. RL 에서 비전 타워를 여는 것은 별도 실험이다.</td></tr><tr><td><code>dynamic_sample=true</code></td><td>EXAONE 4.5 는 zero-variance 그룹을 버린다. 우리는 다시 뽑는다. <code>frac_reward_zero_std</code>(0.0106) 기준으로 차이는 작다.</td></tr><tr><td>모델 크기 9B</td><td>A100 80GB PCIe(NVLink 없음, P2P 차단)에 vLLM colocate 가중치 2벌을 올리면 실효 상한은 ~12B 다. 붕괴는 용량 문제가 아니었다.</td></tr></tbody></table>
 <h3 id="8-레퍼런스">6. 레퍼런스</h3>
 <ul>
 <li>외부 리포트와 알고리즘 논문은 <a href="#5-출처">1부 5절 출처</a>에 있다.</li>
@@ -348,7 +351,7 @@ soft_overlong   0.2   min( −(len − 4096) / 2048 , 0 )      ← rewards/orm.p
 <!-- ===== deepseek_v4_pipeline_adoption.md ===== -->
 <h2 data-part="4" id="deepseek-v4-파이프라인-도입안--도메인별-전문가--통합">4부 · DeepSeek-V4 파이프라인 도입안 — 도메인별 전문가 + 통합</h2>
 <div class="meta">원본: <code>docs/deepseek_v4_pipeline_adoption.md</code> (2026-10-22 HTML 로 통합)</div>
-<div class="note"><p>작성일은 2026-08-13 이다. 근거는 <a href="https://arxiv.org/html/2606.19348v1">DeepSeek-V4 (arXiv 2606.19348)</a>, <a href="https://arxiv.org/abs/2607.24653">Kimi K3 (arXiv 2607.24653)</a>, <a href="#2026년-중국한국-모델-학습-단계-조사-2026-05--08-중심">1부 서베이</a>, ms-swift 4.13 설치본 소스다. 이 부에는 구조의 근거, 계단식 통합 설계, 통합 판정 기준만 남긴다. 실행 결과는 <a href="23_stage2ce_experts.html">23_stage2ce_experts.html</a> 에 있으므로 실행 계획과 예산은 지웠다.</p></div>
+<div class="note"><p>작성일은 2026-08-13 이다. 근거는 <a href="https://arxiv.org/html/2606.19348v1">DeepSeek-V4 (arXiv 2606.19348)</a>, <a href="https://arxiv.org/abs/2607.24653">Kimi K3 (arXiv 2607.24653)</a>, <a href="#2026년-중국한국-모델-학습-단계-조사-2026-05--08-중심">1부 조사</a>, ms-swift 4.1.3 설치본 소스다. 이 부에는 구조의 근거, 계단식 통합 설계, 통합 판정 기준만 남긴다. 실행 결과는 <a href="23_stage2ce_experts.html">23_stage2ce_experts.html</a> 에 있으므로 실행 계획과 예산은 지웠다.</p></div>
 <h3 id="0-리포트에서-확인된-것과-안-된-것">0. 리포트에서 확인된 것과 안 된 것</h3>
 <p>DeepSeek-V4 리포트는 후처리 서술이 얇다.</p>
 <table><thead><tr><th>항목</th><th>리포트</th></tr></thead><tbody><tr><td>2단 구조</td><td>확인. "독립적 도메인 전문가 육성 → 온폴리시 증류로 통합"</td></tr><tr><td>도메인</td><td>확인. 수학·코딩·에이전트·지시 따르기</td></tr><tr><td>전문가 학습법</td><td>확인. 도메인별 SFT → GRPO + 도메인별 보상</td></tr><tr><td>통합 손실</td><td>"reverse KL"·"Full-Vocabulary OPD" 표현만 있다. 수식은 없다</td></tr><tr><td>교사 가중·하이퍼파라미터</td><td>없음</td></tr><tr><td>전문가 대 통합 모델 비교 수치</td><td>없음</td></tr></tbody></table>
@@ -356,16 +359,16 @@ soft_overlong   0.2   min( −(len − 4096) / 2048 , 0 )      ← rewards/orm.p
 <h3 id="1-도메인-분리가-왜-옳은가--실측">1. 도메인 분리의 근거: 노출량</h3>
 <p>혼합 Stage-2 는 세 소스를 섞어 학습했다. 노출량을 계산했다(<code>work/data/stage2_expanded_train.jsonl</code>, 프롬프트/step = 8).</p>
 <table><thead><tr><th>소스</th><th>건수</th><th>비중</th><th>1 epoch</th><th>혼합 850 step 시 노출</th></tr></thead><tbody><tr><td>deepvision (일반)</td><td class="n">40,000</td><td class="n">53.5%</td><td class="n">5,000 step</td><td class="n">3,636건 = 0.09 epoch</td></tr><tr><td>pmcvqa (의료)</td><td class="n">19,583</td><td class="n">26.2%</td><td class="n">2,448 step</td><td class="n">1,780건 = 0.09 epoch</td></tr><tr><td>mmk12 (수학)</td><td class="n">15,204</td><td class="n">20.3%</td><td class="n">1,900 step</td><td class="n">1,382건 = 0.09 epoch</td></tr></tbody></table>
-<p>같은 step 수를 도메인 전용으로 쓰면 노출이 아래만큼 는다.</p>
-<table><thead><tr><th>소스</th><th>전용 600 step</th><th>전용 850 step</th></tr></thead><tbody><tr><td>deepvision</td><td class="n">0.12 epoch (1.3배)</td><td class="n">0.17 epoch (1.9배)</td></tr><tr><td>pmcvqa</td><td class="n">0.245 epoch (2.7배)</td><td class="n">0.35 epoch (3.8배)</td></tr><tr><td>mmk12</td><td class="n">0.316 epoch (3.5배)</td><td class="n">0.45 epoch (4.9배)</td></tr></tbody></table>
-<p>같은 계산 자원으로 의료는 3.8배, 수학은 4.9배 더 본다. 소수 도메인일수록 이득이 크다. 혼합 학습에서는 다수 도메인(deepvision 53.5%)이 그래디언트를 지배했다. 도메인 전용 학습에서는 이 지배가 없다.</p>
+<p>도메인 전용 학습의 노출은 아래와 같다. 괄호 안 배수는 두 열 모두 혼합 850 step(0.09 epoch) 대비다. 같은 850 step 끼리 비교하면 1.9~4.9배다.</p>
+<table><thead><tr><th>소스</th><th>전용 600 step (혼합 850 대비)</th><th>전용 850 step (같은 step 비교)</th></tr></thead><tbody><tr><td>deepvision</td><td class="n">0.12 epoch (1.3배)</td><td class="n">0.17 epoch (1.9배)</td></tr><tr><td>pmcvqa</td><td class="n">0.245 epoch (2.7배)</td><td class="n">0.35 epoch (3.8배)</td></tr><tr><td>mmk12</td><td class="n">0.316 epoch (3.5배)</td><td class="n">0.45 epoch (4.9배)</td></tr></tbody></table>
+<p>같은 계산 자원으로 의료는 3.8배, 수학은 4.9배 더 본다. 소수 도메인일수록 이득이 크다. 혼합 학습에서는 deepvision 이 표본의 53.5% 를 차지했다. 도메인 전용 학습에서는 다른 소스와 표본을 나누지 않는다.</p>
 <h4 id="️-다만-이-논거만으로-의료-실패를-설명할-수는-없다">노출만으로는 의료 실패를 설명할 수 없다</h4>
 <table><thead><tr><th>holdout</th><th>deepvision</th><th>mmk12</th><th>pmcvqa</th></tr></thead><tbody><tr><td>init</td><td class="n">35.60%</td><td class="n">48.25%</td><td class="n">57.25%</td></tr><tr><td>init→850</td><td class="n">+10.80 (검출)</td><td class="n">+9.25 (검출)</td><td class="n">+0.75 (미검출, p&gt;0.5)</td></tr><tr><td>혼합 노출</td><td class="n">0.09 epoch</td><td class="n">0.09 epoch</td><td class="n">0.09 epoch</td></tr></tbody></table>
 <p>수학은 의료와 같은 0.09 epoch 노출로 +9.25pp 를 얻었다. 따라서 노출 부족은 의료 실패의 충분한 설명이 아니다. 경쟁 가설은 두 개다.</p>
 <ul>
-<li>여유 폭 차이: 의료 init 은 57.25% 로 셋 중 가장 높다. 남은 오답이 더 어렵다.</li>
-<li>지식 결손 대 추론 결손: RLVR 은 있는 능력을 끌어내지만 없는 지식을 넣지 못한다. 의료 오답이 지식 부족이면 의료 RL 로 오르지 않는다. <a href="30_stage3_medical_rl.html">Stage-3 문서 §base 프로파일</a>에서 맥락 인지는 0.10, 완결성은 0.24 다. RaR 이 겨냥하는 결함이 이것이다.</li></ul>
-<div class="note"><p>도메인 분리는 옳다. 그러나 의료 향상을 약속할 수는 없다. 3.8배 노출은 가설을 제대로 검정할 기회를 준다. 결과를 보장하지는 않는다. 혼합 노출로는 의료 RL 이 안 듣는지, 덜 했는지 구분할 수 없었다.</p></div>
+<li>여유 폭 차이: 의료 init 은 57.25% 로 셋 중 가장 높다. 남은 오답이 더 어려울 수 있다.</li>
+<li>지식 결손 대 추론 결손: RLVR 은 있는 능력을 끌어내지만 없는 지식을 넣지 못한다. 의료 오답이 지식 부족이면 의료 RL 로 오르지 않는다. <a href="30_stage3_medical_rl.html"><code>30_stage3_medical_rl.html</code></a> 의 기본 모델 HealthBench 프로파일에서 맥락 인지는 0.10, 완결성은 0.24 다. Stage-3 의 RaR 루브릭 보상이 이 약점을 겨냥한다.</li></ul>
+<div class="note"><p>도메인 분리는 옳다. 그러나 의료 향상을 약속할 수는 없다. 3.8배 노출은 가설을 제대로 검정할 기회를 준다. 결과를 보장하지는 않는다. 혼합 노출로는 의료 RL 이 효과가 없는지, 학습량이 부족했는지 구분할 수 없었다.</p></div>
 <h4 id="kimi-k3-의-경고--너무-잘게-쪼개지-말-것">Kimi K3: 도메인을 너무 잘게 나누지 않는다</h4>
 <div class="note"><p>"Rather than training specialized RL models for individual tasks, we scale RL across three broad domains." — <a href="https://arxiv.org/abs/2607.24653">Kimi K3</a></p></div>
 <p>Kimi 는 일부러 넓은 도메인 3개로 묶었다. 우리 소스 3개는 그 입도에 맞는다. 더 나누지 않는다.</p>
@@ -379,9 +382,9 @@ soft_overlong   0.2   min( −(len − 4096) / 2048 , 0 )      ← rewards/orm.p
   통합: E1 + E2 + E3 → 단일 학생 (계단 0 어댑터 산술 → 계단 1 GKD)</code></pre>
 <p>Stage-3 의료 데이터(<code>medix_rl_train.jsonl</code>)는 pmcvqa 와 다른 능력을 겨냥한다. pmcvqa 는 객관식 정답률을, medix 는 개방형 임상 서술을 겨냥한다.</p>
 <h4 id="도메인-분리로-새로-생기는-손잡이">도메인 분리로 새로 생기는 손잡이</h4>
-<p>혼합 학습에서는 이 조정이 불가능했다. 노출량 다음으로 큰 이득이다.</p>
+<p>도메인을 나누면 아래 손잡이를 도메인마다 따로 정할 수 있다. 혼합 학습에서는 불가능했다.</p>
 <table><thead><tr><th>손잡이</th><th>E1 일반</th><th>E2 수학</th><th>E3 의료</th></tr></thead><tbody><tr><td>길이 예산(<code>soft_max_length</code>)</td><td>중간</td><td>크게 (수학은 긴 CoT 가 필요)</td><td>작게 (객관식)</td></tr><tr><td>보상 가중</td><td>기본</td><td>기본</td><td>형식 비중 조정 여지</td></tr><tr><td>조기 종료</td><td>독립 판단</td><td>독립 판단</td><td>독립 판단</td></tr></tbody></table>
-<h3 id="3-실현-가능성--ms-swift-413">3. 증류 도구: ms-swift 4.13 GKD</h3>
+<h3 id="3-실현-가능성--ms-swift-413">3. 증류 도구: ms-swift 4.1.3 GKD</h3>
 <p>설치본 <code>swift/rlhf_trainers/gkd_trainer.py</code>(1,071줄)를 직접 확인했다. 계단 1·2 는 이 도구를 쓴다.</p>
 <table><thead><tr><th>필요</th><th>인자</th><th>확인</th></tr></thead><tbody><tr><td>온폴리시 증류</td><td><code>--rlhf_type gkd</code></td><td><code>rlhf_args.py:229</code></td></tr><tr><td>학생 자기 롤아웃</td><td><code>--lmbda 0.5</code></td><td><code>gkd_trainer.py:491</code></td></tr><tr><td>전어휘 KL/JSD</td><td><code>generalized_jsd_loss</code>, top-k 미지정 시 full-vocab</td><td><code>:774</code>, <code>:231</code></td></tr><tr><td>forward/reverse KL 보간</td><td><code>--beta</code> (0=forward, 1=reverse)</td><td><code>:838</code></td></tr><tr><td>멀티모달</td><td><code>is_multimodal</code> 분기 + vLLM 생성</td><td><code>:257</code>, <code>:629</code></td></tr><tr><td>LoRA 자기증류 최적화</td><td><code>disable_adapter()</code>. 교사 사본 없음</td><td><code>:88</code>, <code>:406</code></td></tr><tr><td>원격 교사</td><td><code>--teacher_model_server</code> (멀티모달 지원)</td><td><code>:615</code></td></tr></tbody></table>
 <p>갭은 두 개다.</p>
@@ -415,31 +418,31 @@ if mode == 'train':
 # :941 — logprob 계산. no_grad 지만 dropout 은 grad 모드가 아니라 module.training 을 본다
 with torch.no_grad(), disable_gradient_checkpointing(...):
     batch_encoded_inputs['old_per_token_logps'] = ...</code></pre>
-<p>vLLM 롤아웃에는 dropout 이 없다. 학습 쪽 logprob 계산에는 dropout 이 켜져 있다. 그래서 <code>π_rollout ≠ π_train</code> 이 구조적으로 생긴다. 이것은 1부 ③과 같은 계열의 불일치이고, 우리 설정이 만든 것이다. 이 잡음은 3부 F 계측도 오염시킨다. dropout 잡음과 실제 vLLM/HF 수치 격차를 구분할 수 없다.</p>
+<p>vLLM 롤아웃에는 dropout 이 없다. 학습 쪽 logprob 계산에는 dropout 이 켜져 있다. 그래서 <code>π_rollout ≠ π_train</code> 이 구조적으로 생긴다. 이것은 1부 ③과 같은 계열의 불일치다. 이 불일치는 우리 설정이 만들었다. 이 잡음은 3부 F 계측도 오염시킨다. dropout 잡음과 실제 vLLM/HF 수치 격차를 구분할 수 없다.</p>
 <div class="note"><p>중요도 비율(ratio)은 영향이 없다. <code>old_policy()</code>(<code>:1927</code>)는 <code>num_iterations=1</code> 이고 <code>grad_accum(4) % steps_per_generation(4) == 0</code> 이라 False 를 반환한다. 그래서 <code>old_per_token_logps</code> 를 따로 구하지 않고 <code>per_token_logps.detach()</code> 를 쓴다(<code>:1152</code>). 같은 forward 라 비율은 정확히 1 이다. 문제는 세 가지다. 첫째, 최적화하는 정책과 샘플링한 정책이 다르다. 둘째, KL 항을 오염시킨다. 셋째, 그래디언트 분산이 는다. 비용이 0 이므로 전문가 3개 모두 <code>--lora_dropout 0</code> 을 쓴다.</p></div>
 <h4 id="rank--전문가는-16-유지-통합-학생만-올린다">rank: 전문가는 16 을 유지하고 통합 학생만 올린다</h4>
 <table><thead><tr><th>대상</th><th>rank</th><th>이유</th></tr></thead><tbody><tr><td>전문가 E1·E2·E3</td><td>16 유지</td><td>어댑터 산술 병합(계단 0)은 rank 가 같아야 한다. 하나라도 다르면 계단 0 이 불가능하다.</td></tr><tr><td>통합 학생 (계단 1 GKD)</td><td>32~48</td><td>전문가 3개의 행동을 한 공간에 넣어야 한다. 메모리 비용은 무시할 수 있다.</td></tr></tbody></table>
-<div class="note"><p>rank 를 올릴 때는 <code>--use_rslora true</code> 를 같이 켠다. alpha 스케일이 <code>1/r</code> 대신 <code>1/√r</code> 이라 고랭크에서 학습률이 과도해지지 않는다. r=16 에서는 <code>use_rslora=False</code> 로 문제없다.</p></div>
-<h3 id="7-2-베이스-모델--sft_mixed_merged-인가-raw-base-인가">6. 베이스 모델: <code>sft_mixed_merged</code> 를 유지한다</h3>
+<div class="note"><p>rank 를 올릴 때는 <code>--use_rslora true</code> 를 같이 켠다. alpha 스케일이 <code>1/r</code> 대신 <code>1/√r</code> 이라 고랭크에서 업데이트가 지나치게 작아지지 않는다. r=16 에서는 <code>use_rslora=False</code> 로 문제없다.</p></div>
+<h3 id="7-2-베이스-모델--sft_mixed_merged-인가-raw-base-인가">6. 출발 모델: SFT 모델(<code>sft_mixed_merged</code>)을 유지한다</h3>
 <p>이미 한 실험이 있다. <a href="10_stage1_coldstart.html"><code>10_stage1_coldstart.html</code> §콜드스타트 Ablation</a>(2026-07-09)이다. 절제 변수는 콜드스타트 init 유무다. 데이터·dr_grpo·LoRA·보상·하이퍼파라미터는 모두 같다.</p>
-<table><thead><tr><th>DeepVision holdout</th><th>RL 없음</th><th>RL 있음</th><th>RL 효과</th></tr></thead><tbody><tr><td>콜드스타트 없음 (raw base)</td><td>0.15</td><td>base→RL 200step 0.18</td><td>+0.03</td></tr><tr><td>콜드스타트 있음</td><td>0.22</td><td>+RL 600step 0.38</td><td>+0.16</td></tr></tbody></table>
-<p>raw base 의 실패 양상은 다음과 같다.</p>
+<table><thead><tr><th>DeepVision holdout</th><th>RL 없음</th><th>RL 있음</th><th>RL 효과</th></tr></thead><tbody><tr><td>콜드스타트 없음 (기본 모델)</td><td>0.15</td><td>기본 모델→RL 200 step 0.18</td><td>+0.03</td></tr><tr><td>콜드스타트 있음</td><td>0.22</td><td>+RL 600step 0.38</td><td>+0.16</td></tr></tbody></table>
+<p>기본 모델에서 바로 RL 한 실행의 실패 양상은 다음과 같다.</p>
 <ul>
 <li>FormatThink 가 100 step 내내 ~0 에 머물렀다(콜드스타트는 0.26 에서 시작).</li>
 <li>잘림이 40% 였다.</li>
 <li>학습이 2~3배 느렸다.</li>
 <li>200 step RL 이 콜드스타트 SFT 한 번(0.22)에도 못 미쳤다.</li>
 <li>dr_grpo 0.18, GDPO 0.165 로 두 arm 모두 실패했다.</li></ul>
-<p>결론은 H1 채택이다. RL 이득은 콜드스타트에 조건부다(+0.16 대 +0.03).</p>
+<p>결론: RL 이득은 콜드스타트에 조건부다(+0.16 대 +0.03). 다만 RL step 수가 200 대 600 으로 다르다. 그래서 이 격차는 실제보다 클 수 있다.</p>
 <h4 id="️-다만-이-ablation-에는-지금-보면-교란이-하나-있다">ablation 의 교란 요인</h4>
-<p>당시 보상은 정확도가 형식에 묶여 있었다. raw base 는 <code>&lt;answer&gt;</code> 태그를 내지 못해 letter 경로가 구조적으로 0 이었다(<code>_LETTER_PICK</code> 의 <code>^</code> 앵커). 형식 점수도 0 이었다. 보상이 통째로 0 이라 학습 신호가 없었다. 실패 원인은 "RL 이 base 에서 못 배운다"가 아니라 "보상이 아무것도 주지 않았다"일 수 있다. 커밋 <code>2a0458a</code>(정확도 폴백)와 단계형 형식 보상(3부 B)이 이 구간을 고친다. 따라서 ablation 의 격차는 실제 격차보다 크다.</p>
+<p>당시 보상은 정확도가 형식에 묶여 있었다. 기본 모델은 <code>&lt;answer&gt;</code> 태그를 내지 못해 letter 경로가 구조적으로 0 이었다(<code>_LETTER_PICK</code> 의 <code>^</code> 앵커). 형식 점수도 0 이었다. 보상이 통째로 0 이라 학습 신호가 없었다. 실패 원인은 "RL 이 기본 모델에서 못 배운다"가 아니라 "보상이 아무것도 주지 않았다"일 수 있다. 커밋 <code>2a0458a</code>(정확도 폴백)와 단계형 형식 보상(3부 B)이 이 구간을 고친다. 따라서 ablation 의 격차는 실제보다 클 수 있다.</p>
 <p>그래도 두 가지는 남는다.</p>
 <ol>
-<li>장문과 잘림은 보상으로 고치지 못한다. base 는 본래 3.5~4.6K 토큰을 쓰고 잘림이 40% 였다. 잘린 응답에는 결론이 없어 폴백도 뽑을 답이 없다. 이것은 초기화 수준의 성질이다.</li>
-<li>학습이 2~3배 느리면 예산이 끝난다. 1,000 step × 2.5배 = 229 벽시계h 다. 전문가 3개면 5,500 GPU-h 로 당시 잔여 4,126 GPU-h 를 넘는다.</li></ol>
-<p>결정: 전문가 3개의 base 는 <code>sft_mixed_merged</code> 로 유지한다. ablation·예산·기준선 세 가지가 같은 방향을 가리킨다. DeepSeek-V4 도 raw base 에서 RL 하지 않는다. 리포트는 "base model first undergoes SFT on high-quality, domain-specific data" 라고 적는다. DeepSeek 은 도메인별 SFT 를 쓰므로 혼합 SFT 하나인 우리보다 SFT 가 많다.</p>
+<li>장문과 잘림은 보상으로 고치지 못한다. 기본 모델은 본래 3.5~4.6K 토큰을 쓰고 잘림이 40% 였다. 잘린 응답에는 결론이 없어 폴백도 뽑을 답이 없다. 이것은 초기화 수준의 성질이다.</li>
+<li>학습이 2~3배 느리면 예산이 끝난다. step 당 330 s(재현 실험 74583 실측)에 2.5배를 곱하면 1,000 step 은 229 벽시계 시간이다. 전문가 3개면 5,500 GPU-h 로 당시 잔여 4,126 GPU-h 를 넘는다.</li></ol>
+<p>결정: 전문가 3개의 출발 모델은 SFT 모델(<code>sft_mixed_merged</code>)로 유지한다. ablation, 예산, 기준선(ck-850 이 SFT 모델에서 출발) 세 가지가 같은 방향을 가리킨다. DeepSeek-V4 도 기본 모델에서 바로 RL 하지 않는다. 리포트는 "base model first undergoes SFT on high-quality, domain-specific data" 라고 적는다. DeepSeek 은 도메인별 SFT 를 쓰므로 혼합 SFT 하나인 우리보다 SFT 가 많다.</p>
 <h3 id="8-계단식-통합--공짜부터">7. 계단식 통합: 학습 없는 병합부터</h3>
-<p>전문가 셋은 같은 base·rank·target_modules 의 LoRA 다. 그래서 어댑터 산술이 가능하다. <code>checkpoint-850/adapter_config.json</code> 의 값은 r=16, alpha=32, base=<code>sft_mixed_merged</code>, target=<code>model.language_model.*</code>, 173MB ≈ 43M 파라미터다.</p>
+<p>전문가 셋은 같은 출발 모델·rank·target_modules 의 LoRA 다. 그래서 어댑터 산술이 가능하다. <code>checkpoint-850/adapter_config.json</code> 의 값은 r=16, alpha=32, base=<code>sft_mixed_merged</code>, target=<code>model.language_model.*</code>, 173MB ≈ 43M 파라미터다.</p>
 <table><thead><tr><th>계단</th><th>방법</th><th>비용</th><th>위험과 조건</th></tr></thead><tbody>
 <tr><td>0</td><td>어댑터 산술 병합 <code>ΔW = w₁·ΔW_일반 + w₂·ΔW_수학 + w₃·ΔW_의료</code>. 단순 평균, 가중 스윕, 필요하면 TIES/DARE 순서로 시험한다.</td><td>~30 GPU-h, 학습 0</td><td>전문가의 rank 가 같아야 한다.</td></tr>
 <tr><td>1</td><td>순차 GKD (ms-swift 기존 기능)</td><td>증류 학습</td><td>뒤 증류가 앞을 잊을 수 있다. 데이터 혼합과 λ 하향으로 완화한다.</td></tr>
@@ -457,9 +460,9 @@ with torch.no_grad(), disable_gradient_checkpointing(...):
 <li><a href="https://arxiv.org/html/2606.19348v1">DeepSeek-V4 (arXiv 2606.19348)</a>: 2단 구조, 전어휘 OPD. 후처리 서술은 얇다</li>
 <li><a href="https://arxiv.org/abs/2607.24653">Kimi K3 (arXiv 2607.24653)</a>: MOPD 수식 공개, "넓은 도메인 3개" 원칙</li>
 <li><a href="https://maximelabonne.substack.com/p/deepseek-v4-ten-teachers-one-student">DeepSeek V4: ten teachers, one student</a>: 2차 정리 (C 등급)</li>
-<li><a href="#2026년-중국한국-모델-학습-단계-조사-2026-05--08-중심">1부 서베이</a> §2-⑤: 이 구조가 관행이 된 경위</li>
+<li><a href="#2026년-중국한국-모델-학습-단계-조사-2026-05--08-중심">1부 조사</a> §2-⑤: 이 구조가 관행이 된 경위</li>
 <li><a href="#stage-2-재실행-실험-설계">3부 재실행 설계</a>: 전문가 학습에 적용한 설정</li>
-<li><a href="30_stage3_medical_rl.html">Stage-3 · 의료 RL</a>: medix 의 루브릭·judge 설계</li>
+<li><a href="30_stage3_medical_rl.html">Stage-3 · 의료 RL</a>: medix 의 루브릭·심판 설계</li>
 <li><a href="22_stage2b_mixed_run.html">붕괴 사후 분석 rev.2</a>: ck-850 기준선의 근거</li>
 <li>ms-swift 설치본: <code>work/images/ms-swift-413-sandbox/.../swift/rlhf_trainers/gkd_trainer.py</code></li></ul>
 <!-- ===== stage2_methods_data (2026-10-23 통합) ===== -->
@@ -467,22 +470,22 @@ with torch.no_grad(), disable_gradient_checkpointing(...):
 <div class="key" id="part5-6-summary">
 <b>요약 (5부·6부)</b>
 <ol>
-<li>방법론: GRPO 변형 5종을 clean A/B 로 비교했다. dr_grpo 가 이겼다. dr_grpo 는 Acc plateau 를 넘었고 holdout 을 +73% 올렸다(0.22→0.38). GDPO 는 dr_grpo 와 동률이다(step600 holdout 0.390 vs 0.380). GDPO 는 Stage-3 용으로 권고한다. GSPO 는 holdout 이 0.290 으로 낮아 채택하지 않는다.</li>
-<li>포화: holdout 은 step600 근처에서 0.38–0.39 로 포화한다.</li>
-<li>데이터: DeepVision 단일 셋에 MMK12(수학)와 PMC-VQA(의료)를 더했다. 확장 train 은 74,787건(일반53/math20/의료26)이다. holdout 은 1,772건이다. 이미지 바이트 해시 dedup 으로 누수는 0 이다.</li>
+<li>방법론: GRPO 변형 5종을 clean A/B 로 비교했다. dr_grpo 가 이겼다. dr_grpo 는 학습 정확도 정체(plateau)를 넘었다. holdout 은 +73% 올랐다(0.22→0.38). GDPO 는 dr_grpo 와 동률이다(step600 holdout 0.390 vs 0.380). GDPO 는 Stage-3 용으로 권고한다. GSPO 는 holdout 이 0.290 으로 낮아 채택하지 않는다.</li>
+<li>포화: holdout 은 step600 근처에서 0.38~0.39 로 포화한다.</li>
+<li>데이터: DeepVision 단일 셋에 MMK12(수학)와 PMC-VQA(의료)를 더했다. 확장 train 은 74,787건(일반 53 / 수학 20 / 의료 26)이다. holdout 은 1,772건이다. 이미지 바이트 해시 dedup 으로 누수는 0 이다.</li>
 <li>이후: 확장셋 혼합 GRPO 는 step ~900 에서 붕괴했다. 이 경로는 폐기했다. 현재 경로는 도메인 전문가 3종 + 통합이다.</li>
 </ol>
 </div>
 <div class="note"><p style="margin:4px 0">갱신일은 2026-07-24 다. 이 부는 Stage-2(범용 RLVR/GRPO) 데이터 확장의 동기, 스크리닝, 심층 분석, 혼합 비율, 빌드 파이프라인을 다룬다.<br>빌드 절차는 아래 <a href="#5-1-빌드-런북">§5-1 빌드 런북</a>에, 전체 현황은 <a href="../README.md"><code>../README.md</code></a> 에 있다.</p></div>
 <hr style="border:0;border-top:1px solid var(--line)">
 <h3 id="1-배경--동기">1. 배경과 동기</h3>
-<ul><li>원래 Stage-2 는 <code>DeepVision-103K</code> 단일 셋이었다(trainonly 102,531 / holdout 972). GRPO A/B 로 dr_grpo 와 GDPO 를 승자로 정했다. step600 holdout 은 0.38~0.39 에서 포화했다.</li><li>확장 동기: v3 콜드스타트 A/B 에서 math 는 v2 와 동률(0.3245)이었다. 혼합 데이터는 vl 을 올렸지만(0.270→0.368) 수치 계산은 올리지 못했다. 프로젝트 목표는 의료인데 Stage-2 는 일반 전용이었다.</li><li>예산: 2026-07-22 다른 계정에 5,000 노드시간을 확보했다. 그래서 Stage-2 재실행 여력이 생겼다. 현재 계정은 설정과 검증만 맡고, GitHub 로 공유한다.</li><li>목표: 검증 가능 정답 RLVR 로 일반 시각 추론, math, 의료를 고르게 강화한다.</li></ul>
+<ul><li>원래 Stage-2 는 <code>DeepVision-103K</code> 단일 셋이었다(trainonly 102,531 / holdout 972). GRPO A/B 로 dr_grpo 와 GDPO 를 승자로 정했다. step600 holdout 은 0.38~0.39 에서 포화했다.</li><li>확장 동기: v3 콜드스타트 A/B 에서 수학은 v2 와 동률(0.3245)이었다. 혼합 데이터는 시각 논리(visual-logic) 점수를 올렸다(0.270→0.368). 그러나 수치 계산은 올리지 못했다. 프로젝트 목표는 의료인데 Stage-2 는 일반 전용이었다.</li><li>예산: 2026-07-22 다른 계정에 5,000 노드시간을 확보했다. 그래서 Stage-2 재실행 여력이 생겼다. 현재 계정은 설정과 검증만 맡는다. 두 계정은 GitHub 로 코드를 공유한다.</li><li>목표: 검증 가능 정답 RLVR 로 일반 시각 추론, 수학, 의료를 고르게 강화한다.</li></ul>
 <h3 id="2-데이터셋-스크리닝-전부-다운로드실측--이름규모로-안-고름">2. 데이터셋 스크리닝</h3>
 <p>후보를 모두 내려받아 쟀다. 이름과 규모로 고르지 않았다.</p>
 <table>
 <tr><th>소스</th><th>설명</th><th>규모</th><th>고유이미지</th><th>고유답</th><th>Yes/No</th><th>검증가능</th><th>판정</th></tr>
-<tr><td>DeepVision-103K</td><td>수학·시각논리 멀티모달(일반)</td><td>102,531</td><td>다수</td><td>8%(C/B/D 최빈)</td><td>—</td><td>43% math_verify</td><td>기존 base</td></tr>
-<tr><td>MMK12</td><td>중국 K-12 수학 시험문제(영어 번역본, 이미지)</td><td>15,616</td><td>다수</td><td>32%</td><td>~0%</td><td>82%·100% math</td><td>채택 (math 약점 직접 보완)</td></tr>
+<tr><td>DeepVision-103K</td><td>수학·시각논리 멀티모달(일반)</td><td>102,531</td><td>다수</td><td>8%(C/B/D 최빈)</td><td>—</td><td>43% math_verify</td><td>기존 기본 데이터</td></tr>
+<tr><td>MMK12</td><td>중국 K-12 수학 시험문제(영어 번역본, 이미지)</td><td>15,616</td><td>다수</td><td>32%</td><td>~0%</td><td>82%·100% 수학</td><td>채택 (수학 약점 직접 보완)</td></tr>
 <tr><td>PMC-VQA</td><td>PubMed 논문 그림 의료 VQA(4지선다)</td><td>329,536 MC</td><td>29,133/30K</td><td>MC B/C/A/D 균형</td><td>낮음</td><td>MC letter</td><td>채택 (의료 범위 넓음)</td></tr>
 <tr><td>ThinkLite-VL-hard</td><td>하드 멀티모달 추론(차트·표·도형 단답)</td><td>11,031</td><td>적음</td><td>35%</td><td>11%</td><td>49%·61% 취약</td><td>노이즈로 제외</td></tr>
 <tr><td><s>Kvasir-VQA</s></td><td>위장관 내시경 이미지 VQA</td><td>58,849</td><td>671(17문항/img)</td><td>107·none 33%</td><td>18%</td><td>—</td><td>탈락: degenerate(S-Chain급)</td></tr>
@@ -490,28 +493,28 @@ with torch.no_grad(), disable_gradient_checkpointing(...):
 <tr><td><s>VQA-RAD</s></td><td>방사선 VQA(임상의 작성)</td><td>1,793</td><td>~315</td><td>—</td><td>49%</td><td>—</td><td>보류: 극소</td></tr>
 <tr><td><s>PathVQA</s></td><td>병리 조직 슬라이드 VQA</td><td>19,654</td><td>—</td><td>—</td><td>48%</td><td>절반 개방형</td><td>보류: 절반만 검증 가능</td></tr>
 </table>
-<p>교훈: 내려받아 재는 절차(download and measure)가 다시 필요했다. Kvasir 는 58K 건인데 고유 이미지가 671개, 고유 답이 107개다. SLAKE 는 4.9K 건인데 이미지가 450개다. 규모와 다양성은 따로 움직인다. 콜드스타트 때 S-Chain·MMFineReason 에서 본 함정과 같다.</p>
+<p>교훈: 내려받아 재는 절차가 다시 필요했다. Kvasir 는 58K 건인데 고유 이미지가 671개, 고유 답이 107개다. SLAKE 는 4.9K 건인데 이미지가 450개다. 규모와 다양성은 따로 움직인다. 콜드스타트 때 S-Chain·MMFineReason 에서 본 함정과 같다.</p>
 <details><summary>콜드스타트 때 탈락시킨 소스의 RLVR 재검토</summary>
-<p>MMK12·MM-Eureka·ThinkLite 는 콜드스타트에서 "추론 trace 없음"으로 탈락했다. RLVR 은 prompt 와 검증 가능 정답만 필요하므로 이 소스들이 오히려 맞는다. 그래서 MMK12 와 ThinkLite 를 다시 썼다. MMFineReason(9~11K자 장황)은 여전히 보류한다.</p>
+<p>MMK12·MM-Eureka·ThinkLite 는 콜드스타트에서 "추론 trace 없음"으로 탈락했다. RLVR 은 prompt 와 검증 가능 정답만 필요하므로 이 소스들이 오히려 맞는다. 그래서 MMK12 와 ThinkLite 를 다시 검토했다. 채택한 것은 MMK12 뿐이다(ThinkLite 는 노이즈로 제외). MMFineReason(9~11K자 장황)은 여전히 보류한다.</p>
 </details>
 <h3 id="3-심층-분석-결과">3. 심층 분석 결과</h3>
 <p>정답 형식 분포(검증 가능성):</p>
-<ul><li>DeepVision: 49.5% MC letter + 27.8% int + 11.5% 수식이고, 43% 가 math_verify 대상이다. MC 가 과반이고 고유 답이 8% 라 정보량이 낮다. 이것이 step600 포화의 원인이다.</li><li>MMK12: int 46.5% + 수식 26.2% 로 82% 가 math_verify 대상이다. 100% 순수 math 이고 고유 답은 32% 다. 최고 품질 RLVR 소스다. 언어는 영어 번역본이다. 15,616건 중 한자 잔존은 52건(0.3%)이다. 대부분 <code>甲乙</code>(물체 A/B)·<code>保留</code>(반올림 지시) 같은 자투리다.</li><li>PMC-VQA: MC 4지선다이고 Answer_label 이 균형이다(B 54K/C 51K/A 43K/D 28K). OpenMedReason 은 반대로 A 에 77% 가 몰려 있다.</li><li>ThinkLite: 34% 가 수치, 61% 가 짧은 문자열(times/장소/Yes-No 11%)이다. 다양성은 있지만 노이즈가 크다.</li></ul>
-<p>reward 견고성 실측: <code>accuracy_mix</code> 가 "맞지만 형식이 다른" 답을 0점 처리하는지 12케이스로 시험했다. 손실은 0/12 였다. 콤마(<code>2,380</code>↔<code>2380</code>)·분수(<code>3/4</code>↔<code>0.75</code>)·단위·시간·대소문자·Yes/No 모두 1.0 을 받았다. math_verify + casefold 가 이미 견고하다. 문자열 정규화는 필요 없다.</p>
-<p>의료 VQA 공통 함정: 대부분 40~50% 가 Yes/No 라 추측만으로 50% 를 맞힌다. 다양성도 낮다. PMC-VQA 만 대형·MC·광범위라 예외다.</p>
+<ul><li>DeepVision: 49.5% MC letter + 27.8% int + 11.5% 수식이고, 43% 가 math_verify 대상이다. MC 가 절반(49.5%)이고 고유 답은 8% 다. 이 낮은 정보량이 step600 포화의 원인일 수 있다.</li><li>MMK12: int 46.5% + 수식 26.2% 로 82% 가 math_verify 대상이다. 100% 수학이고 고유 답은 32% 다. math_verify 대상 비율(82%)이 후보 중 가장 높다. 언어는 영어 번역본이다. 15,616건 중 한자 잔존은 52건(0.3%)이다. 대부분 <code>甲乙</code>(물체 A/B)·<code>保留</code>(반올림 지시) 같은 자투리다.</li><li>PMC-VQA: MC 4지선다이고 Answer_label 이 한 보기에 몰리지 않는다(B 54K/C 51K/A 43K/D 28K). OpenMedReason 은 반대로 A 에 77% 가 몰려 있다.</li><li>ThinkLite: 34% 가 수치, 61% 가 짧은 문자열(times/장소/Yes-No 11%)이다. 다양성은 있지만 노이즈가 크다.</li></ul>
+<p>reward 견고성 실측: <code>accuracy_mix</code> 가 "맞지만 형식이 다른" 답을 0점 처리하는지 12케이스로 시험했다. 오채점은 0/12 였다. 콤마(<code>2,380</code>↔<code>2380</code>)·분수(<code>3/4</code>↔<code>0.75</code>)·단위·시간·대소문자·Yes/No 모두 1.0 을 받았다. math_verify + casefold 가 이미 견고하다. 문자열 정규화는 필요 없다.</p>
+<p>의료 VQA 공통 함정: 4종 중 2종(VQA-RAD 49%, PathVQA 48%)은 Yes/No 가 절반 가까이다. 이 문항은 추측만으로 절반을 맞힌다. 다양성도 낮다. PMC-VQA 만 대형·MC·광범위라 예외다.</p>
 <h3 id="4-혼합비율-결정">4. 혼합 비율 결정</h3>
-<p>GRPO 는 셔플 샘플링을 쓴다. 자연 비율(DeepVision 80%)이면 롤아웃의 80% 가 이미 포화한 데이터다. 그러면 확장 효과가 반으로 준다. 600~1000 step × 배치 32 이면 약 2~3만 prompt 만 본다. DeepVision 102K 를 다 보지 못한다. 따라서 비율만 중요하고, DeepVision 전량을 넣을 이유가 없다.</p>
+<p>GRPO 는 셔플 샘플링을 쓴다. 자연 비율(DeepVision 80%)이면 롤아웃의 80% 가 이미 포화한 데이터다. 그러면 확장 효과가 반으로 준다. 600~1000 step 은 프롬프트 4,800~8,000개만 본다(step 당 8개, 2부 2절). DeepVision 102K 를 다 보지 못한다. 따라서 비율만 중요하고, DeepVision 전량을 넣을 이유가 없다.</p>
 <p>권장 구성 (의료 27%, 2026-07-24):</p>
 <table>
 <tr><th>소스</th><th>학습</th><th>비중</th><th>역할</th></tr>
 <tr><td>DeepVision (서브샘플)</td><td>40,000</td><td>53%</td><td>일반 시각 추론 base (RL 검증됨)</td></tr>
-<tr><td>MMK12 (전량)</td><td>15,207</td><td>20%</td><td>순수 math (유일하게 측정된 약점)</td></tr>
+<tr><td>MMK12 (전량)</td><td>15,207 (조립 후 15,204)</td><td>20%</td><td>수학 (유일하게 측정된 약점)</td></tr>
 <tr><td>PMC-VQA (서브샘플)</td><td>20,000</td><td>27%</td><td>의료 광범위 MC (프로젝트 목표)</td></tr>
-<tr><td>합계</td><td>~75K</td><td></td><td>일반 53 / math 20 / 의료 27</td></tr>
+<tr><td>합계</td><td>~75K</td><td></td><td>일반 53 / 수학 20 / 의료 27</td></tr>
 </table>
-<ul><li>의료를 40% 까지 올리지 않는 이유: PMC-VQA 는 그림 인식 + MC 라 가장 깊은 추론은 아니다. 깊은 의료는 Stage-3(medix + RaR judge)가 맡는다. Stage-2 를 의료 MC 로 채우면 전이 추론 대신 패턴 매칭을 배울 위험이 있다. 의료가 최우선이면 PMC 28K(40%) 안을 쓴다.</li><li>ThinkLite 제외: 노이즈가 가장 큰 소스다. 일반 단답 역할은 DeepVision 과 겹친다.</li><li>오염 방지: 새 holdout 은 이미지 바이트 해시로 dedup 한다. 구 DeepVision holdout 의 22% 오염이 다시 생기지 않게 한다.</li></ul>
+<ul><li>의료를 40% 까지 올리지 않는 이유: PMC-VQA 는 그림 인식 + MC 라 가장 깊은 추론은 아니다. 깊은 의료는 Stage-3(medix + RaR 심판)가 맡는다. Stage-2 를 의료 MC 로 채우면 전이 추론 대신 패턴 매칭을 배울 위험이 있다. 의료가 최우선이면 PMC 28K(40%) 안을 쓴다.</li><li>ThinkLite 제외: 노이즈가 가장 큰 소스다. 일반 단답 역할은 DeepVision 과 겹친다.</li><li>오염 방지: 새 holdout 은 이미지 바이트 해시로 dedup 한다. 구 DeepVision holdout 의 22% 오염이 다시 생기지 않게 한다.</li></ul>
 <h4 id="stage-2--stage-3-관계-cascade--replay">Stage-2 ↔ Stage-3 관계 (cascade + replay)</h4>
-<ul><li>Stage-2(검증 가능, accuracy_mix) 다음에 Stage-3(개방형 medix, RaR judge)를 둔다. Stage-3 init 은 Stage-2 체크포인트다. RLVR 로 추론 습관을 다지고 judge 로 정교화하는 curriculum 이다.</li><li>의료 VQA(Stage-2, 검증 가능)와 medix(Stage-3, 개방형)는 상보적이다. 단 출처가 같아(PMC-VQA/SLAKE 는 medix 출처) holdout dedup 이 필수다. 학습 중복은 무해하다.</li><li>단일 스테이지에서 verifiable 과 judge 를 섞는 통합 방식보다 cascade 가 curriculum, judge 인프라 단순성, 디버깅에서 낫다. 망각은 Stage-3 에 검증 가능 데이터 20~30% 를 replay 해 완화한다.</li></ul>
+<ul><li>Stage-2(검증 가능, accuracy_mix) 다음에 Stage-3(개방형 medix, RaR 심판)를 둔다. Stage-3 init 은 Stage-2 체크포인트다. RLVR 로 추론 습관을 다지고 심판 보상으로 다듬는 커리큘럼이다.</li><li>의료 VQA(Stage-2, 검증 가능)와 medix(Stage-3, 개방형)는 상보적이다. 단 출처가 같아(PMC-VQA/SLAKE 는 medix 출처) holdout dedup 이 필수다. 학습 데이터끼리의 중복은 평가를 오염시키지 않는다.</li><li>한 단계에서 검증 가능 보상과 심판 보상을 함께 쓰는 방식도 있다. cascade 는 그 방식보다 커리큘럼, 심판 인프라, 디버깅 면에서 단순하다. 망각은 Stage-3 에 검증 가능 데이터 20~30% 를 replay 해 완화한다.</li></ul>
 <h3 id="5-현재-상태--빌드-파이프라인">5. 현재 상태와 빌드 파이프라인</h3>
 <p>재조립을 끝냈다(2026-07-24, <code>build_stage2_mix.py</code>).</p>
 <table>
@@ -519,7 +522,7 @@ with torch.no_grad(), disable_gradient_checkpointing(...):
 <tr><td>train</td><td>DeepVision(서브샘플·오염453 제외)</td><td>40,000</td><td>53%</td></tr>
 <tr><td></td><td>MMK12(전량)</td><td>15,204</td><td>20%</td></tr>
 <tr><td></td><td>PMC-VQA(서브샘플 20K)</td><td>19,583</td><td>26%</td></tr>
-<tr><td></td><td>합계</td><td>74,787</td><td>일반53/math20/의료26</td></tr>
+<tr><td></td><td>합계</td><td>74,787</td><td>일반 53 / 수학 20 / 의료 26</td></tr>
 <tr><td>holdout</td><td>DeepVision 972 + MMK12 400 + PMC-VQA 400</td><td>1,772</td><td><code>_source</code> 태그</td></tr>
 </table>
 <ul><li>전 소스 bytehash dedup 을 검증했다. 누수는 0 이다. deepvision·mmk12·pmcvqa holdout 모두 train 과 이미지 해시 중복이 0 이다.</li><li>구 DeepVision 22% 오염을 해소했다. holdout 972건의 이미지 해시를 train 서브샘플에서 뺐다(453건). 이제 확장 holdout 전체가 클린이다.</li><li>산출: <code>work/data/stage2_expanded_{train,holdout}.jsonl</code>.</li></ul>
@@ -562,20 +565,20 @@ sbatch scripts/50_eval_v3.slurm                   # 병합(sft_mixed_merged) + �
 <pre><code>SMOKE=1 bash scripts/launch_stage2_expanded.sh    # 배선 확인(max_steps 5)
 bash scripts/launch_stage2_expanded_epoch.sh      # 2,337 step(=0.25 epoch) 체인 4잡 ≈209h
 #   단발(≤70h): MAX_STEPS=600 bash scripts/launch_stage2_expanded.sh · RECIPE=dr_grpo 선택 가능 · 체인 중단 시 4개 job 전부 scancel</code></pre>
-<ul><li>런처는 20 이 아니라 <code>21_rlvr_grpo_adv.slurm</code> 을 제출한다. <code>dynamic_sample</code>+<code>overlong_filter</code>+<code>beta 0.04</code> 는 21 에만 있었다. 산출은 <code>work/checkpoints/grpo_expanded_gdpo</code> 다. 이 경로는 step ~900 에서 붕괴했다(<a href="22_stage2b_mixed_run.html">사후 분석</a>).</li></ul>
+<ul><li>런처는 <code>20_rlvr_grpo.slurm</code> 이 아니라 <code>21_rlvr_grpo_adv.slurm</code> 을 제출한다. <code>dynamic_sample</code>+<code>overlong_filter</code>+<code>beta 0.04</code> 는 21 에만 있었다. 산출은 <code>work/checkpoints/grpo_expanded_gdpo</code> 다. 이 경로는 step ~900 에서 붕괴했다(<a href="22_stage2b_mixed_run.html">사후 분석</a>).</li></ul>
 <p>6) 평가 (확장 holdout). 병합 후 vLLM 을 띄우고 <code>stage2_expanded_holdout.jsonl</code> 을 채점한다(<code>EVAL_DATA=work/data/stage2_expanded_holdout.jsonl</code>, <code>50_eval_v3.slurm</code>·<code>eval_midtrain.slurm</code> 패턴). 결과는 <code>_source</code>·<code>_stratum</code> 별로 나눠 보고한다.</p>
 <h3 id="6-학습-연결-stage-2-gdpo">6. 학습 연결 (Stage-2 GDPO, 폐기한 혼합 실행의 설정)</h3>
-<ul><li>init 은 v3 <code>sft_mixed_merged</code>, 레시피는 GDPO(<code>--loss_type dr_grpo --scale_rewards gdpo</code>)다.</li><li>반드시 <code>21_rlvr_grpo_adv.slurm</code> 을 거친다. plateau 돌파 설정(<code>dynamic_sample</code>+<code>overlong_filter</code>+<code>beta 0.04</code>)은 이 스크립트에만 있다. <code>launch_stage2_expanded.sh</code> 가 자동으로 이 스크립트로 보낸다.</li><li>보상: <code>accuracy_mix 1.0 + format_think 0.2 + soft_overlong 0.2</code></li><li>평가: 확장 holdout 을 소스별(<code>_source</code>)로 나눠 보고한다. 의료(PMC-VQA)가 v3 대비 오르고 DeepVision 이 떨어지지 않는지 확인한다.</li></ul>
+<ul><li>init 은 v3 <code>sft_mixed_merged</code>, 레시피는 GDPO(<code>--loss_type dr_grpo --scale_rewards gdpo</code>)다.</li><li>반드시 <code>21_rlvr_grpo_adv.slurm</code> 을 거친다. 이 실행의 CORE 설정(<code>dynamic_sample</code>+<code>overlong_filter</code>+<code>beta 0.04</code>)은 이 스크립트에만 있다. <code>launch_stage2_expanded.sh</code> 가 자동으로 이 스크립트로 보낸다.</li><li>보상: <code>accuracy_mix 1.0 + format_think 0.2 + soft_overlong 0.2</code></li><li>평가: 확장 holdout 을 소스별(<code>_source</code>)로 나눠 보고한다. 의료(PMC-VQA)가 v3 대비 오르고 DeepVision 이 떨어지지 않는지 확인한다.</li></ul>
 <hr style="border:0;border-top:1px solid var(--line)">
-<p>검증된 기준선: v3 콜드스타트 holdout acc 는 0.348(math 0.324 가 약점), format_think 는 0.909 다. v2+RL(구 DeepVision)은 0.380~0.390 이다. 확장 Stage-2 의 성패는 신규 holdout(math·의료)에서 v3 보다 오르는지로 판정한다.</p>
+<p>검증된 기준선: v3 콜드스타트 holdout 정확도는 0.348(수학 0.324 가 약점), format_think 는 0.909 다. v2+RL(구 DeepVision)은 0.380~0.390 이다. 확장 Stage-2 의 성패는 신규 holdout(수학·의료)에서 v3 보다 오르는지로 판정한다.</p>
 <!-- ===== Part 2: stage2_experiments.md ===== -->
 <h2 data-part="6" id="stage-2--범용-rlvr-grpo--실험-상세">6부 · Stage-2 범용 RLVR (GRPO) — 변형 A/B 실험 상세</h2>
 <div class="note"><p style="margin:4px 0">이 부는 <a href="../README.md"><code>README.md</code></a> 에서 분리한 상세 기록이다. 요약과 현황은 README 에 있다.</p></div>
 <h3 id="stage-2--범용-rlvr-grpo">Stage-2 · 범용 RLVR (GRPO)</h3>
-<div class="note"><p style="margin:4px 0">요약: baseline GRPO 에서 Acc plateau 를 진단했다. GRPO 파생 기법 5종을 clean A/B 로 비교했다. dr_grpo 가 이겼다(plateau 돌파, holdout +73%). GDPO 는 holdout 동률이다(0.390 vs 0.380). GDPO 는 Stage-3 용으로 채택을 권고한다. GSPO 는 on-policy 동률이지만 holdout 이 낮다(0.290, 일반화 실패). GSPO 는 채택하지 않는다. step600 holdout 은 ~0.38–0.39 에서 포화한다. Stage-2 방법론을 확정했다.</p></div>
+<div class="note"><p style="margin:4px 0">요약: baseline GRPO 에서 Acc plateau 를 진단했다. GRPO 파생 기법 5종을 clean A/B 로 비교했다. dr_grpo 가 이겼다(plateau 돌파, holdout +73%). GDPO 는 holdout 동률이다(0.390 vs 0.380). GDPO 는 Stage-3 용으로 채택을 권고한다. GSPO 는 on-policy(학습 롤아웃 기준) 정확도가 0.500 으로 가장 높지만 holdout 이 낮다(0.290, 일반화 실패). GSPO 는 채택하지 않는다. step600 holdout 은 약 0.38~0.39 에서 포화한다. Stage-2 방법론을 확정했다.</p></div>
 <h4 id="0-풀확장-재설계-2026-07-2224-데이터--07-28-본실행-착수">0) 풀확장 재설계 (2026-07-22~24 데이터 · 07-28 본실행 착수)</h4>
-<p>동기: v3 콜드스타트 A/B 에서 math 가 v2 와 동률(0.3245)이었다. vl 은 올랐지만 수치 계산은 오르지 않았다. 프로젝트 목표는 의료인데 Stage-2 는 일반 전용이었다. 그래서 DeepVision 단일 셋에 math(MMK12)와 의료(PMC-VQA)를 더했다. 예산은 2026-07-27 k252a02 계정으로 옮겼다. 새 5,000 노드시간 중 2,337 step 에 ≈1,674~1,719(33~34%)를 쓰고, 나머지는 Stage-3 에 남겼다.</p>
-<ul><li>데이터: DeepVision 40,000 + MMK12 15,204 + PMC-VQA 19,583 = 74,787(일반53/math20/의료26)이다. holdout 은 1,772 다(이미지 바이트 해시 dedup, 누수 0). 스크리닝·혼합비·빌드는 <a href="#stage-2-데이터-rlvr-풀확장--정리">5부</a>(빌드 런북 §5-1)에 있다.</li><li>실행: init 은 v3 <code>sft_mixed_merged</code>, 레시피는 GDPO(<code>21_rlvr_grpo_adv</code> 경유)다. 체인 job 은 73924~73927 이다(73312~73315 는 구 체인). <code>MAX_STEPS=2,337</code> 은 0.25 epoch 이다(1 epoch = 9,348 step). 경과·holdout·붕괴(step ~900)는 <a href="22_stage2b_mixed_run.html"><code>22_stage2b_mixed_run.html</code></a> 에 있다. 하이퍼파라미터 외부 대조는 <a href="#rlvr-하이퍼파라미터--외부-관행-대조-2026-리포트-조사">2부</a>에 있다.</li><li>학습량 결정: 구 데이터셋은 step600 에서 포화했다. 확장셋은 MMK12·PMC-VQA 가 새로 들어가 포화점이 다를 수 있다. 그래서 학습량을 늘렸다. LR 이 매끄럽게 감쇠하려면 <code>MAX_STEPS</code> 를 처음부터 목표치로 지정해야 한다. 600 에서 2337 로 늘리면 LR 이 불연속이 된다.</li><li>이후 이 혼합 경로를 폐기하고 도메인 전문가 3종 + 통합으로 바꿨다(<a href="00_overview.html"><code>00_overview.html</code></a> 2-B·2-C).</li></ul>
+<p>동기: v3 콜드스타트 A/B 에서 수학이 v2 와 동률(0.3245)이었다. 시각 논리(visual-logic) 점수는 올랐다. 그러나 수치 계산은 오르지 않았다. 프로젝트 목표는 의료인데 Stage-2 는 일반 전용이었다. 그래서 DeepVision 단일 셋에 수학(MMK12)과 의료(PMC-VQA)를 더했다. 예산은 2026-07-27 k252a02 계정으로 옮겼다. 새 5,000 노드시간 중 2,337 step 에 ≈1,674~1,719(33~34%)를 배정했다. 나머지는 Stage-3 에 남겼다.</p>
+<ul><li>데이터: DeepVision 40,000 + MMK12 15,204 + PMC-VQA 19,583 = 74,787(일반 53 / 수학 20 / 의료 26)이다. holdout 은 1,772 다(이미지 바이트 해시 dedup, 누수 0). 스크리닝·혼합비·빌드는 <a href="#stage-2-데이터-rlvr-풀확장--정리">5부</a>(빌드 런북 §5-1)에 있다.</li><li>실행: init 은 v3 <code>sft_mixed_merged</code>, 레시피는 GDPO(<code>21_rlvr_grpo_adv</code> 경유)다. 체인 job 은 73924~73927 이다(73312~73315 는 구 체인). <code>MAX_STEPS=2,337</code> 은 0.25 epoch 이다(1 epoch = 9,348 step). 경과·holdout·붕괴(step ~900)는 <a href="22_stage2b_mixed_run.html"><code>22_stage2b_mixed_run.html</code></a> 에 있다. 하이퍼파라미터 외부 대조는 <a href="#rlvr-하이퍼파라미터--외부-관행-대조-2026-리포트-조사">2부</a>에 있다.</li><li>학습량 결정: 구 데이터셋은 step600 에서 포화했다. 확장셋은 MMK12·PMC-VQA 가 새로 들어가 포화점이 다를 수 있다. 그래서 학습량을 늘렸다. LR 이 매끄럽게 감쇠하려면 <code>MAX_STEPS</code> 를 처음부터 목표치로 지정해야 한다. 600 에서 2,337 로 늘리면 LR 이 불연속이 된다.</li><li>이후 이 혼합 경로를 폐기하고 도메인 전문가 3종 + 통합으로 바꿨다(<a href="00_overview.html"><code>00_overview.html</code></a> 2-B·2-C).</li></ul>
 <h4 id="1-baseline--acc-plateau-진단-job-57249-step-1000-완주">1) baseline 과 Acc plateau 진단 (job 57249, step 1000 완주)</h4>
 <p>설정은 RFT 콜드스타트 init + LoRA-DDP + max_completion 6144 다. 100-step 구간 평균은 다음과 같다.</p>
 <table>
@@ -586,9 +589,9 @@ bash scripts/launch_stage2_expanded_epoch.sh      # 2,337 step(=0.25 epoch) 체�
 </table>
 <ul><li>발산과 붕괴는 없었다. FormatThink 는 +155% 올랐다. clip 과 길이는 줄었다.</li><li>진단: Acc plateau 가 있다. Acc 는 step~500 에서 0.50 정점을 찍고 멈췄다. 원인은 <code>frac_reward_zero_std</code> 의 0.24→0.33 상승이다. 그룹 rollout 이 전부 정답이거나 전부 오답이면 정확도 gradient 가 사라진다. 후반 reward 상승은 형식과 길이가 이끌었다.</li></ul>
 <h4 id="2-기법-통합-비교--grpo-계열-5종-clean-ab">2) 기법 통합 비교 — GRPO 계열 5종 clean A/B</h4>
-<p>baseline plateau 를 넘으려고 GRPO 파생 기법 5종을 시험했다. 기법 외 조건은 모두 같다(init <code>sft_rft_coldstart_merged</code> · trainonly 데이터 · 보상 <code>accuracy_mix/format_think/soft_overlong</code> · LoRA r16/a32). 모든 실행은 한 스크립트(<code>scripts/21_rlvr_grpo_adv.slurm</code>)에서 <code>RECIPE</code>/env 토글로 돌렸다. 그래서 clean A/B 다.</p>
+<p>baseline plateau 를 넘으려고 GRPO 파생 기법 5종을 시험했다. 같은 코호트 안에서는 기법 외 조건이 같다(init <code>sft_rft_coldstart_merged</code> · 보상 <code>accuracy_mix/format_think/soft_overlong</code> · LoRA r16/a32). 모든 실행은 한 스크립트(<code>scripts/21_rlvr_grpo_adv.slurm</code>)에서 <code>RECIPE</code>/env 토글로 돌렸다. 코호트 A 는 구 데이터, 코호트 B 는 trainonly 데이터를 썼다. 그래서 코호트 안의 비교는 clean A/B 다.</p>
 <h5 id="쉬운-설명-비유">쉬운 설명 (비유)</h5>
-<div class="note"><p style="margin:4px 0">모델은 한 문제에 답안 4장(그룹)을 낸다. 채점은 정답 여부만 본다. 그룹 평균보다 잘 쓴 답은 확률을 올리고, 못 쓴 답은 확률을 내린다.<br>PPO 와 달리 별도 채점관(가치망)이 필요 없다. 그룹 평균이 기준선 역할을 한다. 이것이 GRPO 의 핵심 절약이다.</p></div>
+<div class="note"><p style="margin:4px 0">모델은 한 문제에 답안 4장(그룹)을 낸다. 채점은 답의 점수만 본다. 그룹 평균보다 잘 쓴 답은 확률을 올리고, 못 쓴 답은 확률을 내린다.<br>PPO 와 달리 별도 채점관(가치망)이 필요 없다. 그룹 평균이 기준선 역할을 한다. 이것이 GRPO 의 핵심 절약이다.</p></div>
 <p>5종 모두 이 그룹 상대 advantage 골격을 공유한다. 차이는 채점을 점수로 바꾸는 규칙에만 있다.</p>
 <h5 id="핵심-관점-5종--ms-swift-3개-독립-손잡이knob의-조합">핵심 관점: 5종 = ms-swift 3개 독립 손잡이(knob)의 조합</h5>
 <p>각 방법은 ms-swift 가 노출하는 직교 손잡이 3개의 좌표로 본다(<code>grpo_trainer.py</code> 손실 분기를 직접 확인). 손잡이마다 겨냥하는 편향이 다르다.</p>
@@ -598,18 +601,18 @@ bash scripts/launch_stage2_expanded_epoch.sh      # 2,337 step(=0.25 epoch) 체�
 <tr><td><code>importance_sampling_level</code></td><td>중요도 샘플링(IS) 단위</td><td><code>token</code>=기본 · <code>sequence</code>=GSPO(장문 IS 분산·클립 증폭 억제)</td></tr>
 <tr><td><code>scale_rewards</code></td><td>advantage 정규화</td><td><code>group</code>=÷그룹 std(난이도 편향) · <code>none</code>=안 함(dr_grpo) · <code>gdpo</code>=보상 함수별 개별 z-score(멀티리워드 균형)</td></tr>
 </table>
-<p>세 손잡이는 독립이라 자유롭게 조합한다. 승자 dr_grpo 는 <code>(dr_grpo, token, none)</code> 이다. GDPO 는 여기서 <code>scale_rewards</code> 만 <code>gdpo</code> 로 바꾼 1-knob 변형(<code>dr_grpo, token, gdpo</code>)이다. GSPO 는 IS 를 sequence 로 바꾼 별도 좌표다. 우리 설정은 <code>grpo, sequence, group</code> + 작은 clip 이다. 따라서 GSPO 는 dr_grpo 의 1-knob 변형이 아니라 독립 실험이다.</p>
+<p>세 손잡이는 독립이라 자유롭게 조합한다. 승자 dr_grpo 는 <code>(dr_grpo, token, none)</code> 이다. GDPO 는 여기서 <code>scale_rewards</code> 만 <code>gdpo</code> 로 바꾼 1-knob 변형(<code>dr_grpo, token, gdpo</code>)이다. GSPO 는 IS 를 sequence 로 바꾼 별도 좌표다. 우리 GSPO 실행은 <code>(grpo, sequence, group)</code> 에 작은 clip 을 더했다. 따라서 GSPO 는 dr_grpo 의 1-knob 변형이 아니라 독립 실험이다.</p>
 <h5 id="5종-실제-설정결과-통합표">5종 실제 설정·결과 통합표</h5>
-<p>baseline 을 뺀 모든 recipe 는 공통 CORE 를 쓴다. CORE 는 <code>dynamic_sample</code>(zero_std 그룹 폐기·재샘플, plateau 대응)과 <code>overlong_filter</code>(잘린 롤아웃 loss 제외)다.</p>
+<p>baseline 을 뺀 모든 recipe 는 공통 CORE 를 쓴다. CORE 는 <code>dynamic_sample</code>(zero_std 그룹을 버리고 다시 뽑음, plateau 대응)과 <code>overlong_filter</code>(잘린 롤아웃 loss 제외)다.</p>
 <table>
 <tr><th>방법</th><th>논문</th><th><code>loss_type</code></th><th>IS</th><th><code>scale_rewards</code></th><th>클립 ε/ε_high</th><th>CORE</th><th>우리 결과·판정</th></tr>
 <tr><td>GRPO (baseline)</td><td><a href="https://arxiv.org/abs/2402.03300">2402.03300</a></td><td>grpo</td><td>token</td><td>group</td><td>0.2</td><td>없음</td><td>plateau (zero_std 0.24→0.33). Acc 0.500 정점 후 정체</td></tr>
 <tr><td>DAPO</td><td><a href="https://arxiv.org/abs/2503.14476">2503.14476</a></td><td>dapo</td><td>token</td><td>group</td><td>0.2/0.28</td><td>있음</td><td>안정(zero_std 0)하지만 미돌파(Acc 0.465&lt;0.500). 길이 재폭주(~3600)</td></tr>
-<tr><td>dr_grpo</td><td><a href="https://arxiv.org/abs/2503.20783">2503.20783</a></td><td>dr_grpo</td><td>token</td><td>none</td><td>0.2</td><td>있음</td><td>돌파, 승자(Acc 0.526·길이 억제 3259). holdout +73% 검증</td></tr>
-<tr><td>GSPO</td><td><a href="https://arxiv.org/abs/2507.18071">2507.18071</a></td><td>grpo</td><td>sequence</td><td>group</td><td>3e-4/4e-4</td><td>있음</td><td>미채택. on-policy 동률(0.500)이지만 holdout 0.290 으로 열위(dr 0.38·GDPO 0.39 대비). 일반화 실패</td></tr>
+<tr><td>dr_grpo</td><td><a href="https://arxiv.org/abs/2503.20783">2503.20783</a></td><td>dr_grpo</td><td>token</td><td>none</td><td>0.2</td><td>있음</td><td>돌파, 승자(코호트 A, Acc 0.526·길이 억제 3259). holdout +73% 검증</td></tr>
+<tr><td>GSPO</td><td><a href="https://arxiv.org/abs/2507.18071">2507.18071</a></td><td>grpo</td><td>sequence</td><td>group</td><td>3e-4/4e-4</td><td>있음</td><td>미채택. 코호트 B on-policy 0.500(dr_grpo 0.487)이지만 holdout 0.290 으로 열위(dr 0.38·GDPO 0.39 대비). 일반화 실패</td></tr>
 <tr><td>GDPO</td><td><a href="https://arxiv.org/abs/2601.05242">2601.05242</a></td><td>dr_grpo</td><td>token</td><td>gdpo</td><td>0.2</td><td>있음</td><td>동률(step600 holdout 0.390 vs dr 0.380, Δ+0.01 노이즈 내). Stage-2 에서는 차이 없음. Stage-3 용 채택 권고</td></tr>
 </table>
-<p>판정: plateau 의 원인은 <code>frac_reward_zero_std</code> 급등이다. 그룹이 전부 정답이거나 전부 오답이면 gradient 가 사라진다. dr_grpo 는 길이 편향과 난이도 편향을 함께 없앴다. 그래서 step 501~600 에서 Acc 0.50 을 넘은 유일한 기법이다. GSPO 와 GDPO 는 dr_grpo 와 직교하는 개선을 clean A/B 로 검증했다. 둘 다 dr_grpo 와 동률이다. GSPO 는 채택하지 않는다. GDPO 는 멀티리워드 균형이 필요한 Stage-3 용으로 권고한다(<a href="#stage-2-3종-홀드아웃-판정-step600-n200">아래 판정</a>).</p>
+<p>판정: plateau 의 원인은 <code>frac_reward_zero_std</code> 급등이다. 그룹이 전부 정답이거나 전부 오답이면 gradient 가 사라진다. dr_grpo 는 길이 편향과 난이도 편향을 함께 없앴다. 그래서 코호트 A 에서 step 501~600 Acc 0.50 을 넘은 유일한 기법이다. 코호트 B 는 GSPO 와 GDPO 를 dr_grpo 와 clean A/B 로 비교했다. GDPO 는 dr_grpo 와 동률이다. GSPO 는 on-policy 만 앞서고 holdout 은 열위다. GSPO 는 채택하지 않는다. GDPO 는 멀티리워드 균형이 필요한 Stage-3 용으로 권고한다(<a href="#stage-2-3종-홀드아웃-판정-step600-n200">아래 판정</a>).</p>
 <p>기법마다 학습 데이터가 다르다(구 데이터 vs trainonly). 그래서 비교 가능한 코호트 2개로 나눠 그렸다. 각 그림은 6패널(Acc·reward·FormatThink·mean_len·zero_std·clip)이고 50-step 구간 평균이다. 노란 띠는 판정창 501~600 이다.</p>
 <p>코호트 A: plateau 돌파 A/B (구 데이터). baseline vs DAPO vs dr_grpo<br><img src="assets/grpo_stage2_A_plateau.png" alt="Stage-2 A: baseline/DAPO/dr_grpo" style="max-width:100%"><br><i>dr_grpo(초록)만 노란 띠에서 Acc 0.50 을 넘고 mean_length 를 억제한다. baseline(파랑)은 zero_std 가 올라 plateau 에 머문다. DAPO(주황)는 길이와 clip 이 다시 는다. FormatThink 는 baseline 이 가장 높다. 이것은 Acc 정체를 형식이 대신 끌어올린 결과다.</i></p>
 <p>코호트 B: 최신 기법 A/B (trainonly, 같은 init·데이터). dr_grpo(none) vs GSPO vs GDPO<br><img src="assets/grpo_stage2_B_latest.png" alt="Stage-2 B: dr_grpo/GSPO/GDPO" style="max-width:100%"><br><i>세 기법 모두 step600 을 완주했다. Acc·reward 는 세 기법이 거의 겹친다(동률). FormatThink 는 GDPO(보라)가 중반에 앞섰지만 판정창(노란 띠)에서 dr_grpo 와 수렴했다. clip 은 GSPO(빨강)만 크게 높다(~0.18). 작은 ε 설계 때문이다.</i></p>
@@ -624,8 +627,8 @@ singularity exec $SB python scripts/plot_grpo_multi.py docs/assets/grpo_stage2_B
 <p><code>plot_grpo_multi.py</code> 는 <code>label:color:style:logpath</code> 스펙을 N개 받는다. 기법 수와 무관하게 동작한다.</p>
 </details>
 <div class="note"><p style="margin:4px 0">원칙: "최신"이라는 이유로 채택하지 않는다. 5종 모두 dr_grpo 와 같은 clean A/B(같은 init·trainonly, 판정창 501~600 구간 평균, 필요하면 층화 holdout 벤치마크)로 판정한다. 동률이면 이미 검증된 승자를 유지한다.</p></div>
-<details><summary>① GRPO / DAPO / dr.GRPO 요약과 DAPO 기법 4종</summary>
-<ul><li>GRPO(DeepSeekMath, 2024)는 기본형이다. 그룹 평균을 빼고 그룹 std 로 나눠 점수를 만든다. 약점은 두 가지다. std=0 그룹에서는 배우지 못한다(Acc 정체). 긴 답과 쉬운 문제를 과대평가한다.</li><li>DAPO(ByteDance, 2025)는 GRPO 에 탐색·효율 보강 4종을 더했다. 안정성은 올랐지만 답이 길어져 정확도가 baseline 에 못 미쳤다.</li><li>dr.GRPO(2025, "R1-Zero 비판적 분석")는 GRPO 의 편향을 고친다. 손실을 상수로 정규화하고 std 나눗셈을 지운다. DAPO 의 "답 길어짐"을 직접 겨냥한다. 우리 승자다.</li></ul>
+<details><summary>① GRPO / DAPO / Dr.GRPO 요약과 DAPO 기법 4종</summary>
+<ul><li>GRPO(DeepSeekMath, 2024)는 기본형이다. 그룹 평균을 빼고 그룹 std 로 나눠 점수를 만든다. 약점은 두 가지다. std=0 그룹에서는 배우지 못한다(Acc 정체). 긴 답과 쉬운 문제를 과대평가한다.</li><li>DAPO(ByteDance, 2025)는 GRPO 에 탐색·효율 보강 4종을 더했다. 안정성은 올랐지만 답이 길어져 정확도가 baseline 에 못 미쳤다.</li><li>Dr.GRPO(2025, "R1-Zero 비판적 분석")는 GRPO 의 편향을 고친다. 손실을 상수로 정규화하고 std 나눗셈을 지운다. DAPO 의 "답 길어짐"을 직접 겨냥한다. 우리 승자다.</li></ul>
 <table>
 <tr><th>DAPO 기법</th><th>ms-swift 인자</th><th>효과</th><th>plateau 관련성</th></tr>
 <tr><td>Dynamic Sampling</td><td><code>--dynamic_sample true --max_resample_times 3</code></td><td>reward_std=0 그룹 폐기·재샘플로 유효 gradient 증가</td><td>plateau 원인을 직접 해결</td></tr>
@@ -633,15 +636,15 @@ singularity exec $SB python scripts/plot_grpo_multi.py docs/assets/grpo_stage2_B
 <tr><td>Token-level Loss</td><td><code>--loss_type dapo</code></td><td>토큰 단위 정규화로 길이 정규화 편향 제거</td><td>형식·길이 주도 reward 보정</td></tr>
 <tr><td>Overlong handling</td><td><code>--overlong_filter true</code> (+<code>soft_overlong</code>)</td><td>잘린 롤아웃 loss 제외</td><td>잘림=0점 신호 오염 제거</td></tr>
 </table>
-<ul><li>비용: DAPO 본실행(57527) 실측은 ~369s/it 다. baseline 202 의 ~1.8배다. dynamic_sample 재샘플 비용이다.</li><li>원 논문 성과: GRPO 수학 추론 SOTA(7B) · DAPO AIME24 50(32B) · dr.GRPO AIME24 43.3%(7B, 토큰 효율 향상).</li></ul>
+<ul><li>비용: DAPO 본실행(57527) 실측은 ~369s/it 다. baseline 202 s/it 의 ~1.8배다. dynamic_sample 재샘플 비용이다.</li><li>원 논문 성과: GRPO 수학 추론 SOTA(7B) · DAPO AIME24 50(32B) · Dr.GRPO AIME24 43.3%(7B, 토큰 효율 향상).</li></ul>
 </details>
 <details><summary>② GSPO (시퀀스 IS) 배경과 A/B 결론</summary>
 <p>GSPO(Group Sequence Policy Optimization, Alibaba/Qwen, 2025-07)는 토큰 단위 IS 를 시퀀스(답안) 단위로 바꾼다.</p>
-<ul><li>이유: 토큰 IS 는 응답이 길수록 분산 노이즈가 쌓이고 클립 효과가 커진다. 그러면 붕괴가 생긴다(특히 MoE·장문·LoRA). 시퀀스 우도 비율(길이 정규화)이 이것을 억제한다. 대표 성과는 MoE RL 안정화다.</li><li>A/B 결론(2026-07-04): 판정창 501~600 에서 dr_grpo(n=100)와 GSPO(n=99)를 비교했다. 두 기법은 사실상 동률이다(Acc 0.500 vs 0.487, reward 0.519 vs 0.506, 차이 ±0.013 노이즈). GSPO 클립이 훨씬 크다(0.185 vs ~0.001). 작은 ε 설계 때문이다.</li><li>결정: dr_grpo 를 유지한다(GSPO 미채택). 성능은 동률이다. dr_grpo 는 holdout +73% 가 검증됐고, GSPO 는 on-policy 동률뿐이다. 시퀀스 IS 가 필요한 MoE·초장문 상황도 아니다. 런처는 <code>scripts/launch_gspo_ab.sh</code>(<code>job 59004</code>)다.</li></ul>
+<ul><li>이유: 토큰 IS 는 응답이 길수록 분산 노이즈가 쌓이고 클립 효과가 커진다. 그러면 붕괴가 생긴다(특히 MoE·장문·LoRA). 시퀀스 우도 비율(길이 정규화)이 이것을 억제한다. 대표 성과는 MoE RL 안정화다.</li><li>A/B 결론(2026-07-04 중간 집계): 판정창 501~600 에서 dr_grpo(n=100)와 GSPO(n=99)를 비교했다. 두 기법은 사실상 동률이다(중간 집계 Acc 0.500 vs 0.487, 최종 집계는 판정표의 0.487 vs 0.500, reward 0.519 vs 0.506, 차이 ±0.013 노이즈). GSPO 클립이 훨씬 크다(0.185 vs ~0.001). 작은 ε 설계 때문이다.</li><li>결정: dr_grpo 를 유지한다(GSPO 미채택). 성능은 동률이다. dr_grpo 는 holdout +73% 가 검증됐고, GSPO 는 on-policy 동률뿐이다. 시퀀스 IS 가 필요한 MoE·초장문 상황도 아니다. 런처는 <code>scripts/launch_gspo_ab.sh</code>(<code>job 59004</code>)다.</li></ul>
 </details>
 <details><summary>③ GDPO (멀티리워드 정규화) 배경과 중간 추세</summary>
-<p>GDPO(Group reward-Decoupled Normalization, NVIDIA, 2026-01)는 멀티리워드 정규화 문제를 푼다. 여러 보상을 가중합한 뒤 한 번에 정규화하면 서로 다른 조합이 같은 advantage 로 뭉개진다(collapse). GDPO 는 보상 함수별로 정규화(z-score)한 뒤 결합한다. AIME 에서 GRPO 대비 +2.3~6.3% 를 보고했다.</p>
-<ul><li>적용 이유: 우리는 다중 보상(Stage-2 3종, Stage-3 clinical_judge/format)을 쓰고 스케일이 제각각이다. GDPO 의 대상과 정확히 맞는다. 가장 유망한 적용처는 스케일 차이가 큰 Stage-3(judge 1.0 + format 0.2)다.</li><li>dr_grpo 와의 관계: <code>scale_rewards</code> 만 <code>none→gdpo</code> 로 바꾼 1변수 A/B 다. 나머지 dr_grpo 처리는 그대로다. dr_grpo 가 없앤 ÷std 가 보상 함수별로 되살아난다. 목적은 난이도 편향 회피가 아니라 멀티리워드 균형이다. swift 제약으로 <code>kl_in_reward=True</code> 와 함께 쓸 수 없다. 우리는 KL 을 loss 에 넣으므로 무관하다.</li><li>최종 판정: step600 을 완주했다. on-policy 판정창(501~600) Acc 는 0.487 vs 0.490 으로 동률이다. 층화 holdout(N=200)은 0.380 vs 0.390 으로 동률이다(GDPO 미세 우위, 노이즈 내). 상세는 <a href="#stage-2-3종-홀드아웃-판정-step600-n200">판정표</a>에 있다. Stage-3 용 채택을 권고한다.</li><li>학습 중 추세(<code>job 59191</code>, dr_grpo 와 같은 구간, dr/gd 순):</li></ul>
+<p>GDPO(Group reward-Decoupled Normalization, NVIDIA, 2026-01)는 멀티리워드 정규화 문제를 푼다. 여러 보상을 가중합한 뒤 한 번에 정규화하면 서로 다른 조합이 같은 advantage 로 뭉개진다. GDPO 는 보상 함수별로 정규화(z-score)한 뒤 결합한다. AIME 에서 GRPO 대비 +2.3~6.3% 를 보고했다.</p>
+<ul><li>적용 이유: 우리는 다중 보상(Stage-2 3종, Stage-3 clinical_judge/format)을 쓰고 스케일이 제각각이다. 이것은 GDPO 가 다루는 경우다. 가장 유망한 적용처는 스케일 차이가 큰 Stage-3(심판 1.0 + 형식 0.2)다.</li><li>dr_grpo 와의 관계: <code>scale_rewards</code> 만 <code>none→gdpo</code> 로 바꾼 1변수 A/B 다. 나머지 dr_grpo 처리는 그대로다. dr_grpo 가 없앤 ÷std 가 보상 함수별로 되살아난다. 목적은 난이도 편향 회피가 아니라 멀티리워드 균형이다. swift 제약으로 <code>kl_in_reward=True</code> 와 함께 쓸 수 없다. 우리는 KL 을 loss 에 넣으므로 무관하다.</li><li>최종 판정: step600 을 완주했다. on-policy 판정창(501~600) Acc 는 dr_grpo 0.487, GDPO 0.490 으로 동률이다. 층화 holdout(N=200)은 0.380 vs 0.390 으로 동률이다(GDPO 미세 우위, 노이즈 내). 상세는 <a href="#stage-2-3종-홀드아웃-판정-step600-n200">판정표</a>에 있다. Stage-3 용 채택을 권고한다.</li><li>학습 중 추세(<code>job 59191</code>, dr_grpo 와 같은 구간, dr/gd 순):</li></ul>
 <table>
 <tr><th>구간</th><th>reward</th><th>AccMix</th><th>FormatThink</th></tr>
 <tr><td>151–200</td><td>0.530/0.528</td><td>0.514/0.506</td><td>0.428/0.452</td></tr>
@@ -651,17 +654,17 @@ singularity exec $SB python scripts/plot_grpo_multi.py docs/assets/grpo_stage2_B
 <tr><td>351–400</td><td>0.507/0.491</td><td>0.482/0.465</td><td>0.495/0.498</td></tr>
 <tr><td>401–450</td><td>0.530/0.535</td><td>0.501/0.497</td><td>0.520/0.484</td></tr>
 </table>
-<ul><li>AccMix 와 총 reward 는 전 구간에서 dr_grpo 와 같은 수준이다(Δ ±0.01~0.02). 정답률 손해는 없다. <code>zero_std=0</code> 을 유지했다.</li><li>FormatThink 는 150~350 스텝에서 GDPO 가 앞섰다(+0.04~0.06). 400대에서는 dr_grpo 와 가까워지고 순위가 엎치락뒤치락했다. 초반만큼 격차가 확실하지 않다.</li><li>이 지표는 on-policy 라서 최종 판정은 step 501~600 과 층화 holdout 벤치마크로 했다.</li></ul>
+<ul><li>AccMix 와 총 reward 는 전 구간에서 dr_grpo 와 같은 수준이다(Δ ±0.01~0.02). 정답률 손해는 없다. <code>zero_std=0</code> 을 유지했다.</li><li>FormatThink 는 150~350 스텝에서 GDPO 가 앞섰다(+0.04~0.06). 351~450 에서는 순위가 바뀌었다(401-450 은 dr_grpo 가 0.036 앞섰다). 초반만큼 격차가 확실하지 않다.</li><li>이 지표는 on-policy 라서 최종 판정은 step 501~600 과 층화 holdout 벤치마크로 했다.</li></ul>
 </details>
 <h4 id="3-base-vs-학습모델-벤치마크-층화-홀드아웃-정식">3) base vs 학습 모델 벤치마크 (층화 holdout, 정식)</h4>
-<p>중간 벤치마크(2026-07-03, RL 25%=step 800): 층화 holdout N=100 을 math/vl 층별로 채점했다(<code>eval_midtrain.slurm</code>). 조기 판단용으로 base, init(RL 0%), trained(중간) 3개를 같은 조건으로 채점했다.</p>
+<p>중간 벤치마크(2026-07-03, RL 25%=step 800): 층화 holdout N=100 을 수학·시각 논리 층별로 채점했다(<code>eval_midtrain.slurm</code>). 조기 판단용으로 base, init(RL 0%), trained(중간) 3개를 같은 조건으로 채점했다.</p>
 <table>
 <tr><th>모델</th><th>전체 Acc</th><th>math</th><th>visual-logic</th><th>형식(<code>&lt;answer&gt;</code>)</th><th>평균길이</th></tr>
 <tr><td>base (Qwen3.5-9B)</td><td>0.15</td><td>0.192</td><td>0.113</td><td>0.12</td><td>5907자</td></tr>
 <tr><td>init (SFT 콜드스타트, RL 0%)</td><td>0.22</td><td>0.234</td><td>0.208</td><td>0.32</td><td>5188자</td></tr>
 <tr><td>trained (dr_grpo step 800, RL 25%)</td><td>0.38</td><td>0.340</td><td>0.415</td><td>0.45</td><td>4752자</td></tr>
 </table>
-<ul><li>init → trained 는 0.22 → 0.38 이다(+0.16, 상대 +73%). 25% 만 학습했는데도 Stage-2 RL 이 holdout 정확도를 올렸다. 당시에는 이것을 전량 학습의 근거로 봤다. 이후 step600 재측정에서 포화를 확인했다(아래 참조).</li><li>base → trained 는 +153% 다(전체 파이프라인 SFT+RL). visual-logic 개선이 가장 크다(0.21→0.42, +100%). 형식은 0.12→0.45, 길이는 5907→4752자로 간결해졌다.</li><li>"학습 롤아웃 Acc ~0.50 정체"는 오해였다. on-policy(탐색 포함) 지표라 평탄했을 뿐이다. holdout 에서는 뚜렷이 올랐다.</li><li>step600 재측정으로 확정했다(아래 GDPO 판정표). dr_grpo 와 GDPO 모두 0.38–0.39 로 step800(0.38)과 같다. 따라서 holdout 은 step600 쯤 포화한다. 전량 학습해도 추가 이득이 크지 않다. 이것이 Stage-2 조기 확정의 근거다.</li></ul>
+<ul><li>init → trained 는 0.22 → 0.38 이다(+0.16, 상대 +73%). 25% 만 학습했는데도 Stage-2 RL 이 holdout 정확도를 올렸다. 당시에는 이것을 전량 학습의 근거로 봤다. 이후 step600 재측정에서 포화를 확인했다(아래 참조).</li><li>base → trained 는 +153% 다(전체 파이프라인 SFT+RL). init 대비 visual-logic 이 가장 많이 올랐다(0.21→0.42, +100%). 형식은 0.12→0.45, 길이는 5907→4752자로 간결해졌다.</li><li>on-policy(탐색 포함) Acc 는 0.50 근처에서 평탄했다. 그러나 holdout 정확도는 뚜렷이 올랐다. 그래서 on-policy 정체만으로 학습 효과를 판단하지 않는다.</li><li>step600 재측정으로 확정했다(아래 GDPO 판정표). dr_grpo 와 GDPO 모두 0.38~0.39 로 step800(0.38)과 같다. 따라서 holdout 은 step600 쯤 포화한다. 전량 학습해도 추가 이득이 크지 않다. 이것이 Stage-2 조기 확정의 근거다.</li></ul>
 <h5 id="stage-2-3종-홀드아웃-판정-step600-n200">Stage-2 3종 holdout 판정 (step600, N=200)</h5>
 <p>trainonly·콜드스타트 init·step600 의 같은 조건으로 학습한 3종(dr_grpo/GDPO/GSPO)의 체크포인트를 병합했다. 같은 층화 holdout(N=200)에서 대조했다(<code>46_eval_gdpo_ab.slurm</code>·<code>48_eval_gspo_holdout.slurm</code>).</p>
 <table>
@@ -670,7 +673,7 @@ singularity exec $SB python scripts/plot_grpo_multi.py docs/assets/grpo_stage2_B
 <tr><td>dr_grpo(none)</td><td>0.380</td><td>0.358</td><td>0.400</td><td>0.425</td><td>0.487</td></tr>
 <tr><td>GSPO(seq IS)</td><td>0.290 (열위)</td><td>0.305</td><td>0.276</td><td>0.355</td><td>0.500</td></tr>
 </table>
-<ul><li>dr_grpo 와 GDPO 는 동률이다. Δ+0.01, math +0.02, format +0.02 가 모두 N=200 노이즈(±0.034) 안이다. on-policy(0.487 vs 0.490)와도 일치한다. Stage-2 에서는 차이가 없다. GDPO 는 스케일 차이가 큰 멀티리워드가 대상이라 Stage-3(judge 1.0+format 0.2)에 채택을 권고한다.</li><li>GSPO 는 holdout 이 0.290 으로 열위다. on-policy 에서는 최고(0.500)였지만 holdout 은 3종 중 최하위다. train-test 격차는 −0.21 로 dr_grpo(−0.11)의 2배다. 이것은 일반화 실패다. 시퀀스 IS(작은 ε)는 on-policy 분포에는 맞았지만 holdout 일반화는 나빴다. 그래서 GSPO 미채택 근거는 단순 동률이 아니라 holdout 의 명확한 열위다. on-policy 만 봤다면 오판했을 사례다.</li><li>부수 발견: dr_grpo 와 GDPO 모두 step600 에서 ~0.38–0.39 로 step800(0.38)과 같다. Stage-2 holdout 은 step600 쯤 포화한다.</li></ul>
+<ul><li>dr_grpo 와 GDPO 는 동률이다. Δ+0.01, 수학 +0.02, 형식 +0.02 가 모두 N=200 노이즈(±0.034) 안이다. on-policy(0.487 vs 0.490)와도 일치한다. Stage-2 에서는 차이가 없다. GDPO 는 스케일 차이가 큰 멀티리워드가 대상이라 Stage-3(심판 1.0 + 형식 0.2)에 채택을 권고한다.</li><li>GSPO 는 holdout 이 0.290 으로 열위다. on-policy 에서는 최고(0.500)였지만 holdout 은 3종 중 최하위다. train-test 격차는 −0.21 로 dr_grpo(−0.11)의 2배다. 이것은 일반화 실패다. 시퀀스 IS(작은 ε)는 on-policy 분포에는 맞았지만 holdout 일반화는 나빴다. 그래서 GSPO 미채택 근거는 단순 동률이 아니라 holdout 의 명확한 열위다. on-policy 만 봤다면 오판했을 사례다.</li><li>부수 발견: dr_grpo 와 GDPO 모두 step600 에서 약 0.38~0.39 로 step800(0.38)과 같다. Stage-2 holdout 은 step600 쯤 포화한다.</li></ul>
 <details><summary>DAPO·baseline holdout (오염, 참고용): 누수가 수치로 드러난 사례</summary>
 <p>DAPO(57527)와 baseline(57249)은 holdout 분리 전의 구 데이터(deepvision103k_train, holdout 972건 포함)로 학습했다. 그래서 holdout 채점은 학습셋으로 시험한 것이다(누수). 완결성을 위해 측정했다(<code>49_eval_contaminated.slurm</code>).</p>
 <table>
@@ -678,16 +681,16 @@ singularity exec $SB python scripts/plot_grpo_multi.py docs/assets/grpo_stage2_B
 <tr><td>DAPO (step600)</td><td>0.415 (오염)</td><td>0.465 (미돌파)</td><td>구(오염)</td></tr>
 <tr><td>baseline (step1000)</td><td>0.415 (오염)</td><td>0.500 (plateau)</td><td>구(오염)</td></tr>
 </table>
-<ul><li>이 역설이 누수의 증거다. DAPO 와 baseline 은 on-policy 에서 진 메소드다(plateau·미돌파). 그런데 holdout 은 clean 승자 dr_grpo(0.380)보다 높다(0.415). 더 약한 모델이 더 높은 것은 holdout 972건을 학습에서 암기했기 때문이다(≈+0.03~0.04 부풀림).</li><li>따라서 0.415 는 clean 3종과 같은 축에서 비교할 수 없다. 이 대비는 층화 holdout 분리가 옳았다는 증거다.</li></ul>
+<ul><li>이 역설은 누수를 가리킨다. DAPO 와 baseline 은 on-policy 에서 진 메소드다(plateau·미돌파). 그런데 holdout 은 clean 승자 dr_grpo(0.380)보다 높다(0.415). 오염 학습이 이 차이(+0.035)를 만들었을 가능성이 높다. 다만 이 차이는 N=200 노이즈 폭(±0.034)과 비슷하다.</li><li>따라서 0.415 는 clean 3종과 같은 축에서 비교할 수 없다. 이 대비는 층화 holdout 분리가 필요한 이유를 보여 준다.</li></ul>
 </details>
-<details><summary>이전 파일럿 수치 (무효, 참고용): DeepVision stride 100건, 오염·21% 학습</summary>
+<details><summary>이전 파일럿 수치 (무효, 참고용): DeepVision stride 100건, 오염, 학습 21% 시점</summary>
 <table>
 <tr><th>지표</th><th>base</th><th>구 dr_grpo_merged</th><th>변화</th></tr>
-<tr><td>정확도</td><td>0.21</td><td>0.35</td><td>+0.14 (누수·21%)</td></tr>
+<tr><td>정확도</td><td>0.21</td><td>0.35</td><td>+0.14 (누수, 학습 21% 시점)</td></tr>
 <tr><td>형식</td><td>0.23</td><td>0.46</td><td>—</td></tr>
 <tr><td>평균 길이</td><td>5618</td><td>4414</td><td>—</td></tr>
 </table>
-<p><i>평가셋이 학습 파일의 stride 슬라이스라 진짜 holdout 이 아니었다(누수). 위 층화 holdout 수치로 대체한다.</i></p>
+<p><i>평가 문항이 학습 파일의 stride 슬라이스라 진짜 holdout 이 아니었다(누수). 위 층화 holdout 수치로 대체한다.</i></p>
 </details>
 <hr style="border:0;border-top:1px solid var(--line)">
 </main>

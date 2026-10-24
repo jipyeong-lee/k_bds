@@ -48,52 +48,52 @@ details summary{cursor:pointer;color:var(--mute)}
 <div class="key">
 <b>요약</b>
 <ol>
-<li>KISTI K-BDS 계획서 노드는 <code>8gpu</code> 파티션(A100 80GB PCIe × 8, NVLink 없음)이다. 예산은 Track III 한도 5,000 노드시간이다.</li>
-<li>2026-07-21 기준 사용량은 4,164.4 노드시간(83.3%)이다. 2026-07-22 에 k252a02 계정으로 5,000 노드시간을 새로 확보했다. 이관은 07-27 에 끝났다.</li>
-<li>최종 사용량은 두 계정 합계 5,070.1 노드시간(4,173:19:38 + 896:46:17)이다. 결과보고서에는 이 합계를 할당 5,000 대비 101.4% 로 적었다.</li>
-<li>구 Stage-2 holdout(972) 수치는 이미지 중복 때문에 22% 상향 편향이다. 상대 비교와 순위는 유효하다.</li>
+<li>연구계획서에 적은 KISTI K-BDS 노드는 <code>8gpu</code> 파티션(A100 80GB PCIe × 8, NVLink 없음)이다. 예산은 Track III 한도 5,000 노드시간이다.</li>
+<li>2026-07-21 기준 사용량은 4,164.4 노드시간(83.3%)이다. 2026-07-22 에 k252a02 계정으로 5,000 노드시간을 새로 확보했다. k252a02 계정으로 저장소 이관을 2026-07-27 에 마쳤다.</li>
+<li>최종 사용량은 두 계정 합계 5,070.1 노드시간(4,173:19:38 + 896:46:17)이다. 결과보고서는 이 5,070.1 노드시간을 계획서 한도 5,000 대비 101.4% 로 적었다. 두 계정은 각각 5,000 노드시간을 받았다(할당 합계 10,000).</li>
+<li>구 Stage-2 holdout(972)은 22% 가 학습 문항과 중복이다. 그래서 DeepVision 을 학습한 모델의 수치는 상향 편향이다. 같은 데이터로 학습한 모델끼리의 순위는 유효하다.</li>
 <li>환경은 공식 ms-swift 4.1.3 Singularity 컨테이너(sandbox)다. 2026-07-27 부터 apptainer 가 고장 나서 <code>ENV_MODE=loader</code> 로 실행한다.</li>
 <li>PCIe 환경의 all-reduce 병목 때문에 전 단계를 LoRA 로 학습한다.</li>
 <li>기법 계보는 GRPO, DAPO/Dr.GRPO, GSPO/GDPO, RaR 순이다.</li>
 </ol>
 </div>
 <nav>
-<b>목차</b> · <b>Part 1</b>:
+<b>목차</b> · <b>1부</b>:
 <a href="#자원--운영-정책-가이드">자원·운영 정책</a> · <a href="#-예산-실적-2026-07-21-기준-sacct-실측">예산 실적</a> · <a href="#kgpu-운영-함정-2026-10-23">kgpu 운영 함정</a> · <a href="#데이터-소스-확정--변환-검증">데이터</a> · <a href="#홀드아웃-분리-stage-2-평가-누수-차단">holdout 분리</a> · <a href="#-미해결-홀드아웃-22-중복-2026-07-16-발견-기록만--재측정-보류">holdout 22% 중복</a><br>
-<b>Part 2</b>:
-<a href="#환경-singularity-컨테이너-확정검증-완료">컨테이너</a> · <a href="#베이스-모델--ms-swift-4x-주의">베이스 모델·ms-swift 4.x</a> · <a href="#학습-방식-lora-하드웨어-제약-대응">LoRA</a> · <a href="#보상-설계-stage-2">보상 설계</a> · <a href="#논문-레퍼런스-전-링크-arxiv-원문-검증-완료">논문 레퍼런스</a> · <a href="#각-논문-무슨-문제를--어떤-방법으로-원문-요약">논문 계보</a>
+<b>2부</b>:
+<a href="#환경-singularity-컨테이너-확정검증-완료">컨테이너</a> · <a href="#베이스-모델--ms-swift-4x-주의">기본 모델·ms-swift 4.x</a> · <a href="#학습-방식-lora-하드웨어-제약-대응">LoRA</a> · <a href="#보상-설계-stage-2">보상 설계</a> · <a href="#논문-레퍼런스-전-링크-arxiv-원문-검증-완료">논문 레퍼런스</a> · <a href="#각-논문-무슨-문제를--어떤-방법으로-원문-요약">논문 계보</a>
 </nav>
 
 <!-- ============================================================ -->
-<h2 id="운영--데이터--홀드아웃">Part 1. 운영 · 데이터 · holdout</h2>
+<h2 id="운영--데이터--홀드아웃">1부. 운영 · 데이터 · holdout</h2>
 <section id="운영--데이터">
 
 <h3 id="자원--운영-정책-가이드">자원·운영 정책</h3>
 <table>
 <tr><th>항목</th><th>정책·실측</th></tr>
-<tr><td>계획서 노드</td><td>A100 80GB × 8 노드인 <code>8gpu</code> 파티션이다. <code>bdata_user</code> 로 바로 쓴다. diba 는 필요 없다. 80GB 는 실측으로 확인했다(파일럿 59.6GiB).</td></tr>
+<tr><td>계획서 노드</td><td>A100 80GB × 8 노드인 <code>8gpu</code> 파티션이다. <code>bdata_user</code> 로 바로 쓴다. diba 는 필요 없다. 파일럿이 GPU 메모리 59.6GiB 를 썼으므로 40GB 카드가 아니다. <code>nvidia-smi</code> 는 81,920 MiB 를 보고한다.</td></tr>
 <tr><td>파티션별 GPU 메모리</td><td><code>4gpu</code>·<code>8gpu</code> = 80GB, <code>1gpu</code>·<code>2gpu</code> = 40GB</td></tr>
-<tr><td>실행 시간 상한</td><td>5일(120h)이다. 70h 단일 잡을 제출할 수 있다. 재시작에는 <code>--resume_from_checkpoint</code> 를 권장한다.</td></tr>
-<tr><td>노드 점유</td><td>배타적이다. 한 노드에서 한 작업만 실행한다.</td></tr>
-<tr><td>동시 제출</td><td>8gpu 는 최대 6개(노드 3×2)다.</td></tr>
-<tr><td>노드시간 계산</td><td>8gpu 잡은 1시간에 8 노드시간을 쓴다. 잔량은 <code>cat /scratch/account/kbds0754</code> 로 확인한다.</td></tr>
+<tr><td>실행 시간 상한</td><td>5일(120h)이다. 70h 단일 job 을 제출할 수 있다. 재시작에는 <code>--resume_from_checkpoint</code> 를 권장한다.</td></tr>
+<tr><td>노드 점유</td><td>배타적이다. 한 노드에서 한 job 만 실행한다.</td></tr>
+<tr><td>동시 제출</td><td>8gpu 는 최대 6개다.</td></tr>
+<tr><td>노드시간 계산</td><td>1 노드시간은 GPU 1장 × 1시간이다. 8gpu 노드 1시간은 8 노드시간이다. 잔량은 <code>cat /scratch/account/kbds0754</code> 로 확인한다.</td></tr>
 <tr><td>필수 지시어</td><td><code>#SBATCH --comment=pytorch</code></td></tr>
-<tr><td>체인 잡 취소</td><td><code>afterany</code> 의존 체인에서 실행 중인 잡을 먼저 취소하면 다음 잡이 즉시 시작한다. 대기 중인 뒤 잡부터 취소하고 확인한 뒤 실행 중인 잡을 취소한다.</td></tr>
+<tr><td>체인 job 취소</td><td><code>afterany</code> 의존 체인에서 실행 중인 job 을 먼저 취소하면 다음 job 이 즉시 시작한다. 대기 중인 뒤 job 부터 취소하고 확인한 뒤 실행 중인 job 을 취소한다.</td></tr>
 </table>
 
 <h3 id="-예산-실적-2026-07-21-기준-sacct-실측">예산 실적 (2026-07-21 기준, <code>sacct</code> 실측)</h3>
 <p>2026-07-21 기준 사용량은 4,164.4 / 5,000 노드시간(83.3%)이다. 잔여는 약 836 노드시간이었다. 계산은 계획서 방식(8gpu = ×8)을 따른다. 최종 사용량은 요약 3번에 있다.</p>
 <table>
 <tr><th>항목</th><th>노드시간</th><th>비고</th></tr>
-<tr><td>8gpu 잡 40개 (Stage-2 GRPO 계열 대부분)</td><td class="n">4,112.3</td><td>실측</td></tr>
+<tr><td>8gpu job 40개 (Stage-2 GRPO 계열 대부분)</td><td class="n">4,112.3</td><td>실측</td></tr>
 <tr><td>그 외 (4gpu 45.8 · 1gpu 3.2 · debug 2.6 · 2gpu 0.4 · cpu 0.1)</td><td class="n">52.1</td><td>실측</td></tr>
-<tr><td>Stage-2 GRPO 1회 (70h×8)</td><td class="n">490~560</td><td>k252a02 계정(5,000 노드시간)에서 실행. <code>MAX_STEPS=2,337</code> 은 체인 4잡으로 약 1,674~1,719 노드시간이다.</td></tr>
-<tr><td>SFT 1회 (12~39분)</td><td class="n">2~5</td><td>예산에 거의 영향이 없다.</td></tr>
+<tr><td>Stage-2 GRPO 1회 (70h×8)</td><td class="n">490~560</td><td>k252a02 계정(5,000 노드시간)에서 실행했다. <code>MAX_STEPS=2,337</code> 은 체인 4 job 으로 약 1,674~1,719 노드시간이다.</td></tr>
+<tr><td>SFT 1회 (5~41분)</td><td class="n">2~5</td><td>예산에 거의 영향이 없다.</td></tr>
 <tr><td>Stage-3 (미시작, 계획서 핵심 산출물)</td><td class="n">~500</td><td>예상치</td></tr>
 </table>
-<div class="warn">2026-08-02 정정: 위 2,337 step 은 1 epoch 이 아니라 0.25 epoch 이다. 1 epoch 은 74,787 ÷ 8 = 9,348 step 이다. 비용 추정치는 step 기준이라 그대로 유효하다. 실제 1 epoch 은 약 6,694 노드시간(예산의 134%)이라 실행할 수 없다. 상세: <a href="22_stage2b_mixed_run.html"><code>22_stage2b_mixed_run.html</code></a> §3.</div>
-<div class="note">2026-07-22 에 k252a02 계정에서 5,000 노드시간을 확보했다. 이 예산으로 Stage-2 풀확장과 Stage-3 를 모두 할 수 있다. 이관은 07-27 에 끝났다(<code>work/</code> 293G 전송, 경로 치환). 현재 이 저장소가 그 계정의 저장소다. 상세: <a href="21_stage2a_design.html#0-풀확장-재설계-2026-07-2224-데이터--07-28-본실행-착수">Stage-2 풀확장</a>, <a href="../HANDOFF.md"><code>HANDOFF.md</code></a>.</div>
-<p>Slurm 에는 하드 리밋이 없다. <code>GrpTRESMins</code> 를 설정하지 않아서 한도를 넘은 잡도 거부하지 않는다. 한도는 계획서와 보고 기준이다.</p>
+<div class="warn"><code>MAX_STEPS</code> 2,337 은 0.25 epoch 이다(2026-08-02 확인). 1 epoch 은 74,787 ÷ 8 = 9,348 step 이다. 비용 추정치는 step 기준이라 그대로 유효하다. 1 epoch 은 약 6,694 노드시간(한도의 134%)이라 예산 안에서 실행할 수 없다. 상세: <a href="22_stage2b_mixed_run.html"><code>22_stage2b_mixed_run.html</code></a> §3.</div>
+<div class="note">2026-07-22 에 k252a02 계정에서 5,000 노드시간을 확보했다. 당시 계획은 이 예산으로 Stage-2 풀확장과 Stage-3 를 하는 것이었다. 이 계정으로 저장소 이관을 07-27 에 마쳤다(<code>work/</code> 293G 전송, 경로 치환). 이 git 저장소는 그 계정의 작업 디렉터리에 있다. 상세: <a href="21_stage2a_design.html#0-풀확장-재설계-2026-07-2224-데이터--07-28-본실행-착수">Stage-2 풀확장</a>, <a href="../HANDOFF.md"><code>HANDOFF.md</code></a>.</div>
+<p>Slurm 에는 강제 한도가 없다. <code>GrpTRESMins</code> 를 설정하지 않아서 Slurm 은 한도를 넘은 job 도 거부하지 않는다. 한도는 계획서와 보고 기준이다.</p>
 <details id="계획서-원안"><summary>계획서 원안 (4,960 / Track III 한도 5,000)</summary>
 <table>
 <tr><th>단계</th><th>스크립트</th><th>1회</th><th>반복</th><th>노드시간</th></tr>
@@ -105,22 +105,23 @@ details summary{cursor:pointer;color:var(--mute)}
 </details>
 
 <h3 id="kgpu-운영-함정-2026-10-23">kgpu 운영 함정 (2026-10-23 실측)</h3>
+<p>kgpu(<code>api.kgpu.net</code>)는 pod 단위로 GPU 를 빌려 쓰는 외부 서비스다.</p>
 <table>
 <tr><th>함정</th><th>결과</th><th>대응</th></tr>
-<tr><td>감시·반납 스크립트를 Claude 세션의 백그라운드 작업으로 실행했다.</td><td>세션이 끝나면 스크립트도 끝나고 <code>trap release EXIT</code> 가 pod 를 반납한다. 추론 비용 측정 pod 를 결과 없이 반납했다(약 600 크레딧 손실).</td><td><code>setsid nohup bash run_x.sh &gt; out 2&gt;&amp;1 &lt; /dev/null &amp; disown</code> 로 세션과 분리한다.</td></tr>
+<tr><td>감시·반납 스크립트를 Claude 세션의 백그라운드 작업으로 실행했다.</td><td>세션이 끝나면 스크립트도 끝난다. 그때 <code>trap release EXIT</code> 가 pod 를 반납한다. 추론 비용 측정 pod 를 결과 없이 반납했다(약 600 크레딧 손실).</td><td><code>setsid nohup bash run_x.sh &gt; out 2&gt;&amp;1 &lt; /dev/null &amp; disown</code> 로 세션과 분리한다.</td></tr>
 <tr><td>pod 이미지(<code>nvidia/cuda</code>)에 python 이 없다.</td><td>venv 설치 전에 둔 <code>python3 - &lt;&lt;EOF</code> 단계가 오류 표시 없이 실패했다(모델 카드 첫 테스트).</td><td>python 단계는 <code>setup_venv.sh</code> 뒤에 <code>$PY</code> 로 실행한다. 산출 파일은 <code>[ -s 파일 ]</code> 로 검사한다.</td></tr>
-<tr><td>exec 응답이 비어 있어도 실행 실패로 보이지 않는다.</td><td>첫 추론 비용 측정은 스크립트를 시작하지 못하고 2분 만에 pod 반납으로 끝났다.</td><td>exec 응답의 <code>"background":true</code> 와 pod 안 <code>run.log</code> 생성을 확인한다. 그 뒤에 감시를 시작한다.</td></tr>
+<tr><td>exec 가 스크립트 시작에 실패해도 오류 없이 빈 응답을 준다.</td><td>첫 추론 비용 측정은 스크립트를 시작하지 못하고 2분 만에 pod 반납으로 끝났다.</td><td>exec 응답의 <code>"background":true</code> 와 pod 안 <code>run.log</code> 생성을 확인한다. 그 뒤에 감시를 시작한다.</td></tr>
 </table>
 
 <h3 id="데이터-소스-확정--변환-검증">데이터 소스와 변환</h3>
 <table>
 <tr><th>단계</th><th>소스</th><th>비고</th></tr>
-<tr><td>Stage-1 (v3 혼합 콜드스타트)</td><td><code>neginb/OpenMedReason</code>(150,246 · CC-BY-4.0 · 게이트 auto, 웹 동의 1회 필요) + <code>TIGER-Lab/VisualWebInstruct-verified</code>(97,295 · MIT) + <code>UCSC-VLAA/VLAA-Thinking</code>(126,413 · Apache-2.0)</td><td>세 소스 모두 이미지를 내장하고 다운로드를 마쳤다. 빌드 스크립트는 <code>build_mixed_coldstart.py</code> 다. 상세: <a href="10_stage1_coldstart.html#stage-1--콜드스타트-sft">Stage-1</a>.</td></tr>
-<tr><td>Stage-2 (풀확장, 의료 27%)</td><td><code>skylenage-ai/DeepVision-103K</code>(일반, 서브샘플 40K) + <code>FanqingM/MMK12</code>(순수 math 15K) + <code>xmcmic/PMC-VQA</code>(의료 객관식 20K, 329K 중 서브샘플)</td><td><code>build_stage2_mix.py</code> 가 이미지 바이트해시로 중복을 제거해 조립한다. 결과는 train 74,787 / holdout 1,772 다. 실측 후 탈락: Kvasir(degenerate), SLAKE(이미지 450), ThinkLite(노이즈), PathVQA(절반 개방형). 상세: <a href="21_stage2a_design.html"><code>21_stage2a_design.html</code></a>. 텍스트 데이터 <code>DeepMath-103K</code> 와는 다른 데이터다.</td></tr>
-<tr><td>Stage-3</td><td><code>MBZUAI/medix-rl-data</code>(51K, 개방형 의료 멀티모달)</td><td>DeepVision 과 medix 는 <code>work/hf_cache</code> 에 받아 두었다. 게이트가 없다.</td></tr>
+<tr><td>Stage-1 (v3 혼합 콜드스타트)</td><td><code>neginb/OpenMedReason</code>(150,246 · CC-BY-4.0 · HF 접근 승인 자동, 웹 동의 1회 필요) + <code>TIGER-Lab/VisualWebInstruct-verified</code>(97,295 · MIT) + <code>UCSC-VLAA/VLAA-Thinking</code>(126,413 · Apache-2.0)</td><td>세 소스는 모두 이미지를 내장한다. 세 소스의 다운로드를 마쳤다. 빌드 스크립트는 <code>build_mixed_coldstart.py</code> 다. 상세: <a href="10_stage1_coldstart.html#stage-1--콜드스타트-sft">Stage-1</a>.</td></tr>
+<tr><td>Stage-2 (풀확장, 의료 27%)</td><td><code>skylenage-ai/DeepVision-103K</code>(일반, 서브샘플 40K) + <code>FanqingM/MMK12</code>(순수 math 15K) + <code>xmcmic/PMC-VQA</code>(의료 객관식 20K, 329K 중 서브샘플)</td><td><code>build_stage2_mix.py</code> 가 이미지 바이트해시로 중복을 제거해 조립한다. 결과는 train 74,787 / holdout 1,772 다. 실측 후 탈락: Kvasir(고유 이미지 671개), SLAKE(이미지 450), ThinkLite(노이즈), PathVQA(절반 개방형). 상세: <a href="21_stage2a_design.html"><code>21_stage2a_design.html</code></a>. <code>DeepVision-103K</code> 는 텍스트 데이터 <code>DeepMath-103K</code> 와 다르다.</td></tr>
+<tr><td>Stage-3</td><td><code>MBZUAI/medix-rl-data</code>(51K, 개방형 의료 멀티모달)</td><td>DeepVision 과 medix 는 <code>work/hf_cache</code> 에 받아 두었다. 두 데이터는 HF 접근 승인이 필요 없다.</td></tr>
 </table>
-<div class="warn">VLAA 이미지 누락: <code>vg</code>(38,242)와 <code>coco</code>(8,727) 서브셋은 이미지 tar 이 저장소에 없다(합계 46,969건). 그래서 두 서브셋을 제외했다. Visual Genome·COCO 이미지를 따로 구하면 다시 넣을 수 있다. 보유 tar 은 allava_laion, arxivqa, chartqa, clevr_math, docvqa, geoqa170k, synthesis, vizwiz 다(총 26.2GB).</div>
-<div class="warn">medix 의 assistant 필드는 비어 있다(prompt 와 solution 만 있다). 따라서 의료 추론 트레이스가 없다. 정답은 <code>&lt;MODALITY&gt;\n자유서술</code> 형식(중앙값 47자)이라 정확 일치로 채점할 수 없다. 그래서 Stage-3 는 RaR judge 로 채점한다.</div>
+<div class="warn">VLAA 이미지 누락: <code>vg</code>(38,242)와 <code>coco</code>(8,727) 서브셋은 이미지 tar 가 저장소에 없다(합계 46,969건). 그래서 두 서브셋을 제외했다. Visual Genome·COCO 이미지를 따로 구하면 다시 넣을 수 있다. 보유 tar 는 allava_laion, arxivqa, chartqa, clevr_math, docvqa, geoqa170k, synthesis, vizwiz 다(총 26.2GB).</div>
+<div class="warn">medix 의 assistant 필드는 비어 있다(prompt 와 solution 만 있다). 따라서 의료 추론 트레이스가 없다. 정답은 <code>&lt;MODALITY&gt;\n자유서술</code> 형식(중앙값 47자, 모달리티 태그 포함)이라 정확 일치로 채점할 수 없다. 그래서 Stage-3 는 RaR 심판으로 채점한다.</div>
 <table>
 <tr><th>K-BDS 항목</th><th>경로</th></tr>
 <tr><td>공개데이터</td><td><code>/kobic/ICECAP/DataStation/</code></td></tr>
@@ -145,7 +146,7 @@ singularity exec --bind $PWD/work --env HF_HUB_OFFLINE=1 $SB python scripts/conv
 <h3 id="홀드아웃-분리-stage-2-평가-누수-차단">holdout 분리 (Stage-2 평가 누수 차단)</h3>
 <ol>
 <li>스크립트는 <code>scripts/make_holdout.py</code> 다.</li>
-<li>DeepVision 에는 카테고리 라벨이 없다. 그래서 정답 유형을 대리 기준으로 쓴다(math = 수치·수식, visual-logic = 객관식).</li>
+<li>DeepVision 에는 카테고리 라벨이 없다. 그래서 정답 유형을 대리 기준으로 쓴다(math = 수치·수식, visual-logic(vl) = 객관식).</li>
 <li>각 유형에서 1% 를 층화 추출한다.</li>
 <li>출력은 <code>deepvision_holdout.jsonl</code>(972)과 <code>deepvision103k_trainonly.jsonl</code>(102,531)이다.</li>
 <li>학습은 trainonly 로, 평가는 holdout 으로 한다.</li>
@@ -161,9 +162,9 @@ singularity exec --bind $PWD/work --env HF_HUB_OFFLINE=1 $SB python scripts/conv
 </table>
 <ul>
 <li>원인: DeepVision 은 질문 중복이 많다(102,531행 중 고유 82,198, 중복 20,333). 같은 그림 파일이 여러 경로에 있다. <code>make_holdout.py</code> 는 경로 기준으로 중복을 제거해서 이 문항을 거르지 못했다.</li>
-<li>영향: 이 holdout 으로 보고한 수치는 모두 22% 상향 편향이다(base 0.15, 콜드스타트 0.22, dr_grpo 0.380, GDPO 0.390, GSPO 0.290, ablation 0.18·0.165).</li>
-<li>clean 3종은 같은 22% 를 공유한다. 따라서 상대 비교, 순위, 판정 결론은 유효하다(GDPO 와 dr_grpo 동률, GSPO 열위).</li>
-<li>오염 데이터로 학습한 모델(DAPO, baseline 0.415)과의 대비는 본문 서술보다 약하다. clean 모델도 holdout 의 22% 는 학습한 문항이다.</li>
+<li>영향: DeepVision 을 학습한 모델의 수치는 상향 편향이다(dr_grpo 0.380, GDPO 0.390, GSPO 0.290, ablation 0.18·0.165). v2 콜드스타트(0.22)는 DeepVision 자기증류 727건만 학습해 일부 편향이 있다. 기본 모델(0.15)은 DeepVision 을 학습하지 않아 편향이 없다.</li>
+<li>trainonly 로 학습한 3종(dr_grpo, GDPO, GSPO)은 같은 중복 문항을 학습했다. 따라서 이 3종의 상대 비교, 순위, 판정 결론은 유효하다(GDPO 와 dr_grpo 동률, GSPO 열위).</li>
+<li>오염 데이터로 학습한 모델(DAPO, baseline 0.415)과 위 3종의 차이는 당시 서술보다 작다. 위 3종도 holdout 의 22% 를 학습했다.</li>
 <li>대응: GPU 예산을 83% 쓴 시점이라 기록만 하고 재측정을 보류했다. holdout 을 다시 만들 때는 이미지 바이트해시로 중복을 제거해야 한다.</li>
 <li>Stage-2 확장 holdout(1,772)은 이 972건의 이미지 해시를 학습 데이터에서 제외해 이 문제를 해소했다(<a href="21_stage2a_design.html"><code>21_stage2a_design.html</code></a>).</li>
 </ul>
@@ -171,34 +172,34 @@ singularity exec --bind $PWD/work --env HF_HUB_OFFLINE=1 $SB python scripts/conv
 </section>
 
 <!-- ============================================================ -->
-<h2 id="기술-레퍼런스--환경모델학습방식보상논문">Part 2. 기술 레퍼런스: 환경, 모델, 학습 방식, 보상, 논문</h2>
+<h2 id="기술-레퍼런스--환경모델학습방식보상논문">2부. 기술 레퍼런스: 환경, 모델, 학습 방식, 보상, 논문</h2>
 <section id="기술-레퍼런스">
 
 <h3 id="환경-singularity-컨테이너-확정검증-완료">환경: Singularity 컨테이너</h3>
 <ul>
 <li>노드 OS 는 CentOS 7.9 / glibc 2.17 이다. 이 OS 에서는 최신 ML 패키지(특히 vLLM, xformers)를 pip·conda 로 설치할 수 없다. 그래서 공식 ms-swift 컨테이너를 쓴다.</li>
-<li>이미지는 <code>...modelscope:ubuntu22.04-cuda12.9.1-py312-torch2.10.0-vllm0.19.1-modelscope1.35.4-swift4.1.3</code> 이다. Gemma4 지원에는 swift 4.0.4 이상이 필요하다.</li>
+<li>이미지는 <code>...modelscope:ubuntu22.04-cuda12.9.1-py312-torch2.10.0-vllm0.19.1-modelscope1.35.4-swift4.1.3</code> 이다. Gemma 4 지원에는 swift 4.0.4 이상이 필요하다(Gemma 4 12B 는 검토 후 쓰지 않았다. 아래 기본 모델 절 참조).</li>
 <li>계산 노드(드라이버 550 = CUDA 12.4)에서 swift 4.1.3, torch 2.10+cu129, vllm 0.19.1(<code>vllm._C</code> 정상), transformers 5.6.2 를 검증했다.</li>
 <li>CUDA 마이너 호환으로 12.9 빌드가 12.4 드라이버에서 정상 동작한다.</li>
 <li>SIF 는 실행할 때마다 추출이 느리다. 그래서 sandbox(디렉터리)로 변환해 쓴다(<code>work/images/ms-swift-413-sandbox</code>).</li>
-<li>최신 swift 4.2.3 은 CUDA 13 이 필요해 이 드라이버에서 쓸 수 없다. 대안 이미지는 swift 3.8.3 / cuda 12.6.3 과 swift 3.6.4 / cuda 12.4.0 이다.</li>
+<li>작성 당시 최신인 swift 4.2.3 은 CUDA 13 이 필요해 이 드라이버에서 쓸 수 없다. 대안 이미지는 swift 3.8.3 / cuda 12.6.3 과 swift 3.6.4 / cuda 12.4.0 이다.</li>
 <li>PyTorch 2.6 이상의 <code>torch.load</code> 기본값 <code>weights_only=True</code> 는 체크포인트 재개용 <code>rng_state_*.pth</code> 를 거부한다(<code>UnpicklingError</code>). <code>runc.sh</code> 가 <code>PYTHONPATH</code> 앞에 넣는 <code>scripts/pyfix/sitecustomize.py</code> 가 이 기본값을 <code>weights_only=False</code> 로 되돌린다.</li>
 </ul>
 <div class="warn">2026-07-27 부터 apptainer 가 고장 나서 <code>00_common.sh</code> 기본값이 <code>ENV_MODE=loader</code> 다(이전 기본값 <code>container</code>).
 <ol>
-<li>원인: 클러스터 공용 apptainer 1.4.5 는 <code>libsubid.so.3</code> 이 없고 GLIBC_2.28 을 요구한다(호스트 2.17). 로그인 노드와 계산 노드 모두에서 실행할 수 없다.</li>
-<li>이미지는 정상이다. 재빌드는 의미가 없고, 빌드도 할 수 없다.</li>
+<li>원인: 호스트에 <code>libsubid.so.3</code> 이 없다. 클러스터 공용 apptainer 1.4.5 는 GLIBC_2.28 을 요구한다(호스트 2.17). 로그인 노드와 계산 노드 모두에서 실행할 수 없다.</li>
+<li>이미지는 정상이다. 재빌드는 필요 없다. 이 클러스터에서는 빌드할 수도 없다.</li>
 <li>우회: sandbox 안의 glibc 2.35 로더로 sandbox python 을 직접 실행한다(<code>runc.sh</code> + <code>bin/python</code> shim).</li>
 <li>우회 구현에서 함정 5개를 처리했다: <code>sys.executable</code>, <code>PYTHONHOME</code>, <code>LD_LIBRARY_PATH</code> 분리, <code>CUDA_HOME</code> 실경로, Triton 용 gcc 10.2.0.</li>
 <li>GPU 검증: torch 2.10+cu129 <code>cuda_avail True</code>, vllm 0.19.1, GRPO 8GPU 5 step 완주(job 72832).</li>
 <li>apptainer 가 복구되면 <code>ENV_MODE=container</code> 로 되돌린다. 절차: <a href="../HANDOFF.md"><code>HANDOFF.md</code></a> §3.</li>
 </ol></div>
 
-<h3 id="베이스-모델--ms-swift-4x-주의">베이스 모델과 ms-swift 4.x 인자</h3>
+<h3 id="베이스-모델--ms-swift-4x-주의">기본 모델과 ms-swift 4.x 인자</h3>
 <ul>
-<li>base 는 <code>Qwen/Qwen3.5-9B</code>(멀티모달, <code>MODEL_TYPE=qwen3_5</code>)다. config 는 <code>qwen3_5</code>, processor 는 <code>Qwen3VLProcessor</code> 다.</li>
-<li>base 는 게이트가 없다. <code>work/hf_cache</code> 에 캐시하고 <code>HF_HUB_OFFLINE=1</code> 로 오프라인 실행한다.</li>
-<li>Gemma 4 12B 는 쓸 수 없다. 실제 <code>model_type</code> 이 <code>gemma4_unified</code> 이고 transformers 5.10.dev 와 CUDA 13 이미지가 필요하다. 드라이버 550 에서는 실행할 수 없어 다운로드본을 지웠다.</li>
+<li>기본 모델(base)은 <code>Qwen/Qwen3.5-9B</code>(멀티모달, <code>MODEL_TYPE=qwen3_5</code>)다. config 는 <code>qwen3_5</code>, processor 는 <code>Qwen3VLProcessor</code> 다.</li>
+<li>기본 모델은 HF 접근 승인이 필요 없다. <code>work/hf_cache</code> 에 캐시하고 <code>HF_HUB_OFFLINE=1</code> 로 오프라인 실행한다.</li>
+<li>Gemma 4 12B 는 쓸 수 없다. 실제 <code>model_type</code> 은 <code>gemma4_unified</code> 다. 이 모델에는 transformers 5.10.dev 와 CUDA 13 이미지가 필요하다. 드라이버 550 에서는 실행할 수 없어 다운로드본을 지웠다.</li>
 </ul>
 <table>
 <tr><th>swift 3.x</th><th>swift 4.x</th></tr>
@@ -210,21 +211,21 @@ singularity exec --bind $PWD/work --env HF_HUB_OFFLINE=1 $SB python scripts/conv
 <h3 id="학습-방식-lora-하드웨어-제약-대응">학습 방식: LoRA (하드웨어 제약 대응)</h3>
 <ul>
 <li>8gpu 노드는 A100 80GB PCIe 이고 NVLink 가 없다(실측).</li>
-<li><code>nvidia-smi topo -m</code> 은 모든 GPU 쌍을 PHB 로 보고한다. GPU P2P 가 막혀서 NCCL 은 SHM(호스트 RAM)으로 폴백한다.</li>
+<li><code>nvidia-smi topo -m</code> 은 모든 GPU 쌍을 PHB 로 보고한다. GPU P2P 가 막혀서 NCCL 은 SHM(호스트 RAM)으로 우회한다.</li>
 <li>그래서 멀티 GPU full fine-tuning 은 18GB gradient all-reduce 에서 병목이 생긴다. 9B 모델과 짧은 시퀀스에서도 375~660초/step 이다.</li>
-<li>하이퍼바이저 ACS 설정 때문에 이 병목은 고칠 수 없다.</li>
+<li>이 병목은 하이퍼바이저 ACS 설정에서 온다. 사용자 권한으로는 이 설정을 바꿀 수 없다.</li>
 <li>대응으로 전 단계를 LoRA 로 학습한다. LoRA 는 adapter gradient(수십 MB)만 통신한다.</li>
-<li>LoRA 속도는 GRPO 약 128s/step, SFT 약 5s/step 이다(약 5~75배 빠름).</li>
-<li>base 를 동결하므로 DeepSpeed 없이 DDP 로 충분하다.</li>
+<li>LoRA 속도는 GRPO 약 128초/step, SFT 약 5초/step 이다(측정 조건 기록 없음). full fine-tuning(375~660초/step)과 단순 비교하면 GRPO 는 약 3~5배, SFT 는 약 75~130배 빠르다.</li>
+<li>기본 모델 가중치를 동결하므로 DeepSpeed 없이 DDP 로 충분하다.</li>
 <li>콜드스타트 LoRA 는 <code>swift export --merge_lora</code> 로 병합한다. 병합본을 다음 단계의 <code>INIT_MODEL</code> 로 쓴다.</li>
-<li>LR 기본값은 SFT LoRA <code>1e-4</code> / full <code>1e-5</code>, GRPO LoRA <code>1e-5</code> / full <code>1e-6</code> 이다. <code>LR=</code> 로 바꾼다.</li>
+<li>LR 기본값은 SFT LoRA <code>1e-4</code> / full <code>1e-5</code>, GRPO LoRA <code>1e-5</code> / full <code>1e-6</code> 이다. 환경변수 <code>LR</code> 로 바꾼다.</li>
 </ul>
 
 <h3 id="보상-설계-stage-2">보상 설계 (Stage-2)</h3>
 <ul>
 <li>출력 형식은 <code>&lt;think&gt;간결 추론&lt;/think&gt;&lt;answer&gt;최종답&lt;/answer&gt;</code> 이다. <code>\boxed{}</code> 는 쓰지 않는다.</li>
-<li>내장 <code>accuracy</code> 는 객관식 letter("B")와 기호를 파싱하지 못한다. DeepVision 은 약 48% 가 letter 정답이라 내장 함수로는 보상의 절반을 잃는다.</li>
-<li>그래서 <code>accuracy_mix</code>(<code>configs/accuracy.py</code>)를 쓴다. 수식은 math_verify 로, letter·문자열은 정규화 일치로 채점한다.</li>
+<li>내장 <code>accuracy</code> 는 객관식 문자("B")와 기호를 파싱하지 못한다. DeepVision 은 약 48% 가 객관식 문자 정답이라 내장 함수로는 보상의 절반을 잃는다.</li>
+<li>그래서 <code>accuracy_mix</code>(<code>configs/accuracy.py</code>)를 쓴다. 수식은 math_verify 로, 객관식 문자와 문자열은 정규화 일치로 채점한다.</li>
 <li>보상 가중치는 <code>accuracy_mix 1.0 : format_think 0.2 : soft_overlong 0.2</code> 다.</li>
 <li>vLLM colocate 인자는 <code>--vllm_mode colocate</code>, <code>--vllm_mm_processor_cache_gb 0</code>(mm_hash AssertionError 회피), <code>--sleep_level 1</code> 이다.</li>
 </ul>
@@ -237,21 +238,21 @@ singularity exec --bind $PWD/work --env HF_HUB_OFFLINE=1 $SB python scripts/conv
 <tr><td>Dr.GRPO</td><td>Understanding R1-Zero-Like Training: A Critical Perspective</td><td>Sea AI Lab, 2025-03</td><td><a href="https://arxiv.org/abs/2503.20783">2503.20783</a></td></tr>
 <tr><td>GSPO</td><td>Group Sequence Policy Optimization</td><td>Alibaba/Qwen, 2025-07</td><td><a href="https://arxiv.org/abs/2507.18071">2507.18071</a></td></tr>
 <tr><td>GDPO</td><td>GDPO: Group reward-Decoupled Normalization Policy Optimization for Multi-reward RL</td><td>NVIDIA, 2026-01</td><td><a href="https://arxiv.org/abs/2601.05242">2601.05242</a></td></tr>
-<tr><td>RaR (Stage-3)</td><td>Rubrics as Rewards: Reinforcement Learning Beyond Verifiable Domains</td><td>2025-07</td><td><a href="https://arxiv.org/abs/2507.17746">2507.17746</a></td></tr>
+<tr><td>RaR (Stage-3)</td><td>Rubrics as Rewards: Reinforcement Learning Beyond Verifiable Domains</td><td>Scale AI, 2025-07</td><td><a href="https://arxiv.org/abs/2507.17746">2507.17746</a></td></tr>
 </table>
 
 <h3 id="각-논문-무슨-문제를--어떤-방법으로-원문-요약">논문별 문제와 방법 (원문 요약)</h3>
-<p>시간순 계보는 GRPO(기반), DAPO·Dr.GRPO(GRPO 결함 보완), GSPO·GDPO(직교 확장), RaR(검증 불가 도메인 확장) 순이다. 아래 표는 각 논문이 직전 방법의 어떤 한계를 겨냥했는지 정리한다.</p>
+<p>기법 계보는 GRPO(기반), DAPO·Dr.GRPO(GRPO 결함 보완), GSPO·GDPO(서로 독립인 확장), RaR(검증 불가 도메인 확장) 순이다. 발표 순서와는 다르다(RaR 2025-07, GDPO 2026-01). 아래 표는 각 논문이 직전 방법의 어떤 한계를 겨냥했는지 정리한다.</p>
 <table>
 <tr><th>논문</th><th>겨냥한 문제 (직전 방법의 한계)</th><th>도입한 방법</th></tr>
-<tr><td>GRPO</td><td>PPO 는 정책망과 비슷한 크기의 가치망(critic)을 따로 학습한다. 메모리·연산 부담이 크고 토큰별 가치 추정이 불안정하다.</td><td>critic 을 없앤다. 한 프롬프트에서 응답 여러 개(그룹)를 뽑는다. 그룹 안 보상의 상대값(평균을 빼고 std 로 나눔)을 advantage 로 쓴다. 그룹 평균이 baseline 역할을 해서 메모리가 줄고 학습이 안정된다.</td></tr>
+<tr><td>GRPO</td><td>PPO 는 정책망과 비슷한 크기의 가치망(critic)을 따로 학습한다. 메모리·연산 부담이 크고 토큰별 가치 추정이 불안정하다.</td><td>critic 을 없앤다. 한 프롬프트에서 응답 여러 개(그룹)를 뽑는다. 그룹 안 보상의 상대값(평균을 빼고 std 로 나눔)을 advantage 로 쓴다. critic 이 없어 메모리가 준다. 그룹 평균은 기준값(baseline) 역할을 한다.</td></tr>
 <tr><td>DAPO</td><td>대규모 LLM RL 에서 엔트로피 붕괴(조기 수렴), 후반 gradient 소실, 길이 폭주·잘림 노이즈가 생긴다. 기존 최고 성능 레시피는 비공개였다.</td><td>4기법을 쓴다. Clip-Higher(탐색 보존, 붕괴 억제), Dynamic Sampling(std=0 그룹 폐기 후 재샘플), Token-level PG Loss(길이 정규화 편향 제거), Overlong Shaping(초과 길이 패널티·필터).</td></tr>
-<tr><td>Dr.GRPO</td><td>GRPO 에는 최적화 편향이 두 개 있다. (1) 시퀀스 길이로 나누는 정규화는 응답 길이 편향을 만든다(오답이 길어진다). (2) 그룹 std 로 나누는 정규화는 난이도 편향을 만든다(문제 가중치 왜곡).</td><td>두 정규화를 삭제한다. 손실은 길이 대신 상수로 정규화하고, advantage 의 std 나눗셈을 없앤다. 추정이 unbiased 가 되고 토큰 효율이 오른다. 성능은 그대로다.</td></tr>
-<tr><td>GSPO</td><td>GRPO·PPO 의 토큰 단위 IS(importance sampling, 중요도 샘플링) 비율은 긴 시퀀스에서 분산이 누적되고, 클립이 이를 증폭한다. MoE 와 장문에서 학습이 불안정해진다.</td><td>IS 를 시퀀스(응답) 단위로 정의한다(길이 정규화한 시퀀스 우도 비율). 클립·보상·최적화도 시퀀스 단위로 한다. 분산을 억제해서 MoE(Qwen3) 학습이 안정된다.</td></tr>
+<tr><td>Dr.GRPO</td><td>GRPO 에는 최적화 편향이 두 개 있다. (1) 시퀀스 길이로 나누는 정규화는 응답 길이 편향을 만든다(오답이 길어진다). (2) 그룹 std 로 나누는 정규화는 난이도 편향을 만든다(문제 가중치 왜곡).</td><td>두 정규화를 삭제한다. 손실은 길이 대신 상수로 정규화한다. advantage 의 std 나눗셈을 없앤다. 추정의 편향이 없어진다. 토큰 효율이 오른다. 성능은 그대로다.</td></tr>
+<tr><td>GSPO</td><td>GRPO·PPO 의 토큰 단위 IS(importance sampling, 중요도 샘플링) 비율은 긴 시퀀스에서 분산이 누적된다. 클립은 이 분산을 키운다. MoE 와 장문에서 학습이 불안정해진다.</td><td>IS 를 시퀀스(응답) 단위로 정의한다(길이 정규화한 시퀀스 우도 비율). 클립·보상·최적화도 시퀀스 단위로 한다. 분산을 억제해서 MoE(Qwen3) 학습이 안정된다.</td></tr>
 <tr><td>GDPO</td><td>다중 보상을 가중합한 뒤 한 번에 정규화하면 서로 다른 보상 조합이 같은 advantage 로 뭉친다. 보상 간 상대 차이가 사라진다.</td><td>결합 전에 각 보상 함수를 그룹 안에서 따로 정규화(z-score)한다. 그 뒤에 결합해서 각 보상의 상대 크기와 특성을 보존한다.</td></tr>
-<tr><td>RaR (Stage-3)</td><td>RLVR 은 수학·코딩처럼 검증이 명확한 도메인에 강하다. 의료·과학처럼 여러 기준으로 판단해야 하는 개방형 도메인에는 맞지 않는다.</td><td>루브릭 체크리스트를 구조화 보상으로 쓴다. judge 가 기준별로 채점하고, 가중 집계해서 부분 점수 보상을 만든다. 원논문은 문항별 루브릭을 쓰고, 이 과제는 정적 통일 루브릭을 쓴다.</td></tr>
+<tr><td>RaR (Stage-3)</td><td>RLVR 은 수학·코딩처럼 검증이 명확한 도메인에 강하다. 의료·과학처럼 여러 기준으로 판단해야 하는 개방형 도메인에는 맞지 않는다.</td><td>루브릭 체크리스트를 구조화 보상으로 쓴다. 심판이 기준별로 채점한다. 가중 집계해서 부분 점수 보상을 만든다. 원논문은 문항별 루브릭을 쓴다. 이 과제는 정적 통일 루브릭을 쓴다.</td></tr>
 </table>
-<div class="note">파이프라인 대응: Stage-2 는 Dr.GRPO 를 채택했다. 길이·난이도 편향이 Stage-2 정체(plateau)의 직접 원인이었다. GSPO 와 GDPO 는 clean A/B 로 추가 검증했다. Stage-3 는 RaR 을 쓴다. 의료 VQA 는 검증 불가 도메인이다. 채택 근거와 A/B 결과: <a href="21_stage2a_design.html#2-기법-통합-비교--grpo-계열-5종-clean-ab">Stage-2 통합 비교</a>, <a href="30_stage3_medical_rl.html#stage-3--의료-rl-rar-루브릭-보상">Stage-3</a>.</div>
+<div class="note">파이프라인 대응: Stage-2 는 Dr.GRPO 를 채택했다. 길이·난이도 편향을 없애려는 선택이었다. Stage-2 형식 점수 정체의 주 원인은 v2 초기화 데이터였다(<a href="10_stage1_coldstart.html#v2-의-진짜-결함--데이터가-형식보상의-천장이었다-2026-07-16-발견">10 v2 결함</a>). GSPO 와 GDPO 는 holdout 을 뺀 학습 데이터(trainonly)로 한 A/B 비교로 추가 검증했다. Stage-3 는 RaR 을 쓴다. 의료 VQA 는 검증 불가 도메인이다. 채택 근거와 A/B 결과: <a href="21_stage2a_design.html#2-기법-통합-비교--grpo-계열-5종-clean-ab">Stage-2 통합 비교</a>, <a href="30_stage3_medical_rl.html#stage-3--의료-rl-rar-루브릭-보상">Stage-3</a>.</div>
 </section>
 </main>
 </body>

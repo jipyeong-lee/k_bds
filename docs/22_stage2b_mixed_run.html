@@ -39,7 +39,7 @@ img{max-width:100%;height:auto} h4{font-size:15px;margin:22px 0 6px} h5{font-siz
 <body>
 <main>
 <h1>Stage-2 · 혼합 학습 (2-B) — 중간 점검과 형식 붕괴 사후 분석(job 73924/73925)</h1>
-<div class="meta">원본: docs/stage2_run73924_postmortem.md, docs/stage2_run73924_progress.md (2026-10-22 HTML 로 통합)<br>
+<div class="meta">원본: docs/stage2_run73924_postmortem.md, docs/stage2_run73924_progress.md (2026-10-22 HTML 로 통합, 원본 md 는 git 이력에만 있다)<br>
 1부 = 사후 분석(최종 결론, 2026-08-05 작성 · 08-06 개정) · 2부 = 중간 점검 기록(2026-08-02 ~ 08-04, 시간순) · 작성 방식 ASD-STE100(한 문장에 한 사실, 능동문, 같은 대상에 같은 용어)</div>
 
 <p>3소스 혼합 74,787건 GDPO 실행(job 73924 → 73925)은 step ~900 에서 형식 붕괴로 끝났다. 이 실행을 중단한 뒤 프로젝트는 도메인별 전문가 학습과 통합으로 전환했다(<a href="23_stage2ce_experts.html">23_stage2ce_experts.html</a>).</p>
@@ -48,14 +48,16 @@ img{max-width:100%;height:auto} h4{font-size:15px;margin:22px 0 6px} h5{font-siz
 
 <table id="terms">
 <tr><th>용어</th><th>뜻</th></tr>
-<tr><td>init</td><td>Stage-2 의 시작 모델. SFT 모델 <code>sft_mixed_merged</code> 다(RL 0%).</td></tr>
+<tr><td>init</td><td>Stage-2 의 시작 모델. SFT 모델 <code>sft_mixed_merged</code> 다(RL 을 거치지 않음).</td></tr>
 <tr><td>holdout</td><td>학습에 쓰지 않은 평가 문항. 전량은 1,772 문항이다.</td></tr>
 <tr><td>형식 붕괴</td><td>응답에서 <code>&lt;answer&gt;</code> 태그(일부는 <code>&lt;/think&gt;</code> 도)가 빠져 형식 보상 <code>FormatThink</code> 가 0 이 되는 현상.</td></tr>
-<tr><td>비절단 형식실패율</td><td>길이 상한에서 잘리지 않은 롤아웃 중 형식을 어긴 비율.</td></tr>
+<tr><td>비절단 형식 실패율</td><td>길이 상한에서 잘리지 않은 롤아웃 중 형식을 어긴 비율.</td></tr>
 <tr><td>그룹</td><td>한 프롬프트에서 뽑은 롤아웃 4개(<code>num_generations</code> 4). advantage 는 그룹 안의 상대값이다.</td></tr>
 <tr><td>짝지음 비교</td><td>같은 문항을 두 모델이 푼 결과로 비교한다(McNemar). 비짝지음보다 검출 하한이 낮다.</td></tr>
-<tr><td>검출 하한(MDE)</td><td>95% 수준에서 검출할 수 있는 최소 차이.</td></tr>
-<tr><td><code>overlong_filter</code></td><td>길이 상한에서 잘린 completion 을 손실 마스크에서 빼는 ms-swift 옵션.</td></tr>
+<tr><td>검출 하한</td><td>95% 수준에서 검출할 수 있는 최소 차이.</td></tr>
+<tr><td><code>overlong_filter</code></td><td>길이 상한에서 잘린 롤아웃을 손실 마스크에서 빼는 ms-swift 옵션.</td></tr>
+<tr><td>절단률 · grad_norm 클리핑 · 비율 clip</td><td>절단률은 길이 상한에서 잘린 롤아웃의 비율(<code>clipped_ratio</code>)이다. grad_norm 클리핑은 <code>max_grad_norm</code> 을 넘은 그래디언트를 줄이는 동작이다. 비율 clip 은 PPO 중요도 비율을 <code>epsilon</code> 범위로 자르는 동작(<code>clip_ratio</code>)이다.</td></tr>
+<tr><td>노드시간</td><td>K-BDS 과금 단위. GPU 1장 × 1시간이다. 8gpu 노드 1시간은 8 노드시간이다.</td></tr>
 </table>
 
 <nav>
@@ -65,20 +67,20 @@ img{max-width:100%;height:auto} h4{font-size:15px;margin:22px 0 6px} h5{font-siz
 
 <!-- ======================= 1부: 사후 분석 ======================= -->
 <h2 id="stage-2-gdpo-학습-붕괴-사후분석-보고서">1부 · Stage-2 GDPO 형식 붕괴 사후 분석</h2>
-<p>대상은 job 73924(2026-07-31 09:48 ~ 08-03 07:40)와 job 73925(08-03 07:48 ~ 08-04 10:14)다. 근거는 <code>logs/grpo_adv_7392[45].log</code>, <code>logs/train_metrics.csv</code>, <code>logs/eval_*_{results,items}_*.jsonl</code>, <code>logs/probe_fragility_results.jsonl</code>, ms-swift 소스다. 폭주 기전의 상세는 2부 <a href="#8-i-데이터보상-구조-심층-분석--폭주-메커니즘-규명">§8-i</a> 에 있다.</p>
+<p>대상은 job 73924(2026-07-31 09:48 ~ 08-03 07:40)와 job 73925(08-03 07:48 ~ 08-04 10:14)다. 근거는 <code>logs/grpo_adv_7392[45].log</code>, <code>logs/train_metrics.csv</code>, <code>logs/eval_*_{results,items}_*.jsonl</code>, <code>logs/probe_fragility_results.jsonl</code>, ms-swift 소스다. 폭주 메커니즘의 상세는 2부 <a href="#8-i-데이터보상-구조-심층-분석--폭주-메커니즘-규명">§8-i</a> 에 있다.</p>
 
 <h2 id="0-요약">0. 요약</h2>
 <ol>
 <li>step ~900 에서 출력 형식(<code>&lt;answer&gt;</code> 태그)이 5 step 안에 무너졌다. 이후 정책은 회복하지 못했다.</li>
 <li>붕괴 시각은 2026-08-03 20:31 KST(job 73925 +12h42m)다.</li>
-<li>붕괴는 13.6시간 뒤인 2026-08-04 ~10:00 KST 에 발견했다. 재시작 파라미터를 정하다가 우연히 찾았다.</li>
-<li>붕괴 뒤 147 step, 13.6 node-h(≈ 109 GPU-h)를 낭비했다.</li>
+<li>붕괴는 13시간 35분 뒤인 2026-08-04 ~10:00 KST 에 발견했다. 재시작 파라미터를 정하다가 우연히 찾았다.</li>
+<li>붕괴 뒤 147 step, 109 노드시간(벽시계 13.6시간)을 낭비했다.</li>
 <li>최고 체크포인트는 step 850 이다. holdout 51.52%, init 대비 +8.18pp(p&lt;0.0001)다. 붕괴 4h17m 전에 저장했다.</li>
 <li><code>save_total_limit=5</code> 때문에 checkpoint-850 은 step 1100 에서 자동 삭제될 예정이었다. 남은 여유는 53 step(≈ 4.9h)이었다.</li>
-<li>붕괴는 리워드 해킹이 아니다. 학습 보상이 0.615 에서 0.205 로 떨어졌으므로 최적화 실패다.</li>
+<li>붕괴는 보상 해킹이 아니다. 학습 보상이 0.615 에서 0.205 로 떨어졌다. 따라서 최적화 실패다.</li>
 <li>붕괴 직전까지 학습은 개선 중이었다. 실패한 것은 안정성이다.</li>
-<li>의료(pmcvqa)는 측정한 여섯 지점 모두 변화가 없었다.</li>
-<li>근인은 세 축의 합이다. 모델 축: prior 밖의 <code>&lt;answer&gt;</code> 층이 먼저 벗겨진다. 하이퍼파라미터 축: epoch 산식 오류로 붕괴 시점 LR 이 피크의 68% 였다. 데이터 축: 훈련셋 43% 가 형식에 무관심하고, step 600 에 mix 의 46.5% 가 포화했다.</li>
+<li>의료(pmcvqa)는 붕괴 전 다섯 지점(step 400~850) 모두 init 과 구분되지 않았다.</li>
+<li>붕괴 조건은 세 축으로 설명한다(추론). 모델 축: prior 밖의 <code>&lt;answer&gt;</code> 층이 먼저 빠진다. 하이퍼파라미터 축: <code>max_steps=2,337</code> 의 cosine 지평이 길어 붕괴 시점 LR 이 피크의 68% 였다. 데이터 축: 학습셋의 43% 에서는 정확도 보상이 형식에 반응하지 않는다. 또 step 600 이후 mmk12·pmcvqa(설계 46.5%, 실측 34%)에서 holdout 이득이 검출되지 않았다.</li>
 <li>개시 원인(왜 step 800~900 인가)은 지목하지 못했다.</li>
 </ol>
 
@@ -88,29 +90,29 @@ img{max-width:100%;height:auto} h4{font-size:15px;margin:22px 0 6px} h5{font-siz
 <table>
 <tr><th>감시</th><th>주기</th><th>못 잡은 이유</th></tr>
 <tr><td>holdout 정확도(<code>eval_midtrain</code>)</td><td>수동, 며칠 단위</td><td>step 700 까지만 평가했다. 850·900·1000 은 붕괴를 안 뒤에 소급 측정했다.</td></tr>
-<tr><td>학습 곡선 플롯(<code>plot_train_curves.py</code>)</td><td>수동</td><td>마지막 갱신이 step 800 시점이었다. 그때 값은 형식 0.958, 클리핑 3.9%, 엔트로피 정상이었다.</td></tr>
+<tr><td>학습 곡선 플롯(<code>plot_train_curves.py</code>)</td><td>수동</td><td>마지막 갱신이 step 800 시점이었다. 그때 값은 형식 0.958, 절단률 3.9%, 엔트로피 정상이었다.</td></tr>
 <tr><td><code>watch_and_eval.sh</code></td><td>08-04 09:07 도입</td><td>붕괴 12시간 뒤에 만들었다. 감시 대상도 이상 탐지가 아니라 "step 1200 도달"이었다.</td></tr>
 </table>
 <p>세 장치는 모두 "정해진 지점에 도달했는가"를 봤다. "지금 정상인가"를 보는 장치는 없었다.</p>
 
 <h3 id="1-2-실제-발견-순간">1-2. 발견 순간</h3>
-<p>08-04 오전에 holdout 전량 재측정(<a href="#6-d-전량-재측정--분해능-문제가-해결됐다-2026-08-04">§6-d</a>)을 마쳤다. 이어서 재시작 파라미터를 검토하려고 학습 지표 CSV 를 열었다. <code>frac_reward_zero_std</code> 옆 칸의 <code>rewards/FormatThink/mean</code> 이 0.05 였다. holdout 추세만 봤다면 붕괴를 놓쳤을 것이다.</p>
+<p>08-04 오전에 holdout 전량 재측정(<a href="#6-d-전량-재측정--분해능-문제가-해결됐다-2026-08-04">§6-d</a>)을 마쳤다. 이어서 재시작 파라미터를 검토하려고 학습 지표 CSV 를 열었다. <code>frac_reward_zero_std</code> 옆 칸의 <code>rewards/FormatThink/mean</code> 이 0.05 였다. 당시 holdout 은 step 700 까지만 있었다. 따라서 holdout 추세만으로는 붕괴를 볼 수 없었다.</p>
 
 <h3 id="1-3-시간선-">1-3. 시간선 (검증)</h3>
 <table>
 <tr><th>시각 (KST)</th><th style="text-align:right">step</th><th>사건</th></tr>
-<tr><td>07-31 09:25</td><td style="text-align:right">—</td><td>체인 73920~73923 을 제출했다. 네 잡 모두 602 byte 로그만 남기고 <code>run_py</code> 진입 전에 끝났다. 다시 제출했다.</td></tr>
+<tr><td>07-31 09:25</td><td style="text-align:right">—</td><td>체인 73920~73923 을 제출했다. 네 job 모두 602 byte 로그만 남기고 <code>run_py</code> 진입 전에 끝났다. 다시 제출했다.</td></tr>
 <tr><td>07-31 09:48</td><td style="text-align:right">1</td><td>job 73924 시작(v0-20260731-094532)</td></tr>
 <tr><td>08-02 20:38</td><td style="text-align:right">~650</td><td>첫 중간 holdout(n=300, job 74060). 판정 불가.</td></tr>
 <tr><td>08-02 21:17</td><td style="text-align:right">~650</td><td>"step 400 포화"라는 잘못된 해석을 문서에 적었다.</td></tr>
 <tr><td>08-02 23:24</td><td style="text-align:right">—</td><td>위 해석을 철회했다(판별 불가로 고침).</td></tr>
 <tr><td>08-03 07:40</td><td style="text-align:right">787</td><td>73924 가 walltime(70h)에 끝났다.</td></tr>
-<tr><td>08-03 07:48</td><td style="text-align:right">751</td><td>job 73925 시작. checkpoint-750 에서 재개했다(v1-20260803-074645). 751~787 은 두 번 실행했고 결과는 같았다(Format 0.973 vs 0.970).</td></tr>
+<tr><td>08-03 07:48</td><td style="text-align:right">751</td><td>job 73925 시작. checkpoint-750 에서 재개했다(v1-20260803-074645). 751~787 은 두 번 실행했다. 결과는 거의 같았다(Format 0.973 vs 0.970).</td></tr>
 <tr><td>08-03 10:01</td><td style="text-align:right">—</td><td>학습 로그의 소스별 추세 해석도 철회했다.</td></tr>
 <tr><td>08-03 16:14</td><td style="text-align:right">850</td><td>최고 체크포인트 저장(holdout 51.52%)</td></tr>
-<tr><td>08-03 ~16:20</td><td style="text-align:right">851</td><td>설계한 조기경보(비절단 형식실패 1%)가 있었다면 여기서 울렸다. 붕괴 4h11m 전이다.</td></tr>
+<tr><td>08-03 ~16:20</td><td style="text-align:right">851</td><td>설계한 조기 경보(비절단 형식 실패 1%)가 있었다면 여기서 울렸을 것이다. 붕괴 4h11m 전이다.</td></tr>
 <tr><td>08-03 20:31</td><td style="text-align:right">900</td><td>형식 붕괴. FormatThink 899:0.547 → 900:0.359 → 902:0.062 → 904:0.016</td></tr>
-<tr><td>08-03 ~22:00</td><td style="text-align:right">~910</td><td>2단계 시작. 길이 폭발(1,394 → 3,284 tok)</td></tr>
+<tr><td>08-03 ~22:00</td><td style="text-align:right">~910</td><td>2단계(길이 폭발) 시작(1,394 → 3,284 토큰)</td></tr>
 <tr><td>08-04 09:07</td><td style="text-align:right">~1040</td><td><code>watch_and_eval.sh</code> 도입. 이때도 붕괴를 몰랐다.</td></tr>
 <tr><td>08-04 ~10:00</td><td style="text-align:right">1046</td><td>발견. 재시작 파라미터 검토 중 <code>FormatThink=0.05</code> 를 봤다.</td></tr>
 <tr><td>08-04 10:13:57</td><td style="text-align:right">1047</td><td>체인 취소(73925·73926·73927)</td></tr>
@@ -122,15 +124,15 @@ img{max-width:100%;height:auto} h4{font-size:15px;margin:22px 0 6px} h5{font-siz
 <pre><code>save_steps=50 · save_total_limit=5   →  보존 창 = 250 step
 job 73925 (v1) 의 저장 이력: 800, 850, 900, 950, 1000   ← 취소 시점에 정확히 5개
 </code></pre>
-<p>step 1050 을 저장할 때 트레이너는 checkpoint-800 을 지운다. step 1100 을 저장할 때는 checkpoint-850(최고점)을 지운다. 취소 시점은 step 1047 이었고, 여유는 53 step(≈ 4.9시간)이었다.</p>
-<div class="warn">발견이 반나절 더 늦었다면 최고 체크포인트를 잃었다. v0(≤750)은 별도 디렉터리라 안전했지만, 살릴 가치가 있던 것은 850 이었다.</div>
+<p>step 1050 을 저장할 때 트레이너는 checkpoint-800 을 지운다. step 1100 을 저장할 때는 checkpoint-850(최고점)을 지운다. 취소 시점은 step 1047 이었다. 남은 여유는 53 step(≈ 4.9시간)이었다.</p>
+<div class="warn">발견이 4.9시간 더 늦었다면 최고 체크포인트를 잃었을 것이다. v0(≤750)은 별도 디렉터리라 안전했다. 그러나 살릴 가치가 있던 것은 850 이었다.</div>
 
 <h3 id="1-5-감시-설계의-결론">1-5. 감시 설계의 결론</h3>
 <table>
 <tr><th>문제</th><th>조치</th></tr>
-<tr><td>"지금 정상인가"를 보는 장치가 없었다. 붕괴 뒤에도 학습이 계속 돌았다.</td><td><a href="../scripts/watch_format_collapse.py"><code>scripts/watch_format_collapse.py</code></a> 를 구현했다. <code>FormatThink</code> 50-step 창 평균이 0.85 미만이면 <code>scancel</code> 로 정지한다(<code>WATCHDOG=1</code>). 로그 재생에서 감시자는 step 901 에 발화했다. 1,047 step 전 구간 오경보는 0회였고, 실제 발견보다 146 step(13.5h) 빨랐다.</td></tr>
-<tr><td>최고 체크포인트를 잃을 뻔했다.</td><td><code>save_total_limit</code> 를 올리거나, holdout 최고점이 바뀔 때 별도 디렉터리로 즉시 스냅샷한다.</td></tr>
-<tr><td>붕괴를 안 뒤 소급 평가에 하루가 걸렸다.</td><td>체크포인트를 저장할 때 holdout 서브셋을 자동 평가한다(n=300 이면 20분).</td></tr>
+<tr><td>"지금 정상인가"를 보는 장치가 없었다. 붕괴 뒤에도 학습이 계속 돌았다.</td><td><a href="../scripts/watch_format_collapse.py"><code>scripts/watch_format_collapse.py</code></a> 를 구현했다. <code>FormatThink</code> 50-step 창 평균이 0.85 미만이면 <code>scancel</code> 로 정지한다(<code>WATCHDOG=1</code>). 로그 재생에서 감시자는 step 901 에 경보를 냈다. 1,047 step 전 구간에서 오경보는 0회였다. 실제 발견(step 1046)보다 145 step(약 13.5시간) 빨랐다.</td></tr>
+<tr><td>최고 체크포인트를 잃을 뻔했다.</td><td>(권고) <code>save_total_limit</code> 를 올린다. 또는 holdout 최고점이 바뀔 때 별도 디렉터리로 즉시 스냅샷한다.</td></tr>
+<tr><td>붕괴를 안 뒤 소급 평가에 하루가 걸렸다.</td><td>(권고) 체크포인트를 저장할 때 holdout 서브셋을 자동 평가한다(n=300 이면 20분).</td></tr>
 </table>
 
 <h4 id="1-5-1--추가-2026-08-06--kl-이-형식보다-50-step-먼저-움직였다">1-5-1. KL 은 경보 지표로 쓸 수 없다 (2026-08-06)</h4>
@@ -144,17 +146,17 @@ job 73925 (v1) 의 저장 이력: 800, 850, 900, 950, 1000   ← 취소 시점�
 <tr><td>900–909</td><td style="text-align:right">0.081</td><td style="text-align:right">0.063</td><td style="text-align:right">0.081 (붕괴)</td><td style="text-align:right">1,376</td><td style="text-align:right">0.08</td></tr>
 <tr><td>910–949</td><td style="text-align:right">0.068</td><td style="text-align:right">0.324</td><td style="text-align:right">0.213</td><td style="text-align:right">3,010</td><td style="text-align:right">0.35</td></tr>
 </table>
-<p>이 구간 경계는 붕괴 시점을 안 뒤에 정했다. 온라인 규칙에서는 이 리드타임이 생기지 않는다. <code>scripts/watch_format_collapse.py --simulate</code> 로 73924/73925 로그를 재생하며 임계값을 스윕했다.</p>
+<p>이 구간 경계는 붕괴 시점을 안 뒤에 정했다. 실시간 규칙에서는 이만큼 앞서 경보할 수 없다. <code>scripts/watch_format_collapse.py --simulate</code> 로 73924/73925 로그를 재생하며 임계값을 바꿔 가며 시험했다.</p>
 <table>
-<tr><th><code>kl-ratio</code> (직전 150-step 중앙값 대비)</th><th style="text-align:right">발화 step</th><th>판정</th></tr>
+<tr><th><code>kl-ratio</code> (직전 150-step 중앙값 대비)</th><th style="text-align:right">경보 step</th><th>판정</th></tr>
 <tr><td>1.4 ~ 1.9</td><td style="text-align:right">288 ~ 301</td><td>오경보(붕괴 600 step 전)</td></tr>
 <tr><td>2.0</td><td style="text-align:right">900</td><td>형식 경보(901)보다 1 step 빠름</td></tr>
-<tr><td>2.5</td><td style="text-align:right">미발화</td><td>놓침</td></tr>
+<tr><td>2.5</td><td style="text-align:right">경보 없음</td><td>놓침</td></tr>
 </table>
-<p>오경보 없는 KL 규칙의 리드타임은 1 step 이었다. 따라서 KL 은 사후 해석용 지표로만 쓴다. 감시는 형식 지표만으로 건다.</p>
+<p>오경보 없는 KL 규칙은 형식 경보보다 1 step 만 앞섰다. 따라서 KL 은 사후 해석용 지표로만 쓴다. 감시는 형식 지표만으로 건다.</p>
 <ul>
-<li>KL 은 런 내내 단조 상승한다. step 1 의 6e-4 에서 step 800 의 3e-2 까지 50배 올랐고, 그동안 문제는 없었다. 절대값 임계는 쓸 수 없다.</li>
-<li>910–949 의 KL 하락(0.081 → 0.068)은 개선이 아니라 계측 실패다. <code>overlong_filter</code> 가 절단 롤아웃을 <code>completion_mask</code> 에서 빼는 코드(<code>grpo_trainer.py:1132</code>)가 KL 계산(1140 행)보다 앞에 있다. 코드 원문은 <a href="#8-d-유력한-근인--overlong_filtertrue-가-앵커를-무력화한다">2부 §8-d</a> 에 있다. 이 구간 clip 은 0.35 였으므로 트레이너는 KL 을 남은 65% 토큰에서만 계산했다. KL 은 반드시 <code>clipped_ratio</code> 와 함께 읽는다.</li>
+<li>KL 은 실행 내내 단조 상승한다. step 1 의 6e-4 에서 step 800 의 3e-2 까지 50배 올랐다. 그동안 문제는 없었다. 절대값 임계는 쓸 수 없다.</li>
+<li>910–949 의 KL 하락(0.081 → 0.068)은 개선이 아니라 계측 실패다. <code>overlong_filter</code> 가 절단 롤아웃을 <code>completion_mask</code> 에서 빼는 코드(<code>grpo_trainer.py:1132</code>)가 KL 계산(1140 행)보다 앞에 있다. 코드 원문은 <a href="#8-d-유력한-근인--overlong_filtertrue-가-앵커를-무력화한다">2부 §8-d</a> 에 있다. 이 구간 절단률은 0.35 였다. 따라서 트레이너는 KL 을 남은 65% 롤아웃에서만 계산했다. 잘린 롤아웃이 더 길므로 토큰 기준으로는 65% 보다 적다. KL 은 반드시 <code>clipped_ratio</code> 와 함께 읽는다.</li>
 <li><code>rewards/FormatThink/std</code> 는 쓰지 않는다. 이진 보상의 배치 std 는 평균의 결정론적 함수(<code>√(p(1−p)·n/(n−1))</code>)라 독립 정보가 없다.</li>
 </ul>
 
@@ -177,7 +179,7 @@ dataset_shuffle=True · seed=42 · split_dataset_ratio=0.0
 <tr><td>PMC-VQA (서브샘플)</td><td style="text-align:right">19,583</td><td style="text-align:right">26.2%</td><td>letter 100% (4지선다)</td><td style="text-align:right">400</td></tr>
 <tr><td>합계</td><td style="text-align:right">74,787</td><td style="text-align:right"></td><td></td><td style="text-align:right">1,772</td></tr>
 </table>
-<p>이미지 바이트 해시로 중복을 제거했다. holdout 누수는 0 건이다.</p>
+<p>이미지 바이트 해시로 중복을 제거했다. holdout 누수는 0건이다.</p>
 
 <h3 id="2-2-설계-비율과-실측-롤아웃-비율이-다르다--미해결">2-2. 설계 비율과 실측 롤아웃 비율이 다르다 (미해결)</h3>
 <table>
@@ -186,29 +188,29 @@ dataset_shuffle=True · seed=42 · split_dataset_ratio=0.0
 <tr><td>실측(롤아웃 34,688건 조인, <a href="#8-i-데이터보상-구조-심층-분석--폭주-메커니즘-규명">§8-i</a> ⑥)</td><td style="text-align:right">65%</td><td style="text-align:right">16%</td><td style="text-align:right">18%</td></tr>
 <tr><td>차이</td><td style="text-align:right">+11.5pp (+21%)</td><td style="text-align:right">−4.3pp (−21%)</td><td style="text-align:right">−8.2pp (−31%)</td></tr>
 </table>
-<p>§8-i ⑥ 은 이 비율이 전 구간 ±3%p 로 안정적임을 확인했다. 시간에 따른 편중은 없다. 그러나 설계값과는 대조하지 않았다. 의료는 26% 에서 18% 로 줄어든 채 돌았다. "의료 27% 배합"이라는 설계는 실현되지 않았다.</p>
+<p>§8-i ⑥ 은 이 비율이 전 구간 ±3pp 로 안정적임을 확인했다. 시간에 따른 편중은 없다. 그러나 설계값과는 대조하지 않았다. 의료는 26% 에서 18% 로 줄어든 채 돌았다. "의료 27% 배합"이라는 설계는 실현되지 않았다.</p>
 <p>원인 후보:</p>
 <ul>
-<li><code>dynamic_sample</code> 재샘플링 편향: 기각. 스텝당 고유 프롬프트가 7.9개(이론 8.0)라 재샘플이 거의 없었다. 0.1개/step 으로는 11pp 를 만들 수 없다.</li>
+<li><code>dynamic_sample</code> 재샘플링 편향: 기각. step 당 고유 프롬프트가 7.9개(이론 8.0)라 재샘플이 거의 없었다. 0.1개/step 으로는 11pp 를 만들 수 없다.</li>
 <li>조인 키(프롬프트 앞 150자) 귀속 오류: 미확인. 오염은 0.03% 이지만 소스별 조인 성공률은 보지 않았다.</li>
 <li><code>log_completions</code> 기록 자체의 편향: 미확인.</li>
 </ul>
 
 <h3 id="2-3-정답-형식-구성이-채점-구멍의-크기를-정한다-">2-3. 정답 형식 구성이 채점 구멍의 크기를 정한다 (검증)</h3>
-<p><code>_strip_answer</code> 는 <code>&lt;answer&gt;</code> 가 없으면 완성문 전체를 답으로 넘긴다(<code>configs/accuracy.py</code>, 코드 원문은 <a href="#8-i-데이터보상-구조-심층-분석--폭주-메커니즘-규명">2부 §8-i ②</a>). 이 구멍의 크기는 훈련셋의 정답 형식 구성이 정한다.</p>
+<p><code>_strip_answer</code> 는 <code>&lt;answer&gt;</code> 가 없으면 롤아웃 전체를 답으로 넘긴다(<code>configs/accuracy.py</code>, 코드 원문은 <a href="#8-i-데이터보상-구조-심층-분석--폭주-메커니즘-규명">2부 §8-i ②</a>). 이 구멍의 크기는 학습셋의 정답 형식 구성이 정한다.</p>
 <table>
-<tr><th>채점 경로</th><th>태그를 버리면</th><th>해당 데이터</th><th style="text-align:right">훈련셋 비중</th></tr>
+<tr><th>채점 경로</th><th>태그를 버리면</th><th>해당 데이터</th><th style="text-align:right">학습셋 비중</th></tr>
 <tr><td><code>math_verify(전문, first_match)</code></td><td>본문 어디서든 숫자·<code>\boxed{}</code> 를 찾아 통과</td><td>mmk12 전량 + deepvision 43%</td><td style="text-align:right">43.3%</td></tr>
 <tr><td><code>_LETTER_RE</code> (문자열 전체가 letter 한 글자)</td><td>추론문은 매치하지 않아 0점</td><td>pmcvqa 전량 + deepvision 49.5%</td><td style="text-align:right">52.7%</td></tr>
 </table>
-<p>훈련셋의 43.3% 에서 그래디언트는 <code>&lt;answer&gt;</code> 태그에 무관심하다. step 800~899 비절단 롤아웃에서는 형식을 버린 짧은 롤아웃의 29.2% 를 채점기가 정답으로 처리했다.</p>
+<p>학습셋의 43.3% 에서는 정확도 보상이 <code>&lt;answer&gt;</code> 태그 유무에 반응하지 않는다. 형식 보상(가중 0.2)만 남는다. step 800~899 비절단 롤아웃에서는 형식을 버린 짧은 롤아웃의 29.2% 를 채점기가 정답으로 처리했다.</p>
 
-<h3 id="2-4-소스별-학습-신호--step-600-에-절반이-이미-포화-">2-4. 소스별 학습 신호: step 600 에 mix 의 46.5% 가 포화했다 (검증)</h3>
+<h3 id="2-4-소스별-학습-신호--step-600-에-절반이-이미-포화-">2-4. 소스별 학습 신호: step 600 이후 mmk12·pmcvqa 에서 이득이 검출되지 않았다 (검증)</h3>
 <p>아래는 holdout 전량(n=1,772) 결과다. 2부 <a href="#6-d-전량-재측정--분해능-문제가-해결됐다-2026-08-04">§6-d</a>(init~700)와 <a href="#8-f-홀드아웃에서의-손상">§8-f</a>(850·900·1000)의 값을 이 표 하나에 모았다. 900·1000 열은 붕괴 이후 값이다. 판정 열은 step 850 까지를 본 것이다.</p>
 <table>
 <tr><th>(%)</th><th style="text-align:right">init</th><th style="text-align:right">400</th><th style="text-align:right">500</th><th style="text-align:right">600</th><th style="text-align:right">700</th><th style="text-align:right">850</th><th style="text-align:right">900</th><th style="text-align:right">1000</th><th>판정 (~850)</th></tr>
 <tr><td>전체 (n=1,772)</td><td style="text-align:right">43.34</td><td style="text-align:right">49.04</td><td style="text-align:right">49.55</td><td style="text-align:right">49.32</td><td style="text-align:right">50.40</td><td style="text-align:right">51.52</td><td style="text-align:right">22.63</td><td style="text-align:right">25.56</td><td>—</td></tr>
-<tr><td>deepvision 일반 (n=972)</td><td style="text-align:right">35.60</td><td style="text-align:right">42.59</td><td style="text-align:right">43.11</td><td style="text-align:right">42.08</td><td style="text-align:right">44.44</td><td style="text-align:right">46.40</td><td style="text-align:right">16.36</td><td style="text-align:right">22.84</td><td>유일하게 계속 상승</td></tr>
+<tr><td>deepvision 일반 (n=972)</td><td style="text-align:right">35.60</td><td style="text-align:right">42.59</td><td style="text-align:right">43.11</td><td style="text-align:right">42.08</td><td style="text-align:right">44.44</td><td style="text-align:right">46.40</td><td style="text-align:right">16.36</td><td style="text-align:right">22.84</td><td>유일하게 850 까지 상승(600 에서 한 번 하락)</td></tr>
 <tr><td>mmk12 수학 (n=400)</td><td style="text-align:right">48.25</td><td style="text-align:right">56.25</td><td style="text-align:right">58.25</td><td style="text-align:right">59.25</td><td style="text-align:right">56.75</td><td style="text-align:right">57.50</td><td style="text-align:right">50.00</td><td style="text-align:right">49.75</td><td>600 정점, 이후 하락</td></tr>
 <tr><td>pmcvqa 의료 (n=400)</td><td style="text-align:right">57.25</td><td style="text-align:right">57.50</td><td style="text-align:right">56.50</td><td style="text-align:right">57.00</td><td style="text-align:right">58.50</td><td style="text-align:right">58.00</td><td style="text-align:right">10.50</td><td style="text-align:right">8.00</td><td>전 지점 미검출(±3.5pp)</td></tr>
 <tr><td>format</td><td style="text-align:right">0.947</td><td style="text-align:right">0.892</td><td style="text-align:right">0.887</td><td style="text-align:right">0.887</td><td style="text-align:right">0.903</td><td style="text-align:right">0.895</td><td style="text-align:right">0.056</td><td style="text-align:right">0.180</td><td></td></tr>
@@ -218,19 +220,19 @@ dataset_shuffle=True · seed=42 · split_dataset_ratio=0.0
 <tr><th>층 (400→850)</th><th style="text-align:right">Δ</th></tr>
 <tr><td>deepvision·vl</td><td style="text-align:right">+7.71pp</td></tr>
 <tr><td>deepvision·math</td><td style="text-align:right">−0.67pp</td></tr>
-<tr><td>mmk12·numeric</td><td style="text-align:right">(600 정점 후 하락)</td></tr>
+<tr><td>mmk12·numeric</td><td style="text-align:right">+1.25pp (미검출, 600 정점)</td></tr>
 <tr><td>pmcvqa·letter</td><td style="text-align:right">+0.50pp (미검출)</td></tr>
 </table>
-<p>step 400 이후의 이득은 모두 deepvision·vl 층에서 나왔다. step 600 이후 mix 의 46.5%(mmk12+pmcvqa)에는 더 가르칠 것이 없었다.</p>
+<p>step 400 이후 검출된 이득은 모두 deepvision·vl 층에서 나왔다. step 600 이후 mmk12·pmcvqa(설계 46.5%, 실측 34%)에서는 검출되는 이득이 없었다. pmcvqa 는 처음부터 오르지 않았다(§2-5).</p>
 
 <h3 id="2-5--왜-의료는-처음부터-안-올랐나--파라미터-점검에서-나온-가설">2-5. 의료가 처음부터 오르지 않은 이유: 비전 경로 동결 가설 (추론)</h3>
 <pre><code>freeze_vit=True · freeze_aligner=True · freeze_llm=False
 LoRA target: ^(model\.language_model(?=\.)\..*\.(q_proj|k_proj|v_proj|o_proj|gate_proj|up_proj|down_proj|...))$
 </code></pre>
-<p>비전 인코더와 aligner 는 모두 동결했다(검증). LoRA 는 언어 모델에만 붙었다. PMC-VQA 는 PubMed 그림(현미경·조영술·다중패널 도표)이다. 이 도메인에서 Qwen3.5 ViT 의 표현이 부실하면 언어 쪽 어댑터만으로는 성능을 올릴 수 없다. RL 이 바꿀 수 있는 것은 고정된 시각 토큰을 읽는 방식뿐이다.</p>
-<p>이 가설은 <a href="#8-f-홀드아웃에서의-손상">§8-f</a> 의 관측과 맞는다. 오른 층은 deepvision·vl(일반 도형·차트)뿐이다. pmcvqa(의료 영상)는 반응하지 않았다.</p>
+<p>비전 인코더와 aligner 는 모두 동결했다(검증). LoRA 는 언어 모델에만 붙었다. PMC-VQA 의 이미지는 PubMed 그림(현미경·조영술·다중패널 도표)이다. 이 도메인에서 Qwen3.5 ViT 의 표현이 부실하면 언어 쪽 어댑터만으로는 성능을 올리기 어렵다. RL 이 바꿀 수 있는 것은 고정된 시각 토큰을 읽는 방식뿐이다.</p>
+<p>이 가설은 <a href="#2-4-소스별-학습-신호--step-600-에-절반이-이미-포화-">§2-4</a> 층별 표의 관측과 맞는다. 오른 층은 deepvision·vl(일반 도형·차트)뿐이다. pmcvqa(의료 영상)는 반응하지 않았다.</p>
 <div class="warn">이 항목은 가설이다. 지금 데이터로는 "ViT 표현이 부실하다"와 "PMC-VQA 는 원래 RL 로 오르지 않는 과제다"를 구분할 수 없다.</div>
-<p>어느 쪽이든 의료 26% 는 학습 신호 없이 GPU 시간의 4분의 1을 썼다. pmcvqa 는 step 899 까지 형식 실패율이 0.0% 였다(<a href="#8-i-데이터보상-구조-심층-분석--폭주-메커니즘-규명">§8-i</a> ②). 형식을 붙들던 유일한 소스에 학습 신호가 없었다.</p>
+<p>어느 쪽이든 의료는 실측 롤아웃의 18% 를 쓰고도 holdout 이득이 없었다. pmcvqa 는 step 899 까지 형식 실패율이 0.0% 였다(<a href="#8-i-데이터보상-구조-심층-분석--폭주-메커니즘-규명">§8-i</a> ②). 형식을 붙들던 유일한 소스에 학습 신호가 없었다.</p>
 
 <h2 id="3-실제로-어떤-파라미터로-돌았나--전량-점검">3. 파라미터 점검</h2>
 <h3 id="3-1-실행-커맨드-원문-">3-1. 실행 커맨드 원문 (검증)</h3>
@@ -255,26 +257,26 @@ LoRA target: ^(model\.language_model(?=\.)\..*\.(q_proj|k_proj|v_proj|o_proj|gat
 <p>73925(재개)는 <code>--resume_from_checkpoint .../checkpoint-750</code> 만 추가했고 나머지는 같다. 레시피는 의도대로 들어갔다. SLURM <code>--export</code> 파싱 사고나 인자 유실은 없었다.</p>
 
 <h3 id="3-2-해소된-인자-중-점검에서-새로-드러난-것">3-2. launch 스크립트에 없던 인자</h3>
-<p>swift 가 덤프한 전체 인자 중, launch 스크립트에 적지 않아 아무도 보지 않은 값이다.</p>
+<p>아래 표는 swift 가 출력한 전체 인자 중 launch 스크립트에 없던 값이다. 실행 전에 이 값들을 검토하지 않았다.</p>
 <table>
 <tr><th>인자</th><th>값</th><th>출처</th><th>평가</th></tr>
-<tr><td><code>warmup_steps</code> / <code>warmup_ratio</code></td><td>0 / None</td><td>기본값</td><td>워밍업이 없다. step 1 부터 LR 1e-5 를 썼다. 초기는 무사했으므로 붕괴 원인은 아니다. 의도한 설정도 아니다.</td></tr>
+<tr><td><code>warmup_steps</code> / <code>warmup_ratio</code></td><td>0 / None</td><td>기본값</td><td>워밍업이 없다. step 1 부터 LR 1e-5 를 썼다. 초기 학습이 안정적이었으므로 붕괴 원인은 아니다. 의도한 설정도 아니다.</td></tr>
 <tr><td><code>lr_scheduler_type</code></td><td><code>cosine</code></td><td>기본값</td><td>감쇠 지평이 <code>max_steps=2337</code> 이다(§3-4).</td></tr>
 <tr><td><code>max_grad_norm</code></td><td>1.0</td><td>기본값</td><td>실제 발동은 §3-3.</td></tr>
 <tr><td><code>weight_decay</code></td><td>0.1</td><td>swift 기본</td><td>무해하다. LoRA δ=0 이 SFT init 이므로 wd 는 SFT 쪽으로 당긴다. 형식을 지키는 방향이다.</td></tr>
-<tr><td><code>sync_ref_model</code></td><td>False</td><td>기본값</td><td>참조 모델은 SFT init 에 고정이다. KL 0.54 는 init 기준 이탈량이고, β=0.04 가 유일한 제약이었다.</td></tr>
+<tr><td><code>sync_ref_model</code></td><td>False</td><td>기본값</td><td>참조 모델은 SFT init 에 고정이다. 취소 직전 KL 0.54(<a href="#8-a-경과--25-step-구간-평균">§8-a</a> 1025~1049)는 init 기준 이탈량이다. β=0.04 가 유일한 제약이었다.</td></tr>
 <tr><td><code>num_iterations</code></td><td>1</td><td>기본값</td><td>완전 on-policy 다. 내부 반복과 staleness 가 없다.</td></tr>
-<tr><td><code>top_p</code> / <code>top_k</code></td><td>1.0 / −1</td><td>기본값</td><td>롤아웃 분포에 하한 절단이 없다. IS 편향을 없애려면 맞는 설정이지만, 퇴화 토큰에도 늘 도달할 수 있다.</td></tr>
-<tr><td><code>epsilon_high</code></td><td>None</td><td>dr_grpo 의도</td><td>대칭 clip 0.2 다(clip-higher 미적용).</td></tr>
+<tr><td><code>top_p</code> / <code>top_k</code></td><td>1.0 / −1</td><td>기본값</td><td>롤아웃 분포의 꼬리를 자르지 않는다. 중요도 샘플링(IS) 편향이 없는 설정이다. 그러나 확률이 낮은 퇴화 토큰도 늘 뽑힐 수 있다.</td></tr>
+<tr><td><code>epsilon_high</code></td><td>None</td><td>dr_grpo 의도</td><td>대칭 비율 clip 0.2 다(상한 확대 미적용).</td></tr>
 <tr><td><code>freeze_vit</code> / <code>freeze_aligner</code></td><td>True / True</td><td>기본값</td><td>비전 경로 완전 동결. §2-5 의 근거다.</td></tr>
 <tr><td><code>lora_dropout</code></td><td>0.05</td><td>기본값</td><td>—</td></tr>
 <tr><td><code>adam_beta2</code></td><td>0.95</td><td>swift 기본</td><td>HF 기본 0.999 보다 기억이 짧다.</td></tr>
-<tr><td><code>dataset_shuffle</code> / <code>seed</code></td><td>True / 42</td><td></td><td>순서 artifact 가 없다.</td></tr>
+<tr><td><code>dataset_shuffle</code> / <code>seed</code></td><td>True / 42</td><td></td><td>순서 효과가 없다.</td></tr>
 <tr><td><code>save_total_limit</code></td><td>5</td><td>스크립트</td><td>§1-4. 최고 체크포인트가 4.9h 차이로 남았다.</td></tr>
 </table>
 
 <h3 id="3-3-max_grad_norm--문서-정정-">3-3. <code>max_grad_norm</code> 발동 기록 (검증)</h3>
-<p>2부 <a href="#8-e-기각된-가설들">§8-e</a> 의 초기 서술은 "grad_norm 최대가 0.17 이라 클리핑이 한 번도 작동하지 않았다"였다. 이 서술은 step 933 까지만 맞다(최대 0.1747 @ step 903). 전 구간 최대는 10.02 다.</p>
+<p>중간 점검 당시(08-04) 서술은 "grad_norm 최대가 0.17 이라 grad_norm 클리핑이 한 번도 작동하지 않았다"였다. 이 서술은 step 933 까지만 맞다(step 903 의 0.1747 이 그 구간 최대). 전 구간 최대는 10.02 다.</p>
 <table>
 <tr><th style="text-align:right">step</th><th style="text-align:right">grad_norm</th><th>시점</th></tr>
 <tr><td style="text-align:right">903</td><td style="text-align:right">0.175</td><td>붕괴 중 (≤933 최대)</td></tr>
@@ -282,23 +284,23 @@ LoRA target: ^(model\.language_model(?=\.)\..*\.(q_proj|k_proj|v_proj|o_proj|gat
 <tr><td style="text-align:right">1034</td><td style="text-align:right">3.813</td><td>토큰 퇴화</td></tr>
 <tr><td style="text-align:right">1042</td><td style="text-align:right">1.094</td><td>토큰 퇴화</td></tr>
 </table>
-<p>클리핑은 붕괴 이후 최소 3회 발동했다. 인과 해석은 바뀌지 않는다. 개시 시점의 grad_norm 은 정상이었다.</p>
+<p>grad_norm 클리핑은 붕괴 이후 최소 3회 발동했다. 붕괴 개시가 그래디언트 폭발 때문이 아니라는 해석은 그대로다. 개시 시점의 grad_norm 은 클리핑 임계(1.0) 미만이었다.</p>
 <pre><code>step 899:0.034  900:0.034  901:0.059  902:0.027  903:0.175  904:0.040
 </code></pre>
-<p>따라서 "한 스텝의 그래디언트 폭발" 가설은 기각한다.</p>
+<p>따라서 "한 step 의 그래디언트 폭발" 가설은 기각한다.</p>
 
-<h3 id="3-4-lr-스케줄이-계획-오류를-물려받았다--신규">3-4. LR 스케줄이 epoch 산식 오류를 물려받았다 (검증)</h3>
-<p><code>launch_stage2_expanded_epoch.sh</code> 는 1 epoch 을 2,337 step 으로 잡았다. 이 산정은 틀렸다. GRPO 의 <code>pdtbs</code> 는 프롬프트가 아니라 completion 을 센다. 실제 1 epoch 은 9,348 step 이고, 2,337 step 은 0.25 epoch 이다(<a href="#3-epoch-커버리지--계획-전제가-4배-틀렸다">2부 §3</a>). 이 오류는 LR 스케줄에도 들어갔다.</p>
+<h3 id="3-4-lr-스케줄이-계획-오류를-물려받았다--신규">3-4. LR 스케줄이 max_steps 설정 오류를 물려받았다 (검증)</h3>
+<p><code>launch_stage2_expanded_epoch.sh</code> 는 1 epoch 을 2,337 step 으로 잡았다. 이 산정은 틀렸다. GRPO 의 <code>per_device_train_batch_size</code>(pdtbs) 는 프롬프트가 아니라 롤아웃을 센다. 실제 1 epoch 은 9,348 step 이고, 2,337 step 은 0.25 epoch 이다(<a href="#3-epoch-커버리지--계획-전제가-4배-틀렸다">2부 §3</a>). <code>max_steps=2337</code> 은 LR 스케줄의 cosine 지평도 정했다.</p>
 <pre><code>lr_scheduler_type=cosine · max_steps=2337  →  붕괴 시점 step 900 의 LR = 6.77e-6 = 피크의 68%
 </code></pre>
-<p>같은 시점의 holdout 짝지음 결과는 다음과 같다(2부 <a href="#6-d-전량-재측정--분해능-문제가-해결됐다-2026-08-04">§6-d</a>, <a href="#8-g-그래서-step-850-이-최고점이다--그리고-6-d-의-미검출이-뒤집힌다">§8-g</a>).</p>
+<p>붕괴 전 구간의 holdout 짝지음 결과는 다음과 같다(2부 <a href="#6-d-전량-재측정--분해능-문제가-해결됐다-2026-08-04">§6-d</a>, <a href="#8-g-그래서-step-850-이-최고점이다--그리고-6-d-의-미검출이-뒤집힌다">§8-g</a>).</p>
 <table>
 <tr><th>구간</th><th style="text-align:right">Δ</th><th style="text-align:right">p</th><th>판정</th></tr>
 <tr><td>init → 400</td><td style="text-align:right">+5.70pp</td><td style="text-align:right">&lt;0.0001</td><td>검출</td></tr>
 <tr><td>400 → 850 (450 step)</td><td style="text-align:right">+2.48pp</td><td style="text-align:right">0.020</td><td>검출(경계)</td></tr>
 <tr><td>700 → 850 (150 step)</td><td style="text-align:right">+1.13pp</td><td style="text-align:right">0.25</td><td>미검출</td></tr>
 </table>
-<p>포화된 목적함수에 피크의 68% LR 을 200 step 넘게 더 줬다. <code>MAX_STEPS</code> 를 1,200 으로 잡았다면 step 900 의 LR 은 ~3e-6(30%)이었다. 계획 단계의 epoch 산식 오류가 <code>MAX_STEPS=2337</code> 과 cosine 감쇠 지평을 거쳐 붕괴 구간의 LR 을 키웠다.</p>
+<p>일부 소스의 이득이 멈춘 뒤에도 피크의 85~68% LR 이 step 600~900 에 들어갔다. <code>MAX_STEPS</code> 를 1,200 으로 잡았다면 step 900 의 LR 은 ~1.5e-6(피크의 15%)이었다. 붕괴 구간의 LR 을 키운 것은 epoch 산식 자체가 아니다. 포화를 고려하지 않은 <code>MAX_STEPS=2337</code> 과 그 cosine 감쇠 지평이다. 산식을 바로잡아 1 epoch(9,348 step)을 지평으로 잡았다면 step 900 의 LR 은 더 높았다.</p>
 
 <h3 id="3-5-검증-지평-밖에서-돌았다-">3-5. 레시피는 검증 범위 밖에서 돌았다</h3>
 <table>
@@ -322,17 +324,17 @@ LoRA target: ^(model\.language_model(?=\.)\..*\.(q_proj|k_proj|v_proj|o_proj|gat
 <tr><td>1000–1049</td><td style="text-align:right">28</td><td></td></tr>
 </table>
 <p>step 900–949 에서는 400 rank-step(50 step × 8 rank) 중 52건(13%)이 배치 전체를 마스킹했다. 그 rank·step 은 손실에도 KL 앵커에도 기여하지 않았다. <a href="#8-d-유력한-근인--overlong_filtertrue-가-앵커를-무력화한다">§8-d</a> 의 앵커 약화를 처음 정량화한 값이다.</p>
-<p>2부 §2 의 초기 서술 "이 step 은 KL 이 NaN 이라 KL 제약이 무효였다"는 재현되지 않는다. 두 잡의 로그에서 <code>'kl': 'nan'</code> 은 0건이다. <code>train_metrics.csv</code> 1,047 행에도 NaN/결측이 없다. 마스킹은 실재하지만 NaN 으로 나타나지 않았다.</p>
+<p>중간 점검 당시(08-04) 서술 "이 step 은 KL 이 NaN 이라 KL 제약이 무효였다"는 재현되지 않는다. 두 job 의 로그에서 <code>'kl': 'nan'</code> 은 0건이다. <code>train_metrics.csv</code> 1,047 행에도 NaN/결측이 없다. 마스킹은 실재하지만 NaN 으로 나타나지 않았다.</p>
 
 <h2 id="4-원인-식별">4. 원인 식별</h2>
-<h3 id="4-0-프레임-정정--리워드-해킹이-아니다-">4-0. 리워드 해킹이 아니다 (검증)</h3>
+<h3 id="4-0-프레임-정정--리워드-해킹이-아니다-">4-0. 보상 해킹이 아니다 (검증)</h3>
 <table>
 <tr><th>구간</th><th style="text-align:right">reward</th><th style="text-align:right">AccuracyMix</th><th style="text-align:right">FormatThink</th></tr>
 <tr><td>800–850</td><td style="text-align:right">0.615</td><td style="text-align:right">0.438</td><td style="text-align:right">0.944</td></tr>
 <tr><td>875–900</td><td style="text-align:right">0.578</td><td style="text-align:right">0.428</td><td style="text-align:right">0.814</td></tr>
 <tr><td>900–925</td><td style="text-align:right">0.205</td><td style="text-align:right">0.244</td><td style="text-align:right">0.052</td></tr>
 </table>
-<p>모델은 보상이 더 낮은 영역으로 갔고 돌아오지 못했다. <a href="#8-i-데이터보상-구조-심층-분석--폭주-메커니즘-규명">§8-i</a> ② 의 채점 구멍은 형식 붕괴가 퍼지는 통로였다. 목적지는 아니었다. 따라서 "보상 설계를 고치면 된다"는 설명은 절반만 맞다. 나머지 절반은 최적화가 더 나쁜 곳으로 가서 돌아오지 못한 이유다. 세 축(§4-1~4-3)이 이 문제를 다룬다.</p>
+<p>모델은 보상이 더 낮은 영역으로 갔고 돌아오지 못했다. <a href="#8-i-데이터보상-구조-심층-분석--폭주-메커니즘-규명">§8-i</a> ② 의 채점 구멍은 형식 붕괴를 퍼뜨렸다. 그러나 모델이 노린 보상은 아니었다. 보상 설계를 고치면 확산 경로만 막힌다. 최적화가 나쁜 영역으로 가서 돌아오지 못한 이유는 따로 설명해야 한다. 세 축(§4-1~4-3)이 이 이유를 다룬다.</p>
 
 <h3 id="4-1-모델-축--무엇이-먼저-깨지나-">4-1. 모델 축: 무엇이 먼저 깨지나 (추론)</h3>
 <p>세 태그는 출처가 다르다.</p>
@@ -342,12 +344,12 @@ LoRA target: ^(model\.language_model(?=\.)\..*\.(q_proj|k_proj|v_proj|o_proj|gat
 <tr><td><code>&lt;/think&gt;</code></td><td>Qwen3.5 하이브리드 씽킹의 네이티브 프로토콜</td><td>그렇다(사전학습 prior)</td></tr>
 <tr><td><code>&lt;answer&gt;…&lt;/answer&gt;</code></td><td>콜드스타트 SFT 와 시스템 프롬프트로 덧씌운 층</td><td>그렇다(prior 밖)</td></tr>
 </table>
-<p>checkpoint-900 greedy 실측(비절단 형식실패 171건)은 이 순서대로 벗겨진다.</p>
+<p>checkpoint-900 greedy 실측(비절단 형식 실패 171건)에서 태그는 이 순서대로 빠진다.</p>
 <pre><code>&lt;/think&gt; 유지  &lt;answer&gt; 탈락   143건  83.6%   ← 덧씌운 층만 탈락
 &lt;/think&gt; 탈락  &lt;answer&gt; 탈락    28건  16.4%   ← 둘 다 탈락
-`Answer:` 로 종결                  8건   4.7%
+(위와 겹침) `Answer:` 로 종결      8건   4.7%
 </code></pre>
-<p>붕괴는 형식 전체를 잊은 것이 아니다. prior 밖의 층부터 차례로 벗겨진 것이다. LoRA rank 16 이라 그 층은 어댑터 델타 안에만 있고 base weight 에는 흔적이 없다. 그 층을 붙들 관성이 구조적으로 없다.</p>
+<p>붕괴는 형식 전체를 잊은 것이 아니다. prior 밖의 층부터 차례로 빠진 것이다. <code>&lt;answer&gt;</code> 층은 SFT 병합으로 들어온 얕은 층이고 사전학습 prior 에는 없다(추론). 따라서 이 층을 붙드는 힘은 prior 보다 약하다(추론).</p>
 <p>대표 사례(pmcvqa, 같은 프롬프트):</p>
 <pre><code>step 850 →  ... corresponding to option A.\n&lt;/think&gt;\n&lt;answer&gt;A&lt;/answer&gt;     정상
 step 900 →  ... corresponding to option A.\n&lt;/think&gt;                        여기서 멈춤
@@ -366,10 +368,10 @@ step 900 →  ... corresponding to option A.\n&lt;/think&gt;                    
     batch_std  = advantages.std() + 1e-8
     advantages = (advantages - advantages.mean()) / batch_std   # ← 배치 전역 whitening
 </code></pre>
-<p>설정은 <code>reward_funcs=['accuracy_mix','format_think','soft_overlong']</code>, <code>reward_weights=[1.0, 0.2, 0.2]</code>, <code>kl_in_reward=False</code> 다. gdpo 강제 비활성 경고는 0회다(원래 False). 계산에서 놓치기 쉬운 점은 두 가지다.</p>
+<p>설정은 <code>reward_funcs=['accuracy_mix','format_think','soft_overlong']</code>, <code>reward_weights=[1.0, 0.2, 0.2]</code>, <code>kl_in_reward=False</code> 다. <code>kl_in_reward</code> 는 처음부터 False 였다. 따라서 gdpo 강제 비활성 경고는 0회다. 계산에서 놓치기 쉬운 점은 두 가지다.</p>
 <ol>
 <li>표준편차 규약: <code>nanstd</code> 는 Bessel 보정(ddof=1)을 쓴다(<code>utils.py:209</code>). K=4 이진 보상의 실제 σ 는 모집단 값(0.433/0.500)이 아니다. 3:1 이면 0.500, 2:2 이면 0.577 이다.</li>
-<li>배치 전역 whitening: 마지막 줄이 어드밴티지 벡터 전체를 배치 단위로 재정규화한다. 따라서 "gdpo 가 절대 크기를 키운다"는 명제는 성립하지 않는다. 남는 것은 샘플 안의 상대 비율뿐이다.</li>
+<li>배치 전역 whitening: 마지막 줄이 advantage 벡터 전체를 배치 단위로 재정규화한다. 따라서 "gdpo 가 절대 크기를 키운다"는 명제는 성립하지 않는다. 남는 것은 샘플 안의 상대 비율뿐이다.</li>
 </ol>
 <p>gdpo 가 바꾸는 것은 형식:정확도 기여 비율이다. 그 배수는 <code>σ_acc / σ_fmt</code> 다.</p>
 <table>
@@ -382,7 +384,7 @@ step 900 →  ... corresponding to option A.\n&lt;/think&gt;                    
 
 <p><b>(a-2) 그룹 균일성 함정도 GDPO 고유 문제가 아니다 (검증).</b> 롤아웃 4개가 모두 형식 위반이면 <code>(r − r̄) = 0</code> 이다. 따라서 <code>none</code> 에서도 형식 기여는 0 이다. gdpo 는 여기에 <code>0/(0+1e-8) = 0</code> 을 더할 뿐이다. 이 함정은 그룹 중심화를 쓰는 GRPO 계열 전체의 성질이다. <a href="#8-i-데이터보상-구조-심층-분석--폭주-메커니즘-규명">§8-i</a> ④ 의 실측(전원 F=0 그룹 0.0% → 0.6% → 31.4%, 그 안의 비절단 advantage +0.143)은 유효하다. 다만 그 원인을 GDPO 로 돌리면 안 된다.</p>
 
-<p><b>(a-3) GDPO 고유 취약점은 있지만 이번 방아쇠는 아니다 (추론).</b> 세 보상 중 <code>soft_overlong</code> 만 연속값(0 ~ −1)이다. 여기서만 gdpo 와 <code>none</code> 이 질적으로 갈린다. eps 가 <code>1e-8</code>(gdpo)이고 <code>group</code> 경로는 <code>1e-4</code> 라 감쇠도 사실상 없다. gdpo 는 길이 페널티를 척도 불변으로 만든다. 1 토큰 초과와 2,000 토큰 초과가 같은 z(−1.5)를 받는다. <code>none</code> 에서는 값이 초과량에 비례해 작아진다. 그 결과 정보량이 다른 그룹들이 같은 그래디언트 가중을 받는다.</p>
+<p><b>(a-3) GDPO 고유 취약점은 있지만 이번 방아쇠는 아니다 (추론).</b> 세 보상 중 <code>soft_overlong</code> 만 연속값(0 ~ −1)이다. 여기서만 gdpo 와 <code>none</code> 이 질적으로 갈린다. 분모 eps 는 gdpo 가 <code>1e-8</code>, <code>group</code> 경로가 <code>1e-4</code> 다. 따라서 gdpo 에서는 작은 std 도 거의 줄지 않고 그대로 확대된다. gdpo 는 길이 페널티를 척도 불변으로 만든다. 그룹에서 하나만 초과하면 1 토큰 초과와 2,000 토큰 초과가 같은 z(−1.5)를 받는다. <code>none</code> 에서는 값이 초과량에 비례해 작아진다. 그 결과 정보량이 다른 그룹들이 같은 그래디언트 가중을 받는다.</p>
 <p>세 그룹 유형의 계산 결과다(가중 <code>[1.0, 0.2, 0.2]</code>, ddof=1, batch whitening 전).</p>
 <table>
 <tr><th>그룹</th><th>구성</th><th><code>none</code> advantage</th><th><code>gdpo</code> advantage</th><th style="text-align:right">B 대비 상대 가중</th></tr>
@@ -390,37 +392,37 @@ step 900 →  ... corresponding to option A.\n&lt;/think&gt;                    
 <tr><td>B</td><td>건강한 그룹, 정확도 2:2</td><td><code>+.50 +.50 −.50 −.50</code></td><td><code>+.87 +.87 −.87 −.87</code></td><td style="text-align:right">(기준)</td></tr>
 <tr><td>C</td><td>A 와 같고 절단이 한계 초과(−0.02)</td><td><code>+.001 … −.003</code></td><td><code>+.10 +.10 +.10 −.30</code></td><td style="text-align:right">0.0035 → 0.200 (57.7×)</td></tr>
 </table>
-<div class="note">산식 역검증: 그룹 A 의 gdpo 값 <code>[+.10,+.10,+.10,−.30]</code> 을 batch_std≈0.86 으로 나누면 §8-i ④ 의 실측 advantage <code>[+0.12,+0.12,+0.12,−0.35]</code> 와 일치한다. 이 일치는 위 구현 해석이 맞다는 독립 근거다.</div>
-<p>취약점은 C 유형에만 있다. 한계 초과 그룹에서 gdpo 는 의미 없는 길이 흔들림에 정상 그룹의 57.7배 가중을 준다. 이 결함은 실재한다. 그러나 이번 붕괴의 방아쇠는 아니다. 근거는 두 가지다.</p>
+<div class="note">산식 역검증: 그룹 A 의 gdpo 값 <code>[+.10,+.10,+.10,−.30]</code> 을 batch_std≈0.86 으로 나누면 §8-i ④ 의 실측 advantage <code>[+0.12,+0.12,+0.12,−0.35]</code> 와 맞는다. 이 결과는 위 구현 해석과 부합한다. 다만 사례는 하나다.</div>
+<p>취약점은 C 유형에만 있다. 한계 초과 그룹에서 gdpo 는 의미 없는 길이 흔들림의 가중을 <code>none</code> 대비 57.7배 키운다(B 대비 0.0035 → 0.200). 이 결함은 실재한다. 그러나 이번 붕괴의 방아쇠는 아니다. 근거는 두 가지다.</p>
 <ol>
 <li>§8-i ④ 에서 잡은 실제 병리 그룹은 A 유형(완전 절단 −1.0)이었다. 여기서 gdpo 의 기여는 +15% 뿐이다. <code>scale_rewards=none</code> 이어도 부호와 구조가 같은 <code>+.05/+.05/+.05/−.15</code> 가 나온다. "형식을 어긴 짧은 출력이 양수 advantage 를 받는" 병리는 레시피와 무관하다.</li>
-<li>타이밍(§4-4, 부록 B): 길이와 <code>SoftOverlong</code> 은 step 904 까지 정상이었다(길이 629~1,465, clip 0.016~0.078). 길이 폭주는 형식 붕괴보다 10 step 뒤에 시작했다. 길이는 원인이 아니라 결과다.</li>
+<li>타이밍(§4-4, 부록 B): 길이와 <code>SoftOverlong</code> 은 step 904 까지 정상이었다(길이 629~1,465, 절단률 0.016~0.078). 길이 폭주는 형식 붕괴(899~904) 직후인 step 905 에 시작했다. 길이는 원인이 아니라 결과다.</li>
 </ol>
-<p><b>(b) 표본 4개로 z-score 3개를 추정한다.</b> 일반 GRPO 는 총합 std 하나만 쓴다. GDPO 는 보상 함수마다 std 를 따로 추정한다. <code>num_generations=4</code> 는 plain GRPO 기준의 메모리 절충값이다. GDPO 는 그보다 큰 그룹을 요구한다. <a href="#8-i-데이터보상-구조-심층-분석--폭주-메커니즘-규명">§8-i</a> ⑤ 의 beta-binomial 외삽에서 임계 구간(851~900)의 죽은 그룹은 n=4 의 1.3~1.5% 에서 n=8 의 0.4% 로 준다.</p>
+<p><b>(b) 표본 4개로 z-score 3개를 추정한다.</b> 일반 GRPO 는 총합 std 하나만 쓴다. GDPO 는 보상 함수마다 std 를 따로 추정한다. <code>num_generations=4</code> 는 일반 GRPO 기준으로 메모리를 맞춘 값이다. GDPO 는 보상마다 std 를 추정하므로 더 큰 그룹이 유리하다(추론). <a href="#8-i-데이터보상-구조-심층-분석--폭주-메커니즘-규명">§8-i</a> ⑤ 의 beta-binomial 외삽에서 임계 구간(851~900)의 전원 형식 실패 그룹은 n=4 의 1.3~1.5% 에서 n=8 의 0.4% 로 준다.</p>
 <p><b>(c) LR 지평.</b> §3-4 에 있다.</p>
-<p><b>(d) <code>overlong_filter</code> 의 앵커 약화.</b> §3-6, <a href="#8-d-유력한-근인--overlong_filtertrue-가-앵커를-무력화한다">§8-d</a> 에 있다. step 900–949 에서 rank-step 의 13% 가 앵커에서 빠졌다.</p>
+<p><b>(d) <code>overlong_filter</code> 의 앵커 약화.</b> 1부 §3-6, 2부 <a href="#8-d-유력한-근인--overlong_filtertrue-가-앵커를-무력화한다">§8-d</a> 에 있다. step 900–949 에서 rank-step 의 13% 가 앵커에서 빠졌다.</p>
 
-<h3 id="4-3-데이터-축--왜-안-멈췄나-">4-3. 데이터 축: 왜 멈추지 않았나 (검증)</h3>
+<h3 id="4-3-데이터-축--왜-안-멈췄나-">4-3. 데이터 축: 왜 멈추지 않았나 (검증·추론)</h3>
 <table>
 <tr><th>사실</th><th>결과</th></tr>
-<tr><td>훈련셋 43.3% 에서 그래디언트가 <code>&lt;answer&gt;</code> 에 무관심하다(§2-3).</td><td>데이터의 절반에서 형식 이탈이 처벌받지 않는다.</td></tr>
-<tr><td>형식을 붙들던 유일한 소스(pmcvqa 26%)에 학습 신호가 없었다(§2-4·2-5).</td><td>나머지 74% 가 표류할 때 혼자 버티지 못했다.</td></tr>
-<tr><td>step 600 에 mix 의 46.5% 가 포화했다(§2-4).</td><td>남은 분산은 형식·길이 축뿐이다.</td></tr>
-<tr><td>그 위에 피크의 68% LR 이 200 step 더 들어갔다(§3-4).</td><td>형식 부분공간에서 무작위 걷기가 일어난다.</td></tr>
+<tr><td>학습셋 43.3% 에서 정확도 보상이 <code>&lt;answer&gt;</code> 유무에 반응하지 않는다(§2-3).</td><td>학습셋의 43% 에서는 형식 이탈이 정확도 보상을 깎지 않는다. 형식 보상(0.2)만 남는다.</td></tr>
+<tr><td>형식을 붙들던 유일한 소스(pmcvqa, 실측 롤아웃 18%)에 학습 신호가 없었다(§2-4·2-5).</td><td>나머지 82% 가 표류할 때 혼자 버티지 못했다.</td></tr>
+<tr><td>step 600 이후 mmk12·pmcvqa(실측 34%)에서 holdout 이득이 검출되지 않았다(§2-4).</td><td>남은 학습 신호는 deepvision 과 형식·길이 축에 몰린다(추론).</td></tr>
+<tr><td>그 위에 피크의 85~68% LR 이 step 600~900 에 들어갔다(§3-4).</td><td>형식 축에서 되먹임이 커질 여지가 생긴다(추론).</td></tr>
 </table>
-<p>§8-i ⑧ 의 관측이 이 걷기를 보여 준다. 비절단 형식실패율은 step 200~800 내내 0.0~0.4% 였다. step 800 부터는 50 step 마다 8~9배로 뛰었다(801~850 에 5.5%, 851~900 에 14.1%).</p>
+<p>§8-i ⑧ 의 관측이 이 과정과 맞는다. 비절단 형식 실패율은 step 200~800 내내 0.0~0.4% 였다. step 801~850 에 5.5%, 851~900 에 14.1% 로 올랐다. ⑧ 의 지수 적합에서 배가 주기는 15 step 이다.</p>
 
 <h3 id="4-4-인과-사슬-종합">4-4. 인과 사슬 종합</h3>
-<pre><code>[데이터] step 600 에 46.5% 포화        [하이퍼] MAX_STEPS 계획 오류 → LR 68%
+<pre><code>[데이터] step 600 이후 34% 이득 정지     [하이퍼] MAX_STEPS 설정 오류 → LR 68%
                     └────────────┬────────────┘
                                  ▼
                   형식·길이 축에만 남은 분산에 과대 LR
                                  ▼
         [모델] prior 밖의 &lt;answer&gt; 층이 가장 얇다 → 거기서 먼저 미끄러진다
                                  ▼
-              비절단 형식실패율 0.4% → 5.5% → 14.1%  (step 800~900)
+              비절단 형식 실패율 0.4% → 5.5% → 14.1%  (step 800~900)
                                  ▼
-      [데이터] 43%에서 처벌 없음 + [GRPO 계열 공통] 전원실패 그룹은 중심화로 A=0
+      [데이터] 43% 에서 처벌 없음 + [GRPO 계열 공통] 전원 실패 그룹은 중심화로 adv=0
                                  ▼
                   전원 F=0 그룹 0.6% → 31.4% : 복원 그래디언트 소멸
                                  ▼
@@ -432,21 +434,21 @@ step 900 →  ... corresponding to option A.\n&lt;/think&gt;                    
                                  ▼
     [하이퍼] overlong_filter: 잘린 롤아웃이 손실·KL 양쪽에서 제외 (rank-step 13%)
                                  ▼
-       유효 배치 축소 + KL 앵커 계측 불능 → 회복 실패, KL 0.03 → 0.38  ── 3단계
+       유효 배치 축소 + KL 앵커 계측 불능 → 회복 실패·토큰 퇴화(step ~1000~), KL 0.03 → 0.38  ── 3단계
 </code></pre>
-<div class="note">1단계와 2단계의 순서는 실측으로 확정했다. CSV per-step 추적에서 형식 붕괴(899→904) 시점의 길이·clip 은 정상이었다(길이 629~1,465, clip 0.016~0.078). 길이 폭주는 step 905 부터 시작한다. 따라서 <code>overlong_filter</code> 는 붕괴를 일으킨 요인이 아니다. 붕괴 뒤 회복을 막은 3단계 요인이다.</div>
+<div class="note">1단계와 2단계의 순서는 실측으로 확정했다. CSV 의 step 별 추적에서 형식 붕괴(899→904) 시점의 길이·절단률은 정상이었다(길이 629~1,465, 절단률 0.016~0.078). 길이 폭주는 step 905 부터 시작한다. 따라서 <code>overlong_filter</code> 는 붕괴를 일으킨 요인이 아니다. 붕괴 뒤 회복을 막았을 가능성이 있다(3단계, 추론, <a href="#8-d-유력한-근인--overlong_filtertrue-가-앵커를-무력화한다">§8-d</a>).</div>
 
 <h3 id="4-5-각-축이-답하는-것--답-못-하는-것">4-5. 각 축이 답하는 것과 답하지 못하는 것</h3>
 <table>
 <tr><th>축</th><th>질문</th><th>답</th></tr>
 <tr><td>모델</td><td>무엇이 먼저 깨지나</td><td>prior 밖의 <code>&lt;answer&gt;</code> 층이다. 83.6% 가 <code>&lt;/think&gt;</code> 는 유지했다.</td></tr>
-<tr><td>하이퍼파라미터</td><td>왜 절벽인가</td><td>주범은 LR 지평 오류(피크의 68% 를 200 step 더)다. GDPO 는 재가중 ±15% 라 원인이 아니다(§4-2a).</td></tr>
-<tr><td>데이터</td><td>왜 멈추지 않았나</td><td>43% 가 형식에 무관심했다. 앵커 소스에 학습 신호가 없었다. 600 에 포화했는데 LR 은 68% 였다.</td></tr>
-<tr><td>셋 다</td><td>왜 하필 step 800~900 인가</td><td>지목하지 못했다. §8-i ⑧ 의 기각 목록(재개 버그·LoRA 폭발·구성 편중·재샘플·암기·지수성장)에 GDPO(2026-08-06 기각)를 더했다.</td></tr>
+<tr><td>하이퍼파라미터</td><td>왜 절벽인가</td><td>LR 지평 오류가 절벽의 조건을 만든 것으로 본다(추론, step 900 에서 피크의 68%). GDPO 는 재가중 ±15% 라 원인이 아니다(§4-2a).</td></tr>
+<tr><td>데이터</td><td>왜 멈추지 않았나</td><td>학습셋의 43% 에서 정확도 보상이 형식에 반응하지 않았다. 앵커 소스에 학습 신호가 없었다. step 600 이후에도 LR 이 높았다(step 900 에서 피크의 68%).</td></tr>
+<tr><td>셋 다</td><td>왜 하필 step 800~900 인가</td><td>지목하지 못했다. §8-i ⑥ 의 기각 목록(재개 버그·LoRA 폭발·구성 편중·재샘플·암기·지수성장)에 GDPO(2026-08-06 기각)를 더했다.</td></tr>
 </table>
 
 <h2 id="부록-a-붕괴-전후-step별-실측-발췌">부록 A. 붕괴 전후 step별 실측 (발췌)</h2>
-<pre><code>step   reward    acc     fmt    soft    r_std  z_std   len   clip   ent    kl     gnorm
+<pre><code>step   reward    acc     fmt    soft    r_std  z_std   len  절단률  ent    kl     gnorm
  880   0.6375  0.4688  0.8750 -0.0312  0.4913 0.000    874  0.031  0.411  0.0470 0.0318
  894   0.7781  0.5938  0.9219 -0.0001  0.4865 0.000    886  0.000  0.499  0.0744 0.0806
  897   0.5547  0.4375  0.6719 -0.0858  0.4013 0.000   1151  0.078  0.455  0.1210 0.0611
@@ -455,13 +457,13 @@ step 900 →  ... corresponding to option A.\n&lt;/think&gt;                    
  902   0.2594  0.2500  0.0625 -0.0156  0.2423 0.438    629  0.016  0.459  0.1000 0.0269
  904   0.1150  0.1250  0.0156 -0.0656  0.0743 0.750   1394  0.031  0.410  0.0711 0.0401  ← r_std 붕괴
  912   0.0871  0.1562  0.0000 -0.3457  0.2466 0.000   3284  0.328  0.396  0.0387 0.0415  ← 길이 폭발
- 938   0.4185  0.4375  0.3594 -0.4542  0.4443 0.000   3530  0.438  0.431  0.0541 10.0200 ← 클리핑 발동
+ 938   0.4185  0.4375  0.3594 -0.4542  0.4443 0.000   3530  0.438  0.431  0.0541 10.0200 ← grad_norm 클리핑 발동
 </code></pre>
-<p>형식이 먼저(899~904) 무너졌고, 길이는 나중(905~920)에 늘었다. 두 사건은 서로 다른 시점에 일어났다.</p>
+<p>형식이 먼저(899~904) 무너졌다. 길이는 나중(905~920)에 늘었다.</p>
 
 <h2 id="부록-b-구간-평균-전량">부록 B. 구간 평균 전량</h2>
 <table>
-<tr><th>구간</th><th style="text-align:right">reward</th><th style="text-align:right">acc</th><th style="text-align:right">fmt</th><th style="text-align:right">soft</th><th style="text-align:right">r_std</th><th style="text-align:right">z_std</th><th style="text-align:right">len</th><th style="text-align:right">clip</th><th style="text-align:right">ent</th><th style="text-align:right">kl</th><th style="text-align:right">gnorm</th><th style="text-align:right">lr</th></tr>
+<tr><th>구간</th><th style="text-align:right">reward</th><th style="text-align:right">acc</th><th style="text-align:right">fmt</th><th style="text-align:right">soft</th><th style="text-align:right">r_std</th><th style="text-align:right">z_std</th><th style="text-align:right">len</th><th style="text-align:right">절단률</th><th style="text-align:right">ent</th><th style="text-align:right">kl</th><th style="text-align:right">gnorm</th><th style="text-align:right">lr</th></tr>
 <tr><td>0–50</td><td style="text-align:right">0.614</td><td style="text-align:right">0.431</td><td style="text-align:right">0.958</td><td style="text-align:right">−0.044</td><td style="text-align:right">0.502</td><td style="text-align:right">0.009</td><td style="text-align:right">1,007</td><td style="text-align:right">0.036</td><td style="text-align:right">0.536</td><td style="text-align:right">0.002</td><td style="text-align:right">0.016</td><td style="text-align:right">1.00e-5</td></tr>
 <tr><td>300–400</td><td style="text-align:right">0.582</td><td style="text-align:right">0.423</td><td style="text-align:right">0.905</td><td style="text-align:right">−0.113</td><td style="text-align:right">0.494</td><td style="text-align:right">0.000</td><td style="text-align:right">1,547</td><td style="text-align:right">0.093</td><td style="text-align:right">0.543</td><td style="text-align:right">0.019</td><td style="text-align:right">0.018</td><td style="text-align:right">9.45e-6</td></tr>
 <tr><td>400–500</td><td style="text-align:right">0.575</td><td style="text-align:right">0.419</td><td style="text-align:right">0.900</td><td style="text-align:right">−0.121</td><td style="text-align:right">0.493</td><td style="text-align:right">0.000</td><td style="text-align:right">1,653</td><td style="text-align:right">0.098</td><td style="text-align:right">0.542</td><td style="text-align:right">0.024</td><td style="text-align:right">0.018</td><td style="text-align:right">9.11e-6</td></tr>
@@ -476,41 +478,41 @@ step 900 →  ... corresponding to option A.\n&lt;/think&gt;                    
 </table>
 <ul>
 <li>엔트로피는 붕괴를 예고하지 않았다. 850~875 에 0.500 으로 조금 내렸지만 step 899 에는 오히려 0.617 이었다.</li>
-<li>KL 은 875~900 에 1.7배(0.036 → 0.061)로 올라 약한 선행 신호를 준다.</li>
+<li>KL 은 875~900 에 1.7배(0.036 → 0.061) 올랐다. 이 상승은 사후에 정한 구간 기준이라 경보로 쓸 수 없다(§1-5-1).</li>
 <li>총합 기준 <code>frac_reward_zero_std</code> 는 대부분 0 이고 산발적으로 튄다. 감시 지표로 쓸 수 없다.</li>
-<li>설계 단계에서 쓸 만한 조기경보는 비절단 형식실패율 하나였다(<a href="#8-i-데이터보상-구조-심층-분석--폭주-메커니즘-규명">§8-i</a> ⑧, 여유 49 step).</li>
+<li>로그 재생으로 찾은 쓸 만한 조기 경보는 비절단 형식 실패율 하나였다(<a href="#8-i-데이터보상-구조-심층-분석--폭주-메커니즘-규명">§8-i</a> ⑧, 여유 49 step).</li>
 </ul>
 
 <h2 id="부록-c-발표보고-시-주의">부록 C. 발표·보고 시 주의</h2>
 <p>이 부록은 구 <code>stage2_overview_for_slides.md</code> 부록 A(08-04 최종)에서 옮겼다.</p>
 <ol>
-<li>"1 epoch 학습"이라고 쓰지 않는다. 실제는 0.25 epoch 이다(<a href="#3-epoch-커버리지--계획-전제가-4배-틀렸다">2부 §3</a>). 본실행 655 step 에서 쓴 프롬프트는 5,240건(step 당 8개)이다. 74,787건을 다 보지 않았다.</li>
-<li>구 holdout 수치와 섞지 않는다. v3 0.348 · dr_grpo 0.380 · GDPO 0.390 · GSPO 0.290 은 구 holdout(DeepVision 972) 기준이다. 확장 holdout 전량(1,772)과 모집단이 다르다. 대응시키면 init 의 deepvision 층 0.356 이 과거 v3 0.348 과 같은 계열이다.</li>
+<li>"1 epoch 학습"이라고 쓰지 않는다. 실제는 0.25 epoch 이다(<a href="#3-epoch-커버리지--계획-전제가-4배-틀렸다">2부 §3</a>). 최종 1,047 step 에서 쓴 프롬프트는 8,376건(step 당 8개)이다. 74,787건을 다 보지 않았다.</li>
+<li>구 holdout 수치와 섞지 않는다. v3 0.348 · dr_grpo 0.380 · GDPO 0.390 · GSPO 0.290 은 구 holdout(DeepVision 972) 기준이다. 확장 holdout 전량(1,772)과 모집단이 다르다. 비교하려면 init 의 deepvision 층 0.356 을 구 holdout 의 v3 0.348 과 맞대야 한다.</li>
 <li>말할 수 있는 것과 없는 것을 구분한다.
 <table>
 <tr><th>구분</th><th>내용</th></tr>
-<tr><td>말할 수 있다</td><td>SFT +20.3pp(p&lt;0.001) · RL init→850 +8.18pp(p&lt;0.0001) · 400→850 +2.48pp(p=0.020) · 의료 무변화(6지점 모두 p&gt;0.5) · step ~900 붕괴</td></tr>
+<tr><td>말할 수 있다</td><td>SFT 모델 − 기본 모델 +20.3pp(n=300 층화, 최대 2,048 토큰, p&lt;0.001). 최대 8,192 토큰에서는 기본 모델이 더 높다(<a href="00_overview.html#s1-6">00 §1.6</a>) · RL init→850 +8.18pp(p&lt;0.0001) · 400→850 +2.48pp(p=0.020) · 의료 무변화(step 400~850 다섯 지점 모두 p&gt;0.5) · step ~900 붕괴</td></tr>
 <tr><td>말하면 안 된다</td><td>"RL 은 step 400 이후 평평하다." 300 step 간격에서 미검출이었을 뿐이다. 450 step 간격에서는 검출한다. "미검출"과 "차이 없음"은 다르다.</td></tr>
-<tr><td>말하면 안 된다</td><td>"Stage-2 RLVR 은 실패했다." 붕괴 직전까지 개선 중이었고 게이트를 넘길 속도였다. 실패한 것은 안정성이다.</td></tr>
+<tr><td>말하면 안 된다</td><td>"Stage-2 RLVR 은 실패했다." 붕괴 직전까지 개선 중이었다(400→850 +2.48pp). 실패한 것은 안정성이다.</td></tr>
 <tr><td>외삽 금지</td><td>관측 구간 밖의 기울기를 직선으로 늘리지 않는다. 이 프로젝트는 같은 오류를 양방향으로 두 번 냈다(08-03 낙관, 08-04 비관).</td></tr>
 </table></li>
 </ol>
 
 <!-- ======================= 2부: 중간 점검 ======================= -->
-<h2 id="stage-2-확장셋-gdpo-본실행--job-73924-중간-점검">2부 · Stage-2 확장셋 GDPO 본실행 중간 점검 (job 73924)</h2>
+<h2 id="stage-2-확장셋-gdpo-본실행--job-73924-중간-점검">2부 · Stage-2 확장셋 GDPO 본 실행 중간 점검 (job 73924)</h2>
 <p>최초 작성은 2026-08-02 20:13(step 650)이다. 최종 갱신은 2026-08-04(step 1,046, 체인 취소)다. 대상 체인은 job 73924~73927(<code>gpu-8-002</code>), 로그는 <code>logs/grpo_adv_739*.log</code> 다.</p>
-<p>§1~§6 은 붕괴를 발견하기 전(08-02~08-04 오전)의 점검 기록이다. <a href="#8-g-그래서-step-850-이-최고점이다--그리고-6-d-의-미검출이-뒤집힌다">§8-g</a> 가 §6-d 의 "400 이후 미검출" 결론을 뒤집었다. 최종 견해는 1부에 있다. 전 단계 요약은 <a href="00_overview.html"><code>00_overview.html</code></a> 에 있다.</p>
+<p>§2~§6 은 붕괴를 발견하기 전(08-02~08-04 오전)의 점검 기록이다. §1 요약 표는 최종값으로 갱신했다. §5·§7 과 §8-i ⑦ 은 삭제했다. 번호는 원본을 유지한다. <a href="#8-g-그래서-step-850-이-최고점이다--그리고-6-d-의-미검출이-뒤집힌다">§8-g</a> 가 §6-d 의 "400 이후 미검출" 결론을 뒤집었다. 최종 견해는 1부에 있다. 전 단계 요약은 <a href="00_overview.html"><code>00_overview.html</code></a> 에 있다.</p>
 
 <h2 id="1-요약">1. 요약</h2>
 <table>
 <tr><th>항목</th><th>실측</th><th>판단</th></tr>
-<tr><td>진행</td><td>1,046 / 2,337 step 에서 취소. 벽시계 ~296 s/it</td><td>형식 붕괴(<a href="#8-학습-붕괴--step-900-2026-08-04">§8</a>)</td></tr>
+<tr><td>진행</td><td>1,046 / 2,337 step 에서 취소. 벽시계 ~296 s/step(650 step 시점 실효 속도는 322 s/step, §4)</td><td>형식 붕괴(<a href="#8-학습-붕괴--step-900-2026-08-04">§8</a>)</td></tr>
 <tr><td>최고 체크포인트</td><td>step 850, holdout 51.52%(init 대비 +8.18pp)</td><td>스냅샷 확보</td></tr>
 <tr><td>안정성</td><td>OOM · CUDA error · Traceback 0건, mem 90.9 GiB</td><td>이상 없음</td></tr>
-<tr><td>정확도 보상</td><td>AccuracyMix 0.425 → 0.450(+5.8%, 1~100 step → 최근 100 step)</td><td>대부분 길이 구성 효과(<a href="#6-c-학습-로그도-더-학습하면-오르나에-답하지-못한다-2026-08-03">§6-c</a>)</td></tr>
+<tr><td>정확도 보상</td><td>AccuracyMix 0.425 → 0.450(+5.8%, 1~100 step → 701~800 step)</td><td>대부분 길이 구성 효과(<a href="#6-c-학습-로그도-더-학습하면-오르나에-답하지-못한다-2026-08-03">§6-c</a>)</td></tr>
 <tr><td>RL 순효과</td><td>init 43.34% → step 400 49.04%, 짝지음 +5.70pp</td><td>확정(p&lt;0.0001, <a href="#6-d-전량-재측정--분해능-문제가-해결됐다-2026-08-04">§6-d</a>)</td></tr>
 <tr><td>400 → 850 (450 step)</td><td>+2.48pp(deepvision +3.81)</td><td>검출(p=0.020, <a href="#8-g-그래서-step-850-이-최고점이다--그리고-6-d-의-미검출이-뒤집힌다">§8-g</a>)</td></tr>
-<tr><td>의료(pmcvqa)</td><td>init 대비 +0.25 / −0.75 / −0.25 / +1.25 / +0.75pp</td><td>여섯 지점 모두 미검출(n=400, ±3.5pp)</td></tr>
+<tr><td>의료(pmcvqa)</td><td>init 대비 +0.25 / −0.75 / −0.25 / +1.25 / +0.75pp</td><td>다섯 지점(400~850) 모두 미검출(n=400, ±3.5pp)</td></tr>
 <tr><td>epoch 커버리지</td><td>2,337 step = 0.25 epoch(1 epoch = 9,348)</td><td>계획 오류(§3)</td></tr>
 <tr><td>오버헤드</td><td>step_time 합 29.0h vs 실경과 58.2h</td><td>50% 가 step 밖(§4)</td></tr>
 </table>
@@ -537,19 +539,19 @@ step 900 →  ... corresponding to option A.\n&lt;/think&gt;                    
 <h3 id="읽기">읽기</h3>
 <div class="warn">이 표를 "정확도 정지 + 길이 인플레이션"으로 읽으면 안 된다. 길이 팽창은 200~500 구간의 일시 현상이었고 step 700 대에 모두 돌아왔다.</div>
 <ul>
-<li>mean_length 는 1,127 에서 1,660(401~500 정점)까지 늘었다가 1,176 으로 돌아왔다. 클리핑은 4.9% → 9.8% → 3.9%, 형식 준수는 0.947 → 0.899 → 0.958 로 움직였다.</li>
-<li>AccuracyMix 상승(+5.8%)의 대부분은 실력이 아니다. deepvision 장문 completion 의 정답률은 15.1% 로 비장문 44.2% 의 3분의 1이다. 장문 비중이 줄면 실력이 그대로여도 평균이 오른다. 장문을 빼면 상승은 +0.8pp(t=0.64, 미검출)다(<a href="#6-c-학습-로그도-더-학습하면-오르나에-답하지-못한다-2026-08-03">§6-c</a>).</li>
+<li>mean_length 는 1,127 에서 1,660(401~500 정점)까지 늘었다가 1,176 으로 돌아왔다. 절단률은 4.9% → 9.8% → 3.9% 로 움직였다. 형식 준수는 0.946 → 0.899 → 0.958 로 움직였다.</li>
+<li>AccuracyMix 상승(+5.8%)의 대부분은 실력이 아니다. deepvision 장문 롤아웃의 정답률은 15.1% 로 비장문 44.2% 의 3분의 1이다. 장문 비중이 줄면 실력이 그대로여도 평균이 오른다. §6-c 의 601~750 구간에서 장문을 빼면 상승은 +0.8pp(t=0.64, 미검출)다(<a href="#6-c-학습-로그도-더-학습하면-오르나에-답하지-못한다-2026-08-03">§6-c</a>).</li>
 <li>엔트로피는 붕괴하지 않았다(0.538 → 0.523).</li>
-<li>KL 은 765% 늘었지만 절대값은 0.031 이다. clip_ratio 는 0.0009 수준이다.</li>
+<li>KL 은 765% 늘었지만 절대값은 0.031 이다. 비율 clip(<code>clip_ratio</code>)은 0.0009 수준이다.</li>
 <li><code>frac_reward_zero_std</code> 는 0.0044 에서 0.0156 으로 3.5배 늘었다. 절대값은 1.6% 다.</li>
-<li><code>All completions are overlong and truncated</code> 경고는 길이 정점 구간에 몰렸다(650 step 기준 203회 = 31%). 구간별 건수는 <a href="#3-6-overlong_filter-의-실제-발동량--신규-정량">1부 §3-6</a> 표에 있다.</li>
+<li><code>All completions are overlong and truncated</code> 경고는 길이 정점 구간에 몰렸다. 650 step 까지 203회다(step 수 대비 31%, 8 rank 의 rank-step 대비 3.9%). 구간별 건수는 <a href="#3-6-overlong_filter-의-실제-발동량--신규-정량">1부 §3-6</a> 표에 있다.</li>
 </ul>
 
 <h2 id="3-epoch-커버리지--계획-전제가-4배-틀렸다">3. epoch 커버리지: 2,337 step 은 0.25 epoch 이다</h2>
 <p><code>scripts/launch_stage2_expanded_epoch.sh</code> 는 1 epoch 을 다음처럼 계산했다.</p>
 <pre><code>1 epoch = 74,787 / 32(step당 프롬프트: 1 × accum4 × 8gpu) ≈ 2,337 step
 </code></pre>
-<p>이 32 는 프롬프트 수가 아니라 completion 수다. GRPO 에서 <code>per_device_train_batch_size</code> 는 completion 을 센다. <code>generation_batch_size</code> 가 <code>None</code> 이므로 TRL/ms-swift 기본식을 쓴다.</p>
+<p>이 32 는 프롬프트 수가 아니라 롤아웃 수다. GRPO 에서 <code>per_device_train_batch_size</code> 는 롤아웃을 센다. <code>generation_batch_size</code> 가 <code>None</code> 이므로 TRL/ms-swift 기본식을 쓴다.</p>
 <pre><code>generation_batch_size = pdtbs(1) × world_size(8) × steps_per_generation(=grad_accum 4) = 32 completions
 프롬프트/step        = 32 ÷ num_generations(4)                                        =  8 prompts
 1 epoch              = 74,787 ÷ 8                                                     = 9,348 step
@@ -559,16 +561,16 @@ step 900 →  ... corresponding to option A.\n&lt;/think&gt;                    
 <table>
 <tr><th></th><th>계획이 믿은 값</th><th>실제</th></tr>
 <tr><td>MAX_STEPS=2,337 의 의미</td><td>1 epoch (100%)</td><td>0.25 epoch</td></tr>
-<tr><td>현재 630 step</td><td>0.27 epoch</td><td>0.067 epoch</td></tr>
+<tr><td>step 630(08-02 시점)</td><td>0.27 epoch</td><td>0.067 epoch</td></tr>
 <tr><td>확장셋 74,787건 중 노출</td><td>전량</td><td>약 25%</td></tr>
-<tr><td>진짜 1 epoch(9,348 step) 비용</td><td>—</td><td>≈ 837h · 6,694 노드시간 = 예산 5,000의 134%</td></tr>
+<tr><td>진짜 1 epoch(9,348 step) 비용</td><td>—</td><td>≈ 837h × 8 GPU = 6,694 노드시간 = 예산 5,000 노드시간의 134%</td></tr>
 </table>
-<p>비용은 계획대로였다. <code>max_steps=2337</code> 이 상한이라 <code>num_train_epochs=3.0</code> 과 무관하게 2,337 에서 멈춘다. 2,337 step × 322 s/it × 8 GPU ≈ 1,674 노드시간으로, 계획서의 1,719(34%)와 거의 같다.</p>
+<p>비용은 계획대로였다. <code>max_steps=2337</code> 이 상한이라 <code>num_train_epochs=3.0</code> 과 무관하게 2,337 에서 멈춘다. 2,337 step × 322 s/step × 8 GPU ≈ 1,674 노드시간으로, 계획서의 1,719(34%)와 거의 같다.</p>
 <p>틀린 것은 라벨과 그 라벨에 기댄 판단이다.</p>
 <ol>
-<li>확장셋의 75% 는 학습에 한 번도 노출되지 않는다. 확장의 핵심이던 MMK12(math 20%)·PMC-VQA(의료 26%) 추가분 상당량을 학습이 쓰지 않는다.</li>
+<li>확장셋의 75% 는 학습에 한 번도 노출되지 않는다. 확장의 핵심이던 MMK12(수학 20%)·PMC-VQA(의료 26%) 추가분 상당량을 학습이 쓰지 않는다.</li>
 <li>중간 평가에서 holdout 이 포화로 보여도, 방법의 한계인지 데이터 미노출 탓인지 구분할 수 없다.</li>
-<li>"2 epoch 은 69% 라 미채택"은 실제로는 0.5 epoch 이야기다. 진짜 1 epoch 은 예산의 134% 라 처음부터 실행할 수 없는 계획이었다.</li>
+<li>계획서의 "2 epoch 은 예산의 69% 라 미채택"은 실제로는 0.5 epoch 이야기다. 진짜 1 epoch 은 예산의 134% 라 처음부터 실행할 수 없는 계획이었다.</li>
 </ol>
 
 <h2 id="4-자원--오버헤드-50">4. 자원: 오버헤드 50%</h2>
@@ -577,21 +579,21 @@ step 900 →  ... corresponding to option A.\n&lt;/think&gt;                    
 <tr><td>step_time 합계 (650 step)</td><td>29.0h</td></tr>
 <tr><td>실제 경과</td><td>58.2h</td></tr>
 <tr><td>step 밖 오버헤드</td><td>29.2h (50.2%)</td></tr>
-<tr><td>실효 속도</td><td>322 s/it (step_time 161s 의 2.0배)</td></tr>
+<tr><td>실효 속도</td><td>322 s/step (step_time 161s 의 2.0배)</td></tr>
 </table>
-<p>오버헤드에는 롤아웃 생성과 sleep/wake 전환(<code>--use_vllm true --vllm_mode colocate --sleep_level 1</code>), 재샘플링(<code>--dynamic_sample true --max_resample_times 3</code>), 체크포인트 저장(<code>save_steps 50</code>)이 들어간다. GRPO colocate 의 구조적 비용이라 모두 없앨 수는 없다. 학습 시간의 절반이 step 밖에 쓰였다.</p>
+<p>오버헤드에는 네 가지가 들어간다. 롤아웃 생성, sleep/wake 전환(<code>--use_vllm true --vllm_mode colocate --sleep_level 1</code>), 재샘플링(<code>--dynamic_sample true --max_resample_times 3</code>), 체크포인트 저장(<code>save_steps 50</code>)이다. GRPO colocate 의 구조적 비용이라 모두 없앨 수는 없다.</p>
 
 <h2 id="6-중간-홀드아웃-평가--job-74060-2026-08-02-완료">6. 중간 holdout 평가 (n=300, job 74060·74062·74063)</h2>
 <p><code>scripts/eval_midtrain.slurm</code> 으로 holdout 1,772 에서 소스별 100건씩 층화 추출한 300건을 채점했다. 조건은 greedy(<code>temperature=0.0</code>)다. 모든 모델에 같은 슬라이스·노드·vLLM·시스템 프롬프트를 썼다. 전량 1,772 측정은 <a href="#6-d-전량-재측정--분해능-문제가-해결됐다-2026-08-04">§6-d</a> 에 있다.</p>
 <table>
-<tr><th>n=300 accuracy</th><th style="text-align:right">base</th><th style="text-align:right">init (0)</th><th style="text-align:right">step 400</th><th style="text-align:right">step 500</th><th style="text-align:right">step 600</th></tr>
+<tr><th>n=300 accuracy</th><th style="text-align:right">기본 모델</th><th style="text-align:right">init (0)</th><th style="text-align:right">step 400</th><th style="text-align:right">step 500</th><th style="text-align:right">step 600</th></tr>
 <tr><td>전체</td><td style="text-align:right">0.2500</td><td style="text-align:right">0.4533</td><td style="text-align:right">0.4900</td><td style="text-align:right">0.4800</td><td style="text-align:right">0.4867</td></tr>
 <tr><td>deepvision (n=100)</td><td style="text-align:right">0.12</td><td style="text-align:right">0.39</td><td style="text-align:right">0.43</td><td style="text-align:right">0.37</td><td style="text-align:right">0.45</td></tr>
 <tr><td>mmk12 · math (n=100)</td><td style="text-align:right">0.31</td><td style="text-align:right">0.40</td><td style="text-align:right">0.48</td><td style="text-align:right">0.50</td><td style="text-align:right">0.48</td></tr>
 <tr><td>pmcvqa · 의료 (n=100)</td><td style="text-align:right">0.32</td><td style="text-align:right">0.57</td><td style="text-align:right">0.56</td><td style="text-align:right">0.57</td><td style="text-align:right">0.53</td></tr>
 <tr><td>format / mean_chars</td><td style="text-align:right">0.333 / 5,607</td><td style="text-align:right">0.960 / 1,774</td><td style="text-align:right">0.930 / 1,965</td><td style="text-align:right">0.933 / 1,934</td><td style="text-align:right">0.937 / 1,906</td></tr>
 </table>
-<p>init → step 600 은 +3.34pp 다(95% CI [−4.64, +11.32]pp, p=0.412). 이 차이는 0 과 구분되지 않는다. init − base 는 +20.33pp(p&lt;0.001)로 유의하다. 따라서 이 평가 설계는 실재하는 효과를 잡아낸다.</p>
+<p>init → step 600 은 +3.34pp 다(95% CI [−4.64, +11.32]pp, p=0.412). 이 차이는 0 과 구분되지 않는다. init − 기본 모델은 +20.33pp(p&lt;0.001)로 유의하다(최대 2,048 토큰). 따라서 이 평가 설계는 실재하는 효과를 잡아낸다.</p>
 <h3 id="검정력--n300-으로는-애초에-못-잡는다">검출 하한: n=300 으로는 포화를 판정할 수 없다</h3>
 <table>
 <tr><th style="text-align:right">n</th><th style="text-align:right">비짝지음(당시 방식)</th><th style="text-align:right">짝지음(McNemar, 불일치율 25% 가정)</th></tr>
@@ -603,10 +605,10 @@ step 900 →  ... corresponding to option A.\n&lt;/think&gt;                    
 <p>n=300 의 비짝지음 검출 하한은 8.0pp 다. step 400~600 세 점의 폭은 1.0pp 로 이 하한보다 작다. 따라서 이 결과는 "차이가 없다"가 아니라 "이 표본으로는 차이를 볼 수 없다"는 뜻이다. 200 step 만에 8pp 이상 뛰는 급격한 상승은 배제할 수 있다. 200 step 당 1~2pp 의 완만한 상승은 배제할 수 없다. 이 측정으로는 step 400 이후의 포화를 판정할 수 없다.</p>
 
 <h3 id="6-c-학습-로그도-더-학습하면-오르나에-답하지-못한다-2026-08-03">6-c. 학습 로그도 기울기를 판별하지 못한다 (2026-08-03)</h3>
-<p><code>completions.jsonl</code> 에는 문항별 정답 여부가 있다. step ≤750 의 완성문은 24,000 개로 holdout n=300 의 80배다. 질문 텍스트로 학습셋과 조인해 소스를 100% 매칭했다.</p>
+<p><code>completions.jsonl</code> 에는 문항별 정답 여부가 있다. step ≤750 의 롤아웃은 24,000 개로 holdout n=300 의 80배다. 질문 텍스트로 학습셋과 조인해 소스를 모두 붙였다(귀속 오염 0.03%, §8-i).</p>
 <p><img src="assets/stage2_source_trend.png" alt="소스별 학습 정확도 추세" style="max-width:100%" /></p>
 <ul>
-<li>최근 상승의 대부분은 길이 구성 효과다. 장문(SoftOverlong≠0) completion 은 정답률이 낮다(deepvision 원 계열 39.4% vs 장문 제외 44.6%). 장문 비중은 10.97% → 15.41% → 16.78% → 11.87% 로 움직였다. 원 계열의 601~750 상승 +2.4pp 중 장문 제외 기준으로 남는 것은 +0.8pp(t=0.64, 미검출)다.</li>
+<li>최근 상승의 대부분은 길이 구성 효과다. 장문(SoftOverlong≠0) 롤아웃은 정답률이 낮다(deepvision 원 계열 39.4% vs 장문 제외 44.6%). 장문 비중은 10.97% → 15.41% → 16.78% → 11.87% 로 움직였다. 원 계열의 601~750 상승 +2.4pp 중 장문 제외 기준으로 남는 것은 +0.8pp(t=0.64, 미검출)다.</li>
 <li>장문 제외 계열은 초기 상승 후 평탄하다(42.2% → 44.6% → 44.7% → 45.5%). 전 구간 직선 적합은 t=+2.68 이지만, 이 유의성은 이미 지나간 초기 상승에서 나온다.</li>
 </ul>
 <table>
@@ -615,14 +617,14 @@ step 900 →  ... corresponding to option A.\n&lt;/think&gt;                    
 <tr><td>mmk12 수학</td><td>+0.195 (t=+0.17, 미검출)</td><td>+3.1pp [−31.7 ~ +37.9]</td></tr>
 <tr><td>pmcvqa 의료</td><td>+0.906 (t=+1.23, 미검출)</td><td>+14.4pp [−8.5 ~ +37.2]</td></tr>
 </table>
-<p>세 소스 모두 구간이 0 을 크게 포함한다. 스텝 간 분산이 커서 유효 표본은 완성문 24,000 개가 아니라 스텝 450 개에 가깝다. 교란 요인은 다음처럼 배제했다.</p>
+<p>세 소스 모두 구간이 0 을 크게 포함한다. step 간 분산이 커서 유효 표본은 롤아웃 24,000 개가 아니라 step 450 개에 가깝다. 교란 요인은 다음처럼 배제했다.</p>
 <ul>
-<li>데이터 순서: <code>stage2_expanded_train.jsonl</code> 은 소스순 정렬이다. 그러나 <code>dataset_shuffle=True</code> · <code>train_dataloader_shuffle=True</code> 라 매 스텝이 혼합 표본이다.</li>
+<li>데이터 순서: <code>stage2_expanded_train.jsonl</code> 은 소스순 정렬이다. 그러나 <code>dataset_shuffle=True</code> · <code>train_dataloader_shuffle=True</code> 라 매 step 이 혼합 표본이다.</li>
 <li>암기: epoch 이 0.25 라 어떤 문항도 두 번 나오지 않는다.</li>
-<li>재개 중복: 751~787 은 두 런에 모두 있다. 나중 런의 값을 쓴다(<code>plot_train_curves.py</code> 와 같은 규약).</li>
+<li>재개 중복: 751~787 은 두 실행에 모두 있다. 나중 실행의 값을 쓴다(<code>plot_train_curves.py</code> 와 같은 규약).</li>
 <li>의료와 길이: pmcvqa 의 장문 비율은 전 구간 0.00% 다. 의료의 원 계열은 장문 제외 계열과 같다.</li>
 </ul>
-<div class="warn">step 400/500/600 holdout 평가는 길이 인플레이션 저점에서 측정했다. 절단률 정점(9.8%)과 형식 준수 최저(0.899)가 모두 401~500 구간이다.</div>
+<div class="warn">step 400/500/600 holdout 평가는 길이 인플레이션 정점 구간에서 측정했다. 절단률 정점(9.8%)과 형식 준수 최저(0.899)가 모두 401~500 구간이다.</div>
 <p>결론: 학습 로그는 "더 학습하면 오르나"의 근거가 될 수 없다.</p>
 
 <h3 id="6-d-전량-재측정--분해능-문제가-해결됐다-2026-08-04">6-d. 전량 재측정 (holdout 1,772, 2026-08-04)</h3>
@@ -646,23 +648,23 @@ step 900 →  ... corresponding to option A.\n&lt;/think&gt;                    
 </table>
 <h4 id="세-갈래로-갈렸다">결과</h4>
 <ol>
-<li>RL 순효과를 확정했다. init → 400 은 +5.70pp(p&lt;0.0001)다. n=300 에서 이 값은 +3.67pp(p=0.428)로 판정 불가였다. 불일치 문항이 397건(A만 148 / B만 249)이라 짝지음 구간이 비짝지음보다 좁다.</li>
+<li>RL 순효과를 확정했다. init → 400 은 +5.70pp(p&lt;0.0001)다. n=300 에서 이 값은 +3.67pp(p=0.428)로 판정 불가였다. 불일치 문항은 397건(init 만 정답 148 / step 400 만 정답 249)이다. 짝지음은 이 불일치 문항만 쓰므로 구간이 비짝지음보다 좁다.</li>
 <li>이득은 step 400 까지에 거의 다 실렸다. 400 이후 세 구간은 모두 미검출이다. 가장 간격이 큰 400 → 700(300 step)도 +1.35pp(p=0.18)다. 95% 구간은 [−0.6, +3.3]pp 다. 큰 상승은 배제하지만 +3pp 는 배제하지 못한다. <a href="#8-g-그래서-step-850-이-최고점이다--그리고-6-d-의-미검출이-뒤집힌다">§8-g</a> 가 이 결론을 뒤집었다.</li>
 <li>의료(pmcvqa)는 네 지점 모두 미검출이다(+0.25 / −0.75 / −0.25 / +1.25pp, 모두 p&gt;0.5). n=100(±9.8pp)에서 n=400(±3.5pp)으로 늘려도 결과가 같다.</li>
 </ol>
 <p>실측 검출 하한은 비교 쌍마다 다르다. 인접 체크포인트 400 vs 500 은 불일치율이 241/1,772 = 13.6% 라 하한이 ±1.72pp 다. init 처럼 먼 쌍은 불일치가 397건(22.4%)이라 하한이 ±2.20pp 다.</p>
 <h4 id="부수-관찰--형식길이의-대가">형식·길이의 대가</h4>
-<p><code>format</code> 은 0.947 에서 0.887~0.903 으로 내렸다(−6pp). 동시에 <code>mean_chars</code> 는 1,812 에서 ~2,100 으로 늘었다(+16%). 방향은 §6-c 의 길이 구성 효과(장문 응답 deepvision 15.1% vs 비장문 44.2%)와 같다.</p>
+<p><code>format</code> 은 0.947 에서 0.887~0.903 으로 내렸다(−6pp). 동시에 <code>mean_chars</code> 는 1,812 에서 ~2,100 으로 늘었다(+16%). 방향은 §6-c 의 길이 구성 효과(deepvision 장문 롤아웃 15.1% vs 비장문 44.2%)와 같다.</p>
 <h4 id="읽을-때-주의">읽을 때 주의</h4>
 <ul>
 <li>그림 왼쪽 패널의 점별 오차막대는 비짝지음이라 서로 겹친다. 판정은 가운데·오른쪽 짝지음 패널로 한다.</li>
-<li>전량의 전체 accuracy 는 소스 가중이 deepvision 54.9% / mmk12 22.6% / pmcvqa 22.6% 다. 층화 n=300 은 세 소스를 1/1/1 로 평균한다. 따라서 두 전체값은 직접 비교하지 않는다. init 0.4334 와 0.4533 의 차이는 측정 오차가 아니라 이 가중 차이다. 소스별 수치는 언제나 비교할 수 있다.</li>
-<li>시드 고정 층화 슬라이스이므로 n=300 슬라이스는 전량의 부분집합이다(실측 확인).</li>
-<li>base 는 전량에서 재측정하지 않았다(n=300 층화 기준 0.2500).</li>
+<li>전량의 전체 정확도는 소스 가중이 deepvision 54.9% / mmk12 22.6% / pmcvqa 22.6% 다. 층화 n=300 은 세 소스를 1/1/1 로 평균한다. 따라서 두 전체값은 직접 비교하지 않는다. init 0.4334 와 0.4533 의 차이는 주로 이 가중 차이다. 전량 소스값을 1/1/1 로 평균하면 0.4703 이다. 이 값과 0.4533 의 차이 약 1.7pp 는 n=300 표본 오차다. 소스별 수치는 언제나 비교할 수 있다.</li>
+<li>n=300 슬라이스는 1,772 에서 시드 고정으로 뽑은 부분집합이다(실측 확인).</li>
+<li>기본 모델은 전량에서 재측정하지 않았다(n=300 층화 기준 0.2500).</li>
 </ul>
 
 <h2 id="8-학습-붕괴--step-900-2026-08-04">8. 형식 붕괴: step ~900 (2026-08-04)</h2>
-<p>이 런은 step 1200 게이트에 도달하지 못했다. step ~900 에서 출력 형식이 무너졌다. 08-04 10:14 KST 에 체인(73925·73926·73927)을 취소했다. 발견 경위는 <a href="#1-발견-경위--세-감시-축이-각각-무엇을-놓쳤나">1부 §1</a> 에 있다.</p>
+<p>이 실행은 다음 판정 지점(step 1,200)에 도달하지 못했다. step ~900 에서 출력 형식이 무너졌다. 08-04 10:14 KST 에 체인(73925·73926·73927)을 취소했다. 발견 경위는 <a href="#1-발견-경위--세-감시-축이-각각-무엇을-놓쳤나">1부 §1</a> 에 있다.</p>
 <h3 id="8-a-경과--25-step-구간-평균">8-a. 경과 (25 step 구간 평균)</h3>
 <table>
 <tr><th>구간</th><th style="text-align:right">Format</th><th style="text-align:right">Acc</th><th style="text-align:right">KL</th><th style="text-align:right">길이 중앙</th><th style="text-align:right">길이 p90</th><th style="text-align:right">절단률</th><th style="text-align:right">퇴화율</th></tr>
@@ -678,8 +680,8 @@ step 900 →  ... corresponding to option A.\n&lt;/think&gt;                    
 </table>
 <p><em>퇴화율 = 가장 흔한 30자 조각이 전체의 20% 이상을 덮는 롤아웃 비율.</em></p>
 
-<h3 id="8-b-붕괴는-두-단계다">8-b. 붕괴는 두 단계다</h3>
-<p>1단계(step ~900)에서는 형식만 무너진다. <code>Format=0</code> 비율이 17% 에서 94.8% 로 바뀌지만 퇴화율은 0.1% 다. 이 시점의 롤아웃은 여전히 정상 추론을 한다. 875~899 원문이다.</p>
+<h3 id="8-b-붕괴는-두-단계다">8-b. 붕괴는 세 단계다</h3>
+<p>1단계(step ~900)에서는 형식만 무너진다. <code>Format=0</code> 비율이 17% 에서 94.3% 로 바뀌지만 퇴화율은 0.1% 다. 이 시점의 롤아웃은 여전히 정상 추론을 한다. 875~899 원문이다.</p>
 <pre><code>[step 894 · 462자 · Acc 1.0 · Format 0.0 · 정답 '14']
   &quot;To solve the problem 8 + 6 ... Step 1: there are 8 cars. Step 2: 6 buses.
    8 + 6 = 14. So, the total number of vehicles is 14.
@@ -687,8 +689,9 @@ step 900 →  ... corresponding to option A.\n&lt;/think&gt;                    
   태그: &lt;think&gt; 0 · &lt;/think&gt; 0 · &lt;answer&gt; 0 · &lt;/answer&gt; 0
 </code></pre>
 <p>모델은 정답을 맞혔지만 형식 보상은 0 이다. <code>&lt;/think&gt;&lt;answer&gt;14&lt;/answer&gt;</code> 대신 <code>Answer: 14</code> 로 끝낸다. 같은 구간의 중간·긴 사례(3면도 큐브, 내접원 기하)도 완결된 정상 추론이고 닫는 태그만 없다. 능력 상실이 아니라 출력 프로토콜 이탈이다.</p>
-<div class="warn">위 양상은 학습 롤아웃(<code>T=0.9</code>, step 875~899) 기준이다. checkpoint-900 을 greedy(<code>T=0.0</code>)로 돌리면 지배적 양상이 다르다. 비절단 형식실패 171건 중 83.6% 는 <code>&lt;/think&gt;</code> 를 유지하고 <code>&lt;answer&gt;</code> 만 뺐다. 태그 전무(위 예시 유형)는 16.4%, <code>Answer:</code> 종결은 4.7% 다(<a href="#4-1-모델-축--무엇이-먼저-깨지나-">1부 §4-1</a>). 온도 차이인지 체크포인트 시점 차이인지는 분리하지 못했다.</div>
-<p>2단계(step ~1000 이후)는 토큰 퇴화다. 퇴화율은 0.1% → 4.8% → 16.8% 로 올랐고, 길이 p90 은 41,341자에 이르렀다.</p>
+<div class="warn">위 양상은 학습 롤아웃(<code>T=0.9</code>, step 875~899) 기준이다. checkpoint-900 을 greedy(<code>T=0.0</code>)로 돌리면 지배적 양상이 다르다. 비절단 형식 실패 171건 중 83.6% 는 <code>&lt;/think&gt;</code> 를 유지하고 <code>&lt;answer&gt;</code> 만 뺐다. 태그 전무(위 예시 유형)는 16.4%, <code>Answer:</code> 종결은 4.7% 다(<a href="#4-1-모델-축--무엇이-먼저-깨지나-">1부 §4-1</a>). 온도 차이인지 체크포인트 시점 차이인지는 분리하지 못했다.</div>
+<p>2단계(step 905~)는 길이 폭발이다. 종료 태그를 잃은 생성이 길이 상한까지 간다. 길이 중앙값은 925~949 에 6,704자, 절단률은 38.1% 에 이르렀다. 퇴화율은 아직 1.6% 다.</p>
+<p>3단계(step ~1000 이후)는 토큰 퇴화와 회복 실패다. 퇴화율은 0.1% → 4.8% → 16.8% 로 올랐다. 길이 p90 은 41,341자에 이르렀다.</p>
 <pre><code>[step 1042 · 48,926자 · 정답 'C']
   &quot;First, I examine the main image of a colorful mobile ... a large gray polygon
    in the upper-right is missing.&quot;          ← 정상 추론 한 문장
@@ -714,18 +717,18 @@ step 900 →  ... corresponding to option A.\n&lt;/think&gt;                    
  904    0.016    0.0401  0.071   0.074  1394  6.74e-06   ← r_std 0.074 로 붕괴
  912    0.000    0.0415  0.039   0.247  3284  6.69e-06   ← 길이 폭발
 </code></pre>
-<p>이 미끄러짐은 정방향 되먹임이다. <code>AccuracyMix</code> 는 <code>&lt;answer&gt;(.*?)&lt;/answer&gt;</code> 로 답을 뽑는다. 객관식에서는 태그가 없으면 정확도가 0 이다. 수학은 태그 없이도 채점을 통과한다(<a href="#8-i-데이터보상-구조-심층-분석--폭주-메커니즘-규명">§8-i</a> ②). 집계 실측으로는 <code>Format=0</code> 롤아웃의 정확도가 0.02~0.26, <code>Format=1</code> 은 0.46~0.50 이다. 되먹임 순서는 다음과 같다.</p>
+<p>이 미끄러짐은 양의 되먹임이다. <code>AccuracyMix</code> 는 <code>&lt;answer&gt;(.*?)&lt;/answer&gt;</code> 로 답을 뽑는다. 객관식에서는 태그가 없으면 정확도가 0 이다. 수학은 태그 없이도 채점을 통과한다(<a href="#8-i-데이터보상-구조-심층-분석--폭주-메커니즘-규명">§8-i</a> ②). 집계 실측으로는 <code>Format=0</code> 롤아웃의 정확도가 0.02~0.26, <code>Format=1</code> 은 0.46~0.50 이다. 되먹임 순서는 다음과 같다.</p>
 <ol>
 <li>형식이 조금 흐트러진다.</li>
-<li>그 롤아웃은 정확도도 0 이 된다.</li>
+<li>객관식에서는 그 롤아웃의 정확도도 0 이 된다.</li>
 <li>그룹 안의 advantage 를 정답 여부가 아니라 형식 준수 여부가 지배한다.</li>
-<li>강하지만 거친 그래디언트가 업데이트를 키운다(grad_norm 5배, clip_hi 4배, KL 3배).</li>
+<li>크고 잡음이 많은 그래디언트가 업데이트를 키운다(grad_norm 5배, 상한 비율 clip <code>clip_hi</code> 4배, KL 3배).</li>
 <li>형식이 더 흐트러지고 절벽에 이른다.</li>
 </ol>
-<p>절벽을 넘은 뒤에는 90% 이상이 0 점이라 <code>reward_std</code> 가 0.074 로 떨어진다. 복원 신호가 없으므로 정책은 회복하지 못하고 길이가 폭발한다. <code>learning_rate</code> 는 6.8e-06 으로 매끄럽게 감쇠 중이었다. LR 변화는 방아쇠가 아니다.</p>
+<p>절벽을 넘은 뒤에는 90% 이상이 0 점이라 <code>reward_std</code> 가 0.074 로 떨어진다. 복원 신호가 없어 정책은 회복하지 못한다. 종료 태그를 잃은 생성은 길이 상한까지 간다. <code>learning_rate</code> 는 6.8e-06 으로 매끄럽게 감쇠 중이었다. LR 변화는 방아쇠가 아니다.</p>
 
 <h3 id="8-d-유력한-근인--overlong_filtertrue-가-앵커를-무력화한다">8-d. <code>overlong_filter=True</code> 의 앵커 약화 (회복 저지 요인)</h3>
-<div class="note">08-04 중간 견해는 이 요인을 "유력한 근인"으로 봤다. 최종 견해(<a href="#4-4-인과-사슬-종합">1부 §4-4</a>, 2026-08-06)에서 이 요인은 붕괴 뒤 회복을 막은 3단계 요인이다. 형식 붕괴(899→904) 때 길이·clip 은 정상이었고, 길이 폭주는 step 905 부터다(<a href="#3-6-overlong_filter-의-실제-발동량--신규-정량">§3-6</a>).</div>
+<div class="note">08-04 중간 견해는 이 요인을 "유력한 근인"으로 봤다. 최종 견해(<a href="#4-4-인과-사슬-종합">1부 §4-4</a>, 2026-08-06)에서 이 요인은 붕괴 뒤 회복을 막았을 가능성이 있는 3단계 요인이다(추론). 형식 붕괴(899→904) 때 길이·절단률은 정상이었다. 길이 폭주는 step 905 부터다(<a href="#4-4-인과-사슬-종합">1부 §4-4</a>).</div>
 <p>ms-swift 4.1.3 <code>grpo_trainer.py</code> 의 해당 코드다.</p>
 <pre><code class="language-python"># apply the completion_mask to exclude loss and metrics for overlong completions
 if self.overlong_filter and any(truncated_mask):
@@ -734,27 +737,27 @@ if self.overlong_filter and any(truncated_mask):
 # Compute the KL divergence between the model and the reference model
 if self.beta != 0.0 and not self.kl_in_reward:      # ← 위에서 마스킹된 completion_mask 를 쓴다
 </code></pre>
-<p>잘린 completion 은 손실과 KL 에서 모두 빠진다. 그 샘플은 억제 그래디언트도, 참조 정책으로 당기는 힘도 받지 않는다. 절단률이 4% 에서 38% 로 올랐으므로 붕괴가 한창일 때 배치의 3분의 1 이상이 앵커에서 빠졌다. 보상(SoftOverlong −1)은 남아서 그룹 평균을 낮춘다. 그러나 이 보상은 형제 샘플을 밀어 올릴 뿐 퇴화 자체를 억제하지 않는다.</p>
+<p>잘린 롤아웃은 손실과 KL 에서 모두 빠진다. 그 샘플은 억제 그래디언트도, 참조 정책으로 당기는 힘도 받지 않는다. 절단률이 4% 에서 38% 로 올랐으므로 붕괴가 한창일 때 배치의 3분의 1 이상이 앵커에서 빠졌다. 보상(SoftOverlong −1)은 남아서 그룹 평균을 낮춘다. 그러나 이 보상은 형제 샘플을 밀어 올릴 뿐 퇴화 자체를 억제하지 않는다.</p>
 <div class="warn">이 항목은 코드 해석에 근거한 추론이다. ablation 으로 확인하지 않았다.</div>
 
-<h3 id="8-e-기각된-가설들">8-e. 기각한 가설</h3>
+<h3 id="8-e-기각된-가설들">8-e. 기각한 가설과 부분 유효한 가설</h3>
 <table>
 <tr><th>가설</th><th>기각 근거</th></tr>
-<tr><td>그룹 붕괴로 그래디언트가 사라졌다(<code>num_generations</code> 4 부족)</td><td><code>frac_reward_zero_std</code> 평균은 0.0106 이고, 97% 스텝에서 정확히 0 이다. 보상 총합의 그룹 분산은 건강했다. 이 기각은 총합 기준에서만 유효하다. 보상별(형식) 분산 기준으로는 <a href="#8-i-데이터보상-구조-심층-분석--폭주-메커니즘-규명">§8-i ⑤</a> 에서 다시 살아난다.</td></tr>
-<tr><td>형식 보상 가중치(0.2)가 정확도(1.0)보다 약해 형식을 버려도 손해가 작다</td><td>부분 정정. 객관식에서는 태그가 없으면 정확도도 0 이다. 수학은 태그 없이도 채점을 통과한다(Acc 0.442 vs 0.599, §8-i ②).</td></tr>
+<tr><td>그룹 붕괴로 그래디언트가 사라졌다(<code>num_generations</code> 4 부족)</td><td><code>frac_reward_zero_std</code> 평균은 0.0106 이고, 97% step 에서 정확히 0 이다. 보상 총합의 그룹 분산은 건강했다. 이 기각은 총합 기준에서만 유효하다. 보상별(형식) 분산 기준으로는 <a href="#8-i-데이터보상-구조-심층-분석--폭주-메커니즘-규명">§8-i ⑤</a> 에서 다시 살아난다.</td></tr>
+<tr><td>형식 보상 가중치(0.2)가 정확도(1.0)보다 약해 형식을 버려도 손해가 작다</td><td>기각하지 않는다(부분 유효). 객관식에서는 태그가 없으면 정확도도 0 이다. 수학은 태그 없이도 채점을 통과한다(Acc 0.442 vs 0.599, §8-i ②).</td></tr>
 <tr><td>추론이 길어져 잘렸다(능력은 유지)</td><td>잘린 출력에 추론이 없다. 토큰 한 개를 4만 자 반복한다.</td></tr>
 <tr><td><code>learning_rate</code> 급변</td><td>cosine 으로 매끄럽게 감쇠했다(7.03e-06 → 6.74e-06). 불연속은 없다.</td></tr>
-<tr><td><code>max_grad_norm</code> 미설정</td><td>값은 1.0 이었다. 개시 구간(step 899~904)의 grad_norm 은 0.027~0.175 로 정상이었다. 붕괴 이후에는 클리핑이 최소 3회 발동했다(최대 10.02 @ step 938, <a href="#3-3-max_grad_norm--문서-정정-">1부 §3-3</a>).</td></tr>
+<tr><td><code>max_grad_norm</code> 미설정</td><td>값은 1.0 이었다. 개시 구간(step 899~904)의 grad_norm 은 0.027~0.175 로 클리핑 임계(1.0) 미만이었다. 붕괴 이후에는 grad_norm 클리핑이 최소 3회 발동했다(최대는 step 938 의 10.02, <a href="#3-3-max_grad_norm--문서-정정-">1부 §3-3</a>).</td></tr>
 </table>
 
 <h3 id="8-f-홀드아웃에서의-손상">8-f. holdout 에서의 손상</h3>
 <p>8 지점 holdout 표(init~1000)는 <a href="#2-4-소스별-학습-신호--step-600-에-절반이-이미-포화-">1부 §2-4</a> 에 있다. 전체 정확도는 850 의 51.52% 에서 900 의 22.63% 로 떨어졌고, 1000 에서는 25.56% 였다.</p>
 <p>절벽은 850 → 900 사이 50 step 이다. 짝지음 Δ 는 −28.89pp 다(정답→오답 581 / 반대 69, p&lt;0.0001). step 900 은 step 1000(25.56%)보다도 낮다. 이후 부분 회복이 있었지만 원래 수준으로 돌아오지 못했다.</p>
-<p>holdout 에서도 2단계 구조가 따로 보인다. step 900 은 <code>format</code> 0.056 인데 <code>mean_chars</code> 는 2,264 로 정상이다. 이 시점은 순수한 형식 붕괴다. step 1000 에서 <code>mean_chars</code> 가 7,893 으로 뛴다(토큰 퇴화). 이 순서는 <a href="#8-b-붕괴는-두-단계다">§8-b</a> 와 일치한다.</p>
-<p>손상은 소스별로 크게 다르다. 850 → 900 짝지음은 의료 −47.50pp, deepvision −30.04pp, 수학 −7.50pp 다(모두 p&lt;0.001). 원인은 채점 방식이다. 의료는 <code>&lt;answer&gt;A&lt;/answer&gt;</code> 가 있어야 letter 를 뽑으므로 letter 층이 0.5810 에서 0.1047 로 떨어진다. vl 층은 0.0096 까지 간다. 수학은 본문 어디서든 숫자를 잡아 형식 붕괴에 덜 민감하다. step 900 의 수학은 init 과 구분되지 않는다(0.500 vs 0.4825, p=0.51). 이 −30pp 는 능력 상실보다 형식 상실에 가깝다. 실사용에서는 이 구분이 무의미하다.</p>
-<p>형식은 세 소스에서 비슷하게 깨졌다. 취약성 프로브(greedy)의 step 900 형식 실패율은 deepvision 96.7%, mmk12 92.1%, pmcvqa 83.3% 다. 같은 시점 정확도는 수학 50.00, deepvision 16.36, 의료 10.50 으로 갈린다. 손상은 비슷하고, 차이는 채점기가 그 손상을 통과시키는지에서 나온다. step 900 에서 형식이 온전한 문항은 1,772 중 99 건(format 0.056)인데 정답은 401 건이다. 채점기는 최소 302 건(17.0pp)을 <code>&lt;answer&gt;</code> 태그 없이 정답으로 처리했다(<a href="#8-i-데이터보상-구조-심층-분석--폭주-메커니즘-규명">§8-i</a> ②).</p>
+<p>holdout 에서도 1단계(형식 붕괴)와 3단계(토큰 퇴화)가 따로 보인다. step 900 은 <code>format</code> 0.056 인데 <code>mean_chars</code> 는 2,264 로 정상이다. 이 시점은 순수한 형식 붕괴다. step 1000 에서 <code>mean_chars</code> 가 7,893 으로 뛴다(토큰 퇴화). 이 순서는 <a href="#8-b-붕괴는-두-단계다">§8-b</a> 와 일치한다.</p>
+<p>손상은 소스별로 크게 다르다. 850 → 900 짝지음은 의료 −47.50pp, deepvision −30.04pp, 수학 −7.50pp 다(모두 p&lt;0.001). 원인은 채점 방식이다. 의료는 <code>&lt;answer&gt;A&lt;/answer&gt;</code> 가 있어야 letter 를 뽑으므로 letter 층이 0.5810 에서 0.1047 로 떨어진다. vl 층은 0.0096 까지 간다. 수학은 본문 어디서든 숫자를 잡아 형식 붕괴에 덜 민감하다. step 900 의 수학은 init 과 구분되지 않는다(0.500 vs 0.4825, p=0.51). deepvision 의 −30.04pp 는 능력 상실보다 형식 상실에 가깝다. 실사용에서는 이 구분이 무의미하다.</p>
+<p>형식은 세 소스에서 비슷하게 깨졌다. 취약성 프로브(greedy)의 step 900 형식 실패율은 deepvision 96.7%, mmk12 92.1%, pmcvqa 83.3% 다. 같은 시점 정확도는 수학 50.00, deepvision 16.36, 의료 10.50 으로 갈린다. 손상은 비슷하고, 차이는 채점기가 그 손상을 통과시키는지에서 나온다. step 900 에서 형식이 온전한 문항은 1,772 중 99건(format 0.056)인데 정답은 401건이다. 채점기는 최소 302건(17.0pp)을 <code>&lt;answer&gt;</code> 태그 없이 정답으로 처리했다(<a href="#8-i-데이터보상-구조-심층-분석--폭주-메커니즘-규명">§8-i</a> ②).</p>
 <p><img src="assets/stage2_holdout_format_length.png" alt="Stage-2 holdout 형식·길이·층별 종합" style="max-width:100%" /></p>
-<div class="warn">그림 ①의 두 형식 곡선은 수준을 비교할 수 없다. 지표 정의(느슨한 <code>&lt;answer&gt;</code> 존재 여부 vs 엄격한 <code>FormatThink</code>), temperature(0.0 vs 0.9), 토큰 상한(2,048 vs 6,144)이 모두 다르다. 갈라지는 시점만 읽는다. holdout <code>format</code> 하락(0.947 → 0.89 대)은 길이 인플레이션의 결과다. RL 이 출력을 +17% 늘렸는데 holdout 은 2,048 토큰에서 자른다.</div>
+<div class="warn">그림 ①의 두 형식 곡선은 수준을 비교할 수 없다. 지표 정의(느슨한 <code>&lt;answer&gt;</code> 존재 여부 vs 엄격한 <code>FormatThink</code>), temperature(0.0 vs 0.9), 토큰 상한(2,048 vs 6,144)이 모두 다르다. 갈라지는 시점만 읽는다. holdout <code>format</code> 하락(0.947 → 0.89 대)은 길이 인플레이션의 결과다. RL 이 출력을 +16% 늘렸는데 holdout 은 2,048 토큰에서 자른다.</div>
 
 <h3 id="8-g-그래서-step-850-이-최고점이다--그리고-6-d-의-미검출이-뒤집힌다">8-g. step 850 이 최고점이고, §6-d 의 "미검출"은 분해능 부족이었다</h3>
 <table>
@@ -766,9 +769,9 @@ if self.beta != 0.0 and not self.kl_in_reward:      # ← 위에서 마스킹된
 <tr><td>init → 900</td><td>−20.71pp ±2.73 p&lt;0.0001 하락</td><td>−19.24</td><td>+1.75 미검출</td><td>−46.75</td></tr>
 <tr><td>400 → 1000</td><td>−23.48pp ±2.74 p&lt;0.0001 하락</td><td>−19.75</td><td>−6.50</td><td>−49.50</td></tr>
 </table>
-<p><a href="#6-d-전량-재측정--분해능-문제가-해결됐다-2026-08-04">§6-d</a> 의 "step 400 이후 미검출"은 정체가 아니라 분해능 부족이었다. 300 step 간격(400→700, +1.35pp p=0.18)에서는 검출하지 못했다. 450 step 간격(400→850)에서는 +2.48pp(p=0.020)로 검출했다. 이 값은 §6-d 의 95% 구간 [−0.6, +3.3]pp 안에 있다. 두 결과는 모순이 아니다.</p>
-<p>이 런은 붕괴 직전까지 개선 중이었다. 사전등록 게이트(800 step 간격 +3pp)를 넘길 만한 속도였다. 실패한 것은 학습이 아니라 안정성이다.</p>
-<p>의료만은 여섯 지점 모두 변화가 없다(init 대비 +0.25/−0.75/−0.25/+1.25/+0.75pp, 모두 p&gt;0.5).</p>
+<p><a href="#6-d-전량-재측정--분해능-문제가-해결됐다-2026-08-04">§6-d</a> 의 "step 400 이후 미검출"은 정체가 아니라 분해능 부족이었다. 300 step 간격(400→700, +1.35pp p=0.18)에서는 검출하지 못했다. 450 step 간격(400→850)에서는 +2.48pp(p=0.020)로 검출했다. 400→850 값은 400→700 의 95% 구간 [−0.6, +3.3]pp 와도 양립한다. 간격이 150 step 더 길 뿐이다. 두 결과는 모순이 아니다.</p>
+<p>이 실행은 붕괴 직전까지 개선 중이었다. 450 step 에 +2.48pp 였다. 같은 기울기가 이어졌다면 사전등록 게이트(800 step 간격 +3pp)에 닿았을 것이다(외삽). 실패한 것은 학습이 아니라 안정성이다.</p>
+<p>의료만은 붕괴 전 다섯 지점(400~850) 모두 변화가 없다(init 대비 +0.25/−0.75/−0.25/+1.25/+0.75pp, 모두 p&gt;0.5).</p>
 
 <h3 id="8-h-확보한-자산">8-h. 확보한 체크포인트</h3>
 <p>취소 전에 붕괴 전후 체크포인트를 모두 스냅샷했다(각 ~480MB, <code>diff -rq</code> 로 원본과 동일함을 확인).</p>
@@ -778,7 +781,7 @@ work/checkpoints/grpo_expanded_gdpo/v0-20260731-094532/checkpoint-700   (v0 동�
 <p>step 850 은 holdout 최고점(51.52%)이지만 절벽에서 50 step 거리다. step 700(50.40%)은 850 과 통계적으로 구분되지 않는다(−1.13pp, p=0.25).</p>
 
 <h3 id="8-i-데이터보상-구조-심층-분석--폭주-메커니즘-규명">8-i. 데이터·보상 구조 분석: 폭주 메커니즘</h3>
-<p><code>completions.jsonl</code> 의 스텝별 프롬프트를 학습셋과 100% 조인했다(34,688 롤아웃, 소스 귀속 오염 0.03%).</p>
+<p><code>completions.jsonl</code> 의 step 별 프롬프트를 학습셋과 모두 조인했다(34,688 롤아웃, 소스 귀속 오염 0.03%).</p>
 <h4 id="①-프롬프트-형식은-통일돼-있다--여기는-문제가-아니다">① 프롬프트 형식은 통일돼 있다</h4>
 <table>
 <tr><th>소스</th><th style="text-align:right"><code>&lt;think&gt;</code>/<code>&lt;answer&gt;</code> 태그</th><th style="text-align:right">형식 지시문</th><th style="text-align:right"><code>\boxed</code></th><th style="text-align:right">객관식</th><th>messages 구조</th></tr>
@@ -793,7 +796,7 @@ work/checkpoints/grpo_expanded_gdpo/v0-20260731-094532/checkpoint-700   (v0 동�
     m = _ANS_RE.search(text)
     return (m.group(1).strip() if m else text.strip())   # ← 태그 없으면 전문을 그대로 반환
 </code></pre>
-<p>태그가 없으면 이 함수는 완성문 전체를 답으로 넘긴다. 그 뒤 경로가 갈린다.</p>
+<p>태그가 없으면 이 함수는 롤아웃 전체를 답으로 넘긴다. 그 뒤 경로가 갈린다.</p>
 <table>
 <tr><th>정답 유형</th><th>태그를 버리면</th><th>해당 소스</th></tr>
 <tr><td>수식·숫자</td><td><code>math_verify.parse(전문, first_match)</code> 가 본문 어디서든 <code>\boxed{}</code>·숫자를 찾아 통과</td><td>mmk12 100%, deepvision 43%</td></tr>
@@ -806,17 +809,17 @@ work/checkpoints/grpo_expanded_gdpo/v0-20260731-094532/checkpoint-700   (v0 동�
 <tr><td>deepvision 짧은</td><td style="text-align:right">0.170</td><td style="text-align:right">0.467</td><td style="text-align:right">−0.297</td></tr>
 <tr><td>긴(≥2,000자)</td><td style="text-align:right">0.000</td><td style="text-align:right">0.443</td><td style="text-align:right">−0.443</td></tr>
 </table>
-<p>채점기는 형식을 버린 짧은 롤아웃의 29.2% 를 정답으로 처리한다. 예를 들어 <code>&quot;…\boxed{12}\n\nAnswer: 12&lt;|im_end|&gt;&quot;</code> 는 Acc 1.0, Format 0.0 이다. 이 차이가 소스별 붕괴 속도를 설명한다. mmk12 가 가장 빠르고(10.6%), pmcvqa 는 step 899 까지 0.0% 다. §8-c 의 집계값(Acc(F=0) 0.02~0.26)에는 잘린 출력(Acc 0)과 짧은 프로토콜 이탈(Acc 0.44)이 섞여 있다.</p>
+<p>채점기는 형식을 버린 짧은 롤아웃의 29.2% 를 정답으로 처리한다. 예를 들어 <code>&quot;…\boxed{12}\n\nAnswer: 12&lt;|im_end|&gt;&quot;</code> 는 Acc 1.0, Format 0.0 이다. 이 차이가 소스별 붕괴 속도의 차이와 맞는다. 같은 구간(step 800~899) 비절단 형식 실패율은 mmk12 가 10.6% 로 가장 높다. pmcvqa 는 step 899 까지 0.0% 다. §8-c 의 집계값(Acc(F=0) 0.02~0.26)에는 잘린 출력(Acc 0)과 짧은 프로토콜 이탈(Acc 0.44)이 섞여 있다.</p>
 <h4 id="③-그런데-이-구멍은-방아쇠가-아니다">③ 이 구멍은 방아쇠가 아니다</h4>
 <ul>
-<li>잘리지 않은 롤아웃의 형식 실패율은 step 200~800 내내 0.0~0.4% 로 평평하다. 800 step 동안 구멍을 이용하지 않았다.</li>
+<li>잘리지 않은 롤아웃의 형식 실패율은 step 200~800 내내 0.0~0.4% 로 평평하다. 모델은 800 step 동안 구멍을 이용하지 않았다.</li>
 <li>형식 위반 롤아웃의 평균 advantage 는 −0.86 ~ −0.94 다. 그래디언트는 형식을 지키는 쪽으로 밀고 있었다.</li>
 <li>"위반인데 advantage 양수"인 경우는 step 800 이전 100 step 당 0~1건(0.03%)이다.</li>
 </ul>
 <p>구멍은 잠재 취약점이지 개시 원인이 아니다.</p>
 <h4 id="④-폭주-메커니즘--그룹-균일성-함정-이것이-핵심">④ 폭주 메커니즘: 그룹 균일성 함정</h4>
 <p>GRPO 계열은 advantage 를 그룹 안의 상대값으로 만든다. 어떤 보상이 그룹 안에서 모두 같으면 그 보상은 advantage 에 기여하지 않는다. step 903 의 실제 그룹이다.</p>
-<pre><code>[deepvision] F=[0,0,0,0]  A=[0,0,0,0]  O=[0,0,0,−1.0]
+<pre><code>[deepvision] F=[0,0,0,0]  Acc=[0,0,0,0]  O=[0,0,0,−1.0]
              adv=[+0.12, +0.12, +0.12, −0.35]
 </code></pre>
 <p>넷 모두 형식을 어겼으므로 형식 z-score 는 0 이다. 남은 신호는 <code>SoftOverlong</code> 뿐이다. 그 결과 형식을 어긴 짧은 출력 3개가 양수 advantage(+0.12)를 받는다. 복원력이 사라질 뿐 아니라 방향이 반대가 된다.</p>
@@ -836,7 +839,7 @@ work/checkpoints/grpo_expanded_gdpo/v0-20260731-094532/checkpoint-700   (v0 동�
 <tr><td>851~900 (임계 구간)</td><td style="text-align:right">14.1%</td><td style="text-align:right">1.3% / 1.5%</td><td style="text-align:right">0.4%</td><td style="text-align:right">0.1%</td></tr>
 <tr><td>901~950 (이미 늦음)</td><td style="text-align:right">81.2%</td><td style="text-align:right">55.9% / 56.5%</td><td style="text-align:right">43.0%</td><td style="text-align:right">31.4%</td></tr>
 </table>
-<p>n=8 은 임계 구간의 죽은 그룹을 약 4배 줄인다. p=81% 에 이른 뒤에는 1.3배뿐이다. 그룹 확대는 치료가 아니라 개입할 시간을 버는 효과다.</p>
+<p>n=8 은 임계 구간의 전원 형식 실패 그룹을 약 4배 줄인다. p=81% 에 이른 뒤에는 1.3배뿐이다. 그룹 확대는 치료가 아니라 개입할 시간을 버는 효과다.</p>
 <div class="warn">이 표는 n=4 관측에서 꼬리를 외삽한 모형 추정이다. 측정값이 아니다. 그룹 내 상관이 높아(과분산) n 을 2배로 해도 확률이 제곱되지 않는다.</div>
 <h4 id="⑥-확장된-기각-목록">⑥ 추가로 기각한 가설</h4>
 <p>④ 는 폭주를 설명한다. 개시(step ~800)는 설명하지 못한다.</p>
@@ -844,15 +847,15 @@ work/checkpoints/grpo_expanded_gdpo/v0-20260731-094532/checkpoint-700   (v0 동�
 <tr><th>가설</th><th>기각 근거</th></tr>
 <tr><td>재개(73925) 버그</td><td>같은 step 751~787 을 두 번 실행한 결과가 거의 같다. Format 0.973 vs 0.970, Acc 0.438 vs 0.452, 엔트로피 0.535 vs 0.527 이다.</td></tr>
 <tr><td>LoRA 가중치 폭발</td><td>‖BA‖ 는 step 400→1000 에서 7.8 → 12.1 로 매끄럽게 늘었고, 증가율은 오히려 둔화했다. 불연속이 없다.</td></tr>
-<tr><td>데이터 구성 편중</td><td>소스 비율은 전 구간 65/16/18 ± 3%p 로 안정적이다. 시간에 따른 편중은 없다. 다만 설계값 53.5/20.3/26.2 와는 어긋난다(의료 −31% 상대, 미해결, <a href="#2-2-설계-비율과-실측-롤아웃-비율이-다르다--미해결">1부 §2-2</a>).</td></tr>
-<tr><td><code>dynamic_sample</code> 재샘플 급증</td><td>스텝당 32 롤아웃, 고유 프롬프트 7.9 개로 전 구간 일정하다.</td></tr>
-<tr><td>프롬프트 재등장(암기)</td><td>재등장은 없다. 조인 키(앞 150자)로 세면 deepvision 은 정형 문구가 같고 이미지만 달라 충돌 artifact 가 생긴다.</td></tr>
-<tr><td>지수 성장(처음부터 서서히)</td><td>step 200~800 은 0.0~0.4% 로 평평하다. 800 부터 50 step 마다 8~9배로 뛴다. 지수 적합 R²=0.586, 예측 1.68% vs 실측 8.12% 다.</td></tr>
+<tr><td>데이터 구성 편중</td><td>소스 비율은 전 구간 65/16/18 ± 3pp 로 안정적이다. 시간에 따른 편중은 없다. 다만 설계값 53.5/20.3/26.2 와는 어긋난다(의료 −31% 상대, 미해결, <a href="#2-2-설계-비율과-실측-롤아웃-비율이-다르다--미해결">1부 §2-2</a>).</td></tr>
+<tr><td><code>dynamic_sample</code> 재샘플 급증</td><td>step 당 32 롤아웃, 고유 프롬프트 7.9 개로 전 구간 일정하다.</td></tr>
+<tr><td>프롬프트 재등장(암기)</td><td>재등장은 없다. 겉보기 중복은 조인 키(앞 150자) 충돌이다. deepvision 은 정형 문구가 같고 이미지만 다르다.</td></tr>
+<tr><td>지수 성장(처음부터 서서히)</td><td>step 200~800 은 0.0~0.4% 로 평평하다. step 800 이후 급증한다(801~850 5.5%, 851~900 14.1%). 처음부터 서서히 자라는 지수 모형은 R²=0.586 이고, 예측 1.68% vs 실측 8.12% 다. 기각 대상은 이 모형이다. ⑧ 의 지수 과정(750~930 적합)은 기각하지 않는다.</td></tr>
 </table>
 <p>개시는 실재하는 사건이지만 로그만으로는 지목할 수 없다.</p>
 <h4 id="⑧-개시-원인-추적--결론-로그에-없다-그리고-아마-지목할-사건이-없다">⑧ 개시 원인 추적: 로그에는 지목할 사건이 없다</h4>
-<h5 id="개시의-서명">개시의 서명</h5>
-<p>첫 비절단 형식 실패는 step 802 다. 이후 실패는 모두 같은 모양이다.</p>
+<h5 id="개시의-서명">개시 때 실패의 모양</h5>
+<p>잡음 바닥(아래, step ≤800 에 0.1~0.5%) 위로 이어지는 비절단 형식 실패는 step 802 에서 시작한다. 이후 실패는 모두 같은 모양이다.</p>
 <pre><code>[step 802 · deepvision · 1,011자 · Acc 0.0]
   &quot;…Thus, the correct answer is 60°, which corresponds to option C.
    Answer: C&lt;|im_end|&gt;&quot;
@@ -862,13 +865,13 @@ work/checkpoints/grpo_expanded_gdpo/v0-20260731-094532/checkpoint-700   (v0 동�
 <h5 id="문체-잠식-가설--기각">문체 잠식 가설: 기각</h5>
 <p><code>Answer:</code> 종결 스타일이 자라서 XML 래퍼를 이겼다는 가설을 검사했다. 결과는 반대였다.</p>
 <table>
-<tr><th>구간</th><th style="text-align:right"><code>Answer:</code> 포함</th><th style="text-align:right">└ 형식정상 중</th><th style="text-align:right">마크다운 볼드</th></tr>
+<tr><th>구간</th><th style="text-align:right"><code>Answer:</code> 포함</th><th style="text-align:right">└ 형식 정상 중</th><th style="text-align:right">마크다운 볼드</th></tr>
 <tr><td>1~50</td><td style="text-align:right">18.3%</td><td style="text-align:right">18.3%</td><td style="text-align:right">22.8%</td></tr>
 <tr><td>751~800</td><td style="text-align:right">5.8%</td><td style="text-align:right">5.8%</td><td style="text-align:right">8.6%</td></tr>
 <tr><td>851~900</td><td style="text-align:right">8.2%</td><td style="text-align:right">3.1%</td><td style="text-align:right">10.3%</td></tr>
 </table>
-<p>RL 은 이 스타일을 억제하고 있었다(18.3% → 5.8%). 붕괴는 <code>Answer:</code> 와 XML 래퍼의 결합이 끊긴 것이다. 851~900 에서 <code>Answer:</code> 포함 8.2% 중 형식정상은 3.1%p 뿐이다.</p>
-<h5 id="보상-구멍이-엔진이었나--기각">보상 구멍이 엔진이었나: 기각</h5>
+<p>RL 은 이 스타일을 억제하고 있었다(18.3% → 5.8%). 붕괴는 <code>Answer:</code> 와 XML 래퍼의 결합이 끊긴 것이다. 851~900 에서 <code>Answer:</code> 포함 8.2% 중 형식 정상은 3.1pp 뿐이다.</p>
+<h5 id="보상-구멍이-엔진이었나--기각">보상 구멍이 폭주를 이끌었나: 기각</h5>
 <p>② 의 구멍에서 나온 롤아웃이 양수 advantage 를 받아 폭주를 이끌었는지 검사했다. 그렇지 않았다.</p>
 <table>
 <tr><th>step ≤ 800, 비절단</th><th style="text-align:right">n</th><th style="text-align:right">평균 advantage</th></tr>
@@ -876,7 +879,7 @@ work/checkpoints/grpo_expanded_gdpo/v0-20260731-094532/checkpoint-700   (v0 동�
 <tr><td>F=0 &amp; 오답</td><td style="text-align:right">51</td><td style="text-align:right">−0.870</td></tr>
 <tr><td>F=1 &amp; 정답</td><td style="text-align:right">10,509</td><td style="text-align:right">+0.966</td></tr>
 </table>
-<p>step 401~800 구간에서 <code>F=0 &amp; 정답</code> 은 0 건이다. 모델은 붕괴 전 800 step 동안 이 구멍을 한 번도 쓰지 않았다. 801~1000 의 343 건(+0.801)은 결과이지 원인이 아니다.</p>
+<p>step 401~800 구간에서 <code>F=0 &amp; 정답</code> 은 0건이다. step ≤400 에는 6건이 있었고 advantage 는 음수(−0.070)였다. 801~1000 의 343건(+0.801)은 결과이지 원인이 아니다.</p>
 <h5 id="실제-동역학--상시-잡음-바닥--배가-15-step-의-지수-과정">실제 동역학: 상시 잡음 바닥과 배가 15 step 의 지수 과정</h5>
 <p>25 step 구간 비절단 실패율에 지수를 적합했다.</p>
 <table>
@@ -885,24 +888,24 @@ work/checkpoints/grpo_expanded_gdpo/v0-20260731-094532/checkpoint-700   (v0 동�
 <tr><td>700~950</td><td style="text-align:right">+0.0267</td><td style="text-align:right">0.793</td><td style="text-align:right">26 step</td></tr>
 <tr><td>750~930</td><td style="text-align:right">+0.0478</td><td style="text-align:right">0.953</td><td style="text-align:right">15 step</td></tr>
 </table>
-<p>750~930 적합이 가장 깨끗하다(R²=0.953). 이 지수를 step 700 으로 역추정하면 기대 실패는 0.03건/1400 이지만 실측은 2~4건이다. 따라서 pre-750 의 0.1~0.5% 는 지수의 일부가 아니라 별개의 상시 잡음 바닥이다. 이 실패는 F=0 &amp; 오답이다. 그래디언트는 advantage −0.87 로 이 실패를 정상적으로 억제했다.</p>
+<p>750~930 적합이 가장 깨끗하다(R²=0.953). 이 지수를 step 700 으로 역추정하면 기대 실패는 1,400 롤아웃당 0.03건이지만 실측은 2~4건이다. 따라서 step 750 이전의 0.1~0.5% 는 지수의 일부가 아니라 별개의 상시 잡음 바닥이다. 이 실패는 F=0 &amp; 오답이다. 그래디언트는 advantage −0.87 로 이 실패를 정상적으로 억제했다.</p>
 <pre><code>상시 잡음 바닥  ~0.1~0.5%      전 구간 산발. 정상적으로 억제되고 있었다
-지수 과정       배가 15 step   step ~770 부근 발화 → 810 경 잡음 위로 부상
+지수 과정       배가 15 step   step ~770 부근 시작 → 810 경 잡음 위로 부상
                                → 860 지배(3.6%→12.7%) → 900 절벽(93%)
 </code></pre>
-<p>배치 해상도가 32 롤아웃(=3.1%)이므로 p&lt;3% 구간은 스텝 단위로 관측할 수 없다. "왜 하필 step 800 인가"에는 답할 수 없다. 잡음 바닥이 늘 씨앗을 만드는 상태에서 되먹임 이득이 1 을 넘는 순간 그중 하나가 자랐다고 본다. 그 순간은 확률적이다.</p>
-<h5 id="그래서-조기경보를-설계한다-예방이-아니라-탐지">조기경보: 예방이 아니라 탐지</h5>
+<p>배치 해상도가 32 롤아웃(=3.1%)이므로 p&lt;3% 구간은 step 단위로 관측할 수 없다. "왜 하필 step 800 인가"에는 답할 수 없다. 잡음 바닥이 늘 씨앗을 만드는 상태에서 되먹임 이득이 1 을 넘는 순간 그중 하나가 자랐다고 본다. 그 순간은 확률적이다.</p>
+<h5 id="그래서-조기경보를-설계한다-예방이-아니라-탐지">조기 경보: 예방이 아니라 탐지</h5>
 <p>절벽(step 900)까지의 여유를 지표별로 비교했다.</p>
 <table>
-<tr><th>지표</th><th style="text-align:right">임계</th><th style="text-align:right">발화</th><th style="text-align:right">여유</th></tr>
-<tr><td><code>FormatThink</code> 평균 (100 step 창)</td><td style="text-align:right">0.10</td><td style="text-align:right">step 433</td><td style="text-align:right">467 step (오경보)</td></tr>
-<tr><td><code>FormatThink</code> 평균 (100 step 창)</td><td style="text-align:right">0.15</td><td style="text-align:right">step 906</td><td style="text-align:right">−6 step (이미 늦음)</td></tr>
-<tr><td>비절단 형식실패율 (100 step 창)</td><td style="text-align:right">0.5%</td><td style="text-align:right">step 86</td><td style="text-align:right">오경보(잡음 바닥이 닿는다)</td></tr>
-<tr><td>비절단 형식실패율 (100 step 창)</td><td style="text-align:right">1.0%</td><td style="text-align:right">step 870</td><td style="text-align:right">30 step</td></tr>
-<tr><td>비절단 형식실패율 (50 step 창)</td><td style="text-align:right">1.0%</td><td style="text-align:right">step 851</td><td style="text-align:right">49 step ≈ 4시간</td></tr>
+<tr><th>지표</th><th style="text-align:right">임계</th><th style="text-align:right">경보 step</th><th style="text-align:right">여유</th></tr>
+<tr><td>형식 실패율 (1 − <code>FormatThink</code> 평균, 100 step 창)</td><td style="text-align:right">0.10</td><td style="text-align:right">step 433</td><td style="text-align:right">467 step (오경보)</td></tr>
+<tr><td>형식 실패율 (1 − <code>FormatThink</code> 평균, 100 step 창)</td><td style="text-align:right">0.15</td><td style="text-align:right">step 906</td><td style="text-align:right">−6 step (이미 늦음)</td></tr>
+<tr><td>비절단 형식 실패율 (100 step 창)</td><td style="text-align:right">0.5%</td><td style="text-align:right">step 86</td><td style="text-align:right">오경보(잡음 바닥이 닿는다)</td></tr>
+<tr><td>비절단 형식 실패율 (100 step 창)</td><td style="text-align:right">1.0%</td><td style="text-align:right">step 870</td><td style="text-align:right">30 step</td></tr>
+<tr><td>비절단 형식 실패율 (50 step 창)</td><td style="text-align:right">1.0%</td><td style="text-align:right">step 851</td><td style="text-align:right">49 step ≈ 4시간</td></tr>
 </table>
-<p>100 step 창의 <code>FormatThink</code> 평균 임계는 오경보를 내거나 늦다. 상시 절단 실패(5~10%)가 신호를 묻기 때문이다. 절단을 뺀 형식 실패율은 잡음 바닥이 0.1~0.5% 로 낮아 1% 임계로 깨끗하게 잡을 수 있다.</p>
-<div class="note">실제로 구현·검증한 감시자 <a href="../scripts/watch_format_collapse.py"><code>scripts/watch_format_collapse.py</code></a> 는 다른 규칙을 쓴다. <code>FormatThink</code> 50-step 창 평균이 0.85 미만이면 자동 정지한다(<code>WATCHDOG=1</code>). 로그 재생 결과는 step 901 발화, 1,047 step 오경보 0회다(<a href="#1-5-감시-설계의-결론">1부 §1-5</a>).</div>
+<p>100 step 창의 형식 실패율(1 − <code>FormatThink</code> 평균) 임계는 오경보를 내거나 늦다. 상시 절단 실패(5~10%)가 신호를 묻기 때문이다. 절단을 뺀 형식 실패율은 잡음 바닥이 0.1~0.5% 로 낮아 1% 임계로 깨끗하게 잡을 수 있다.</p>
+<div class="note">실제로 구현·검증한 감시자 <a href="../scripts/watch_format_collapse.py"><code>scripts/watch_format_collapse.py</code></a> 는 다른 규칙을 쓴다. <code>FormatThink</code> 50-step 창 평균이 0.85 미만이면 자동 정지한다(<code>WATCHDOG=1</code>). 로그 재생 결과는 step 901 경보, 1,047 step 오경보 0회다(<a href="#1-5-감시-설계의-결론">1부 §1-5</a>).</div>
 <div class="note">checkpoint-850 은 경보가 울렸을 step 851 바로 직전이다. <code>save_steps=50</code> 인데 배가 주기가 15 step 이므로 체크포인트 사이에 실패율이 10배 자란다. 저장 간격이 이 동역학에 비해 넓다.</div>
 <h5 id="남은-미해결과-다음-검증">남은 미해결</h5>
 <p>로그로 측정할 수 있는 모든 양은 step 800 까지 정상이었다. 남은 가능성은 출력 통계에 드러나지 않는 내부 표현의 점진적 드리프트다(‖BA‖ 는 7.8→12.1 로 매끄럽게 증가). 이 가능성은 로그로 검증할 수 없다.</p>
@@ -911,7 +914,7 @@ work/checkpoints/grpo_expanded_gdpo/v0-20260731-094532/checkpoint-700   (v0 동�
 <ul>
 <li><a href="../README.md"><code>README.md</code></a> — 현황 요약</li>
 <li><a href="21_stage2a_design.html"><code>21_stage2a_design.html</code></a> — Stage-2 실험 이력·A/B, 하이퍼파라미터 외부 관행 대조</li>
-<li><a href="21_stage2a_design.html#5-1-빌드-런북"><code>stage2_data.md</code> §5-1</a> — 확장셋 재현 절차(구 <code>stage2_expansion_runbook.md</code>)</li>
+<li><a href="21_stage2a_design.html#5-1-빌드-런북"><code>21_stage2a_design.html</code> §5-1</a> — 확장셋 재현 절차(구 <code>stage2_expansion_runbook.md</code>)</li>
 <li><a href="23_stage2ce_experts.html"><code>23_stage2ce_experts.html</code></a> — 이후 단계: 도메인 전문가 학습과 통합</li>
 <li><a href="90_ops_infra.html"><code>90_ops_infra.html</code></a> — 자원·예산</li>
 </ul>

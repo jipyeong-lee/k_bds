@@ -38,7 +38,7 @@ li{margin:3px 0}
 <div class="meta">원본: docs/stage1_coldstart.md (2026-10-22 HTML 로 통합)<br>
 이 문서는 <a href="../README.md"><code>README.md</code></a> 에서 분리된 상세 기록이다. 요약·현황은 README 에 있다. 상세는 여기에 있다.</div>
 
-<div class="key"><b>요약.</b> 현행 콜드스타트는 v3 <code>sft_mixed</code>(일반+의료 혼합, train 9,507건)다. v3 는 v2 대비 생성 strict <code>format_think</code> 를 0.185 에서 0.909 로 5배 올렸다(같은 하니스, 홀드아웃 972건). 홀드아웃 정답률은 0.295 에서 0.348 로 +0.053(상대 +18%) 올랐다. 이득은 전부 vl 에서 나왔다. v2 의 형식 천장은 RL 이 아니라 학습 데이터 결함(데이터 자체의 <code>format_think</code> 0.473)이 원인이었다. Ablation 은 콜드스타트가 RL 의 전제조건임을 보였다(RL 이득 +0.16 vs +0.03). 따라서 Stage-1 은 필수다.</div>
+<div class="key"><b>요약.</b> 현행 콜드스타트는 v3 <code>sft_mixed</code>(일반+의료 혼합, train 9,507건)다. v3 는 v2 대비 생성 strict <code>format_think</code> 를 0.185 에서 0.909 로 5배 올렸다(같은 하니스, 홀드아웃 972건). 홀드아웃 정답률은 0.295 에서 0.348 로 +0.053(상대 +18%) 올랐다. 이득은 전부 vl 에서 나왔다. v2 의 형식 천장은 RL 이 아니라 학습 데이터 결함(데이터 자체의 <code>format_think</code> 0.473)이 원인이었다. Ablation 은 콜드스타트가 RL 의 전제조건임을 보였다(RL 이득 +0.16 vs +0.03, 최대 출력 2,048). 따라서 Stage-1 은 필수다. 단 이것은 "RL 을 가능하게 하는 조건"이라는 뜻이다. 최대 출력 8,192 에서는 기본 모델 holdout(50.45%)이 SFT(42.67%)보다 높다. 기본 모델은 응답이 약 6~9배 길고 형식 준수율이 0.638 이다(<a href="00_overview.html#s1-6">00_overview 1.6</a>, kgpu 측정).</div>
 
 <nav>
 <b>목차</b> ·

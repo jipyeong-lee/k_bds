@@ -86,7 +86,7 @@ li{margin:3px 0}
 <div class="key">
 <b>핵심 결과 5개</b>
 <ol>
-<li><b>Stage-1 은 필수다.</b> 콜드스타트 없이 RL 을 하면 holdout 0.18, 콜드스타트 + RL 은 0.38 이다(2×2 ablation).</li>
+<li><b>Stage-1 은 RL 의 전제다(2,048 토큰 조건).</b> 콜드스타트 없이 RL 을 하면 holdout 0.18, 콜드스타트 + RL 은 0.38 이다(2×2 ablation). 단 8,192 토큰에서는 기본 모델 holdout(50.45%)이 SFT(42.67%)보다 높다. 기본 모델은 응답이 약 9배 길고 형식 준수율이 낮다(<a href="#s1-6">1.6</a>).</li>
 <li><b>GRPO 변형 5종 중 dr_grpo 와 GDPO 가 이겼다.</b> 기본 GRPO 의 정체(plateau)를 넘었다.</li>
 <li><b>도메인 전문가 3종 모두 글로벌 의료 벤치에서 SFT 를 넘었다.</b> 최고는 deepvision 57.52%(SFT 46.77%, +10.75pp).</li>
 <li><b>형식 붕괴 전에 학습↔롤아웃 불일치가 먼저 커진다.</b> TIS 보정은 붕괴를 늦추지만 막지 못한다.</li>
@@ -191,7 +191,23 @@ li{margin:3px 0}
 <tr><td>콜드스타트 없음</td><td class="n">0.15</td><td class="n">0.18 (step 200)</td><td class="n">+0.03</td></tr>
 <tr><td>콜드스타트 있음</td><td class="n">0.22</td><td class="n">0.38 (step 600)</td><td class="n">+0.16</td></tr>
 </table>
-<div class="note"><b>결론.</b> Stage-1 은 필수다. 콜드스타트가 없으면 형식 점수가 0.001 → 0.004 로 거의 오르지 않는다. 상세: <a href="10_stage1_coldstart.html">10_stage1_coldstart.html</a>.</div>
+<div class="note"><b>결론.</b> 이 조건(최대 출력 2,048 토큰)에서 Stage-1 은 RL 의 전제다. 콜드스타트가 없으면 형식 점수가 0.001 → 0.004 로 거의 오르지 않는다. 상세: <a href="10_stage1_coldstart.html">10_stage1_coldstart.html</a>.</div>
+
+<h3 id="s1-6">1.6 기본 모델과 SFT 비교 (최대 출력 8,192, kgpu 측정)</h3>
+<p>질문: SFT 가 기본 모델(Qwen3.5-9B)보다 나은가? 기본 모델은 2026-10-23 kgpu RTX 5090 에서 쟀다. SFT·통합 모델 값은 K-BDS 측정이다. 평가 조건(문항, greedy, 최대 출력)은 같다.</p>
+<table>
+<tr><th>평가</th><th>기본 모델</th><th>SFT</th><th>통합 모델</th></tr>
+<tr><td>holdout 전체 (1,772)</td><td class="n">50.45%</td><td class="n">42.67%</td><td class="n"><b>63.32%</b></td></tr>
+<tr><td>└ 시각 추론 (972)</td><td class="n">44.86%</td><td class="n">35.19%</td><td class="n">64.20%</td></tr>
+<tr><td>└ 수학 추론 (400)</td><td class="n">60.0%</td><td class="n">47.0%</td><td class="n">65.50%</td></tr>
+<tr><td>└ 의료 VQA (400)</td><td class="n">54.5%</td><td class="n">56.5%</td><td class="n">59.00%</td></tr>
+<tr><td>holdout 형식 준수율</td><td class="n">0.638</td><td class="n">—</td><td class="n">0.997</td></tr>
+<tr><td>글로벌 벤치 (3,712)</td><td class="n">46.01%</td><td class="n">46.77%</td><td class="n"><b>56.22%</b></td></tr>
+<tr><td>└ MedXpertQA-MM (2,000)</td><td class="n">29.7%</td><td class="n">33.5%</td><td class="n">37.80%</td></tr>
+<tr><td>└ MMMU-H&amp;M (1,712)</td><td class="n">65.07%</td><td class="n">62.27%</td><td class="n">77.75%</td></tr>
+<tr><td>평균 생성 토큰 (holdout 표본 198, <a href="#s2e-7">2-E.7</a>)</td><td class="n">4,184</td><td class="n">702</td><td class="n">872</td></tr>
+</table>
+<div class="warn"><b>해석.</b> 8,192 토큰을 주면 기본 모델은 긴 추론으로 holdout 에서 SFT 보다 7.78pp 높다. 글로벌 벤치(4,096 토큰)에서는 둘이 비슷하다(−0.76pp). 기본 모델은 형식 준수율이 0.638 이고 응답이 SFT 의 약 6~9배 길다. 그러므로 "SFT 가 기본 모델보다 정확하다"고 쓰지 마십시오. SFT 의 역할은 형식과 응답 길이를 잡아 RL 을 가능하게 하는 것이다(1.5). 최종 통합 모델은 기본 모델보다 holdout +12.87pp, 글로벌 +10.21pp 높다(측정 GPU 가 다르다).</div>
 
 <!-- ============================================================ -->
 <h2 id="s2a">2-A. Stage-2 · GRPO 변형 비교</h2>
@@ -414,6 +430,16 @@ li{margin:3px 0}
 <div class="warn"><b>주의.</b> "통합 모델이 각 전문가보다 뛰어나다"고 쓰지 마십시오. 정확한 표현: 통합 모델은 한 모델로 세 도메인 성능의 95~108% 를 지킨다. 수학은 전문가보다 높고, 시각 추론은 낮다. 전문가 holdout(job 76330, 82986, 76449)은 통합 모델 평가(job 83037)와 측정 시기가 다르다. 평가 조건은 같다.</div>
 <p>상세: <a href="23_stage2ce_experts.html#partC">23_stage2ce_experts.html Part C</a>.</p>
 
+<h3 id="s2e-7">2-E.7 추론 비용 (kgpu RTX 5090 1장, 같은 GPU 에서 비교)</h3>
+<p>설정: 2026-10-23, vLLM 0.19.1, greedy, 최대 출력 8,192. holdout 층화 표본으로 동시 1요청 48문항(문항당 지연)과 동시 16요청 198문항(처리량)을 쟀다. 스크립트: <code>kgpu/timing_bench.sh</code>, 기록: <code>eval_compare.py</code> 의 <code>timing</code>.</p>
+<table>
+<tr><th>모델</th><th>문항당 지연(동시 1, 평균 / 중앙)</th><th>평균 생성 토큰(동시 1)</th><th>198문항 총시간(동시 16)</th><th>처리량(동시 16)</th><th>표본 정확도(동시 16)</th></tr>
+<tr><td>기본 모델</td><td class="n">52.0 / 48.7초</td><td class="n">4,441</td><td class="n">791초</td><td class="n">1,048 토큰/초</td><td class="n">54.0%</td></tr>
+<tr><td>SFT</td><td class="n">5.7 / 4.5초</td><td class="n">497</td><td class="n">175초</td><td class="n">796 토큰/초</td><td class="n">47.5%</td></tr>
+<tr><td><b>통합 모델</b></td><td class="n">9.0 / 7.2초</td><td class="n">817</td><td class="n"><b>153초</b></td><td class="n">1,130 토큰/초</td><td class="n"><b>63.1%</b></td></tr>
+</table>
+<div class="note"><b>결론.</b> 토큰 생성 속도(동시 1)는 세 모델이 같다(초당 85~91 토큰). 지연 차이는 응답 길이 차이다. 통합 모델은 기본 모델보다 문항당 약 5.8배 빠르다. 혼자 질의하면 SFT 보다 3.3초 느리다. 동시 16 요청에서는 SFT 보다 먼저 끝났다. kgpu 측정이므로 결과보고서 본문에는 넣지 않았다.</div>
+
 <!-- ============================================================ -->
 <!-- ============================================================ -->
 <h2 id="s3">3. Stage-3 · 의료 개방형 RL (RaR) 준비</h2>
@@ -463,7 +489,7 @@ li{margin:3px 0}
 <table>
 <tr><th></th><th>KISTI K-BDS</th><th>B200 (NHN)</th><th>kgpu</th></tr>
 <tr><td>GPU</td><td>A100 80GB × 8 (8gpu), A100 40GB (1gpu)</td><td>B200 180GB × 8, NVLink</td><td>RTX PRO 6000 96GB, RTX 5090 32GB</td></tr>
-<tr><td>사용 단계</td><td>Stage-1, 2-A, 2-B, 2-C(mmk12, pmcvqa), 평가, 2-E 본평가</td><td>2-C(deepvision 2,203 step)</td><td>2-D 통제 실험, 2-E merging 선별, 3 스모크, 글로벌 평가</td></tr>
+<tr><td>사용 단계</td><td>Stage-1, 2-A, 2-B, 2-C(mmk12, pmcvqa), 평가, 2-E 본평가</td><td>2-C(deepvision 2,203 step)</td><td>2-D 통제 실험, 2-E merging 선별, 3 스모크, 글로벌 평가, 기본 모델 평가(1.6), 추론 비용(2-E.7), 모델 카드 검증</td></tr>
 <tr><td>속도</td><td>GRPO ~213 s/step</td><td>GRPO ~171~227 s/step(deepvision)</td><td>Stage-3 84.9 s/step(1 GPU)</td></tr>
 <tr><td>제약</td><td>NVLink 없음, 계산 노드 외부망 없음, glibc 2.17</td><td>자원 회수로 사용 종료</td><td>시간당 과금, pod 반납 필수</td></tr>
 </table>
@@ -480,8 +506,9 @@ li{margin:3px 0}
 <!-- ============================================================ -->
 <h2 id="s6">6. 다음 단계 · 한계</h2>
 <ol>
-<li>결과보고서(연구요약서)를 확정한다: <code>docs/99_report_draft.html</code>. 마감은 과제 종료 후 1개월(약 10/30).</li>
-<li>모델, 코드, 데이터를 K-BDS 마켓플레이스에 기탁한다. 패키지는 LoRA 4개와 <code>merge.sh</code> 로 통합 모델을 재구성한다(재구성본이 평가 모델과 비트 단위로 같음을 확인).</li>
+<li>결과보고서(연구요약서): 원본 양식 <code>(양식) 결과보고서(연구요약서).hwp</code> 에 작성을 끝냈다(초안 <code>docs/99_report_draft.html</code>). 남은 일은 마켓플레이스 등록 화면 캡처를 붙이는 것이다. 마감은 과제 종료 후 1개월(약 10/30).</li>
+<li>통합 모델 가중치: Hugging Face 비공개 저장소 <code>easypyeong/Qwen3.5-9B-MedCrossReason</code> 에 올렸다(bf16, 18GB). 4개 파일의 sha256 이 KISTI 평가 모델과 같다. 모델 카드의 vLLM·transformers 예시를 카드 그대로 실행해 4문항 모두 정답을 확인했다(<code>kgpu/card_test.sh</code>).</li>
+<li>마켓플레이스 기탁 패키지 <code>share/kbds_integrated_model_v2.zip</code>: LoRA 4개, <code>merge.sh</code>(재구성본이 평가 모델과 bf16 기준 비트 단위로 같음), 도메인 데이터 3종 + medix 전처리본 51,335건 + holdout, 학습·복합 보상·심판·평가·병합 코드. 업로드는 사람이 한다.</li>
 <li>2차: 통합 모델에서 Stage-3(medix RaR)를 시작한다. merging 이 부족한 도메인이 있으면 증류(계단 1~2)를 한다.</li>
 </ol>
 <h3 id="limits">한계와 확인하지 않은 것</h3>

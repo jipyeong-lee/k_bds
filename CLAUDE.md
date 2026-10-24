@@ -132,6 +132,8 @@ judge 는 KHDP `deepseek-v4-1-flash-ax`(`JUDGE_API_KEY=$KHDP_PAT` 를 pod env �
 | `tar x` 가 소유자 복원에 실패 | `--no-same-owner` |
 | `~/files` 는 네트워크 공유(느림, 작은 파일 대량 생성 금지) | 모델·venv·데이터는 pod 로컬(`/root/w`)로 복사(18G ≈ 600초). `~/files` 엔 로그·결과만 |
 | `pkill -f <패턴>` 이 자기 셸까지 죽인다(exit 144) | pid 로 죽일 것 |
+| 감시·반납 스크립트를 에이전트 세션의 백그라운드로 띄우면 세션 종료 때 죽고 `trap` 이 pod 를 반납한다(측정 결과 없이 반납, 2026-10-23) | `setsid nohup bash run.sh > out 2>&1 < /dev/null & disown` 으로 분리 |
+| `nvidia/cuda` 이미지에 python 이 없어 venv 전 `python3` 단계가 조용히 실패 | python 단계는 `setup_venv.sh` 뒤 `$PY` 로, 산출 파일은 `[ -s ]` 로 검사 |
 
 ## 3. 핵심 식별자
 | 항목 | 값 |

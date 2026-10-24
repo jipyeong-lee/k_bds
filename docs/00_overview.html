@@ -43,7 +43,7 @@ li{margin:3px 0}
 <tr><td>Stage-2 (2-B)</td><td><a href="22_stage2b_mixed_run.html">22_stage2b_mixed_run.html</a></td><td>혼합 확장 실행(73924) 사후 분석과 중간 점검</td></tr>
 <tr><td>Stage-2 (2-C~2-E)</td><td><a href="23_stage2ce_experts.html">23_stage2ce_experts.html</a></td><td>도메인 전문가 학습·체크포인트 확정, 붕괴 원인 추적(X1~X6, E1/E1c), 전문가 통합(모델 merging)</td></tr>
 <tr><td>Stage-3</td><td><a href="30_stage3_medical_rl.html">30_stage3_medical_rl.html</a></td><td>의료 RL(RaR) 보상 설계, HealthBench 평가</td></tr>
-<tr><td>운영</td><td><a href="90_ops_infra.html">90_ops_infra.html</a></td><td>예산·자원, 데이터 경로, 컨테이너·ms-swift 레퍼런스, 날짜별 진행 기록과 6~7월 일지</td></tr>
+<tr><td>운영</td><td><a href="90_ops_infra.html">90_ops_infra.html</a></td><td>예산·자원, kgpu 운영 함정, 데이터 경로, 홀드아웃 분리, 컨테이너·ms-swift·논문 레퍼런스</td></tr>
 <tr><td>보고</td><td><a href="99_report_draft.html">99_report_draft.html</a></td><td>K-BDS 결과보고서(연구요약서) 초안</td></tr>
 </table>
 <nav>
@@ -81,16 +81,16 @@ li{margin:3px 0}
 </g>
 <text x="284" y="161" font-size="11" class="q">재설계(8/13)</text>
 </svg>
-<figcaption>초록 = 완료, 파랑 = 진행 중, 회색 점선 = 폐기한 경로, 주황 점선 = 이월.</figcaption>
+<figcaption>초록 = 완료, 파랑 = 최종 모델, 회색 점선 = 폐기한 경로, 주황 점선 = 이월.</figcaption>
 </figure>
 <div class="key">
-<b>핵심 결과 5개</b>
+<b>주요 결과 5개</b>
 <ol>
 <li><b>Stage-1 은 RL 의 전제다(2,048 토큰 조건).</b> 콜드스타트 없이 RL 을 하면 holdout 0.18, 콜드스타트 + RL 은 0.38 이다(2×2 ablation). 단 8,192 토큰에서는 기본 모델 holdout(50.45%)이 SFT(42.67%)보다 높다. 기본 모델은 응답이 약 9배 길고 형식 준수율이 낮다(<a href="#s1-6">1.6</a>).</li>
-<li><b>GRPO 변형 5종 중 dr_grpo 와 GDPO 가 이겼다.</b> 기본 GRPO 의 정체(plateau)를 넘었다.</li>
-<li><b>도메인 전문가 3종 모두 글로벌 의료 벤치에서 SFT 를 넘었다.</b> 최고는 deepvision 57.52%(SFT 46.77%, +10.75pp).</li>
+<li><b>GRPO 변형 5종에서 dr_grpo 와 GDPO 를 채택했다.</b> 두 변형은 기본 GRPO 의 정체(plateau)를 넘었다.</li>
+<li><b>도메인 전문가 3종 모두 글로벌 벤치에서 SFT 를 넘었다.</b> 최고는 deepvision 57.52%(SFT 46.77%, +10.75pp).</li>
 <li><b>형식 붕괴 전에 학습↔롤아웃 불일치가 먼저 커진다.</b> TIS 보정은 붕괴를 늦추지만 막지 못한다.</li>
-<li><b>전문가 3종은 추가 학습 없이 합쳐진다.</b> task vector 가 거의 직교한다. 단순 가중 합산(ta_w07)이 세 도메인을 95~108% 보존했다. K-BDS 전체셋 본평가에서 holdout 63.32%(SFT 42.67%), 글로벌 56.22%(SFT 46.77%)다.</li>
+<li><b>추가 학습 없이 전문가 3종을 합쳤다.</b> task vector 가 거의 직교한다. 단순 가중 합산(ta_w07)이 세 도메인 성능의 95~108% 를 지켰다.</li>
 </ol>
 </div>
 
@@ -98,22 +98,22 @@ li{margin:3px 0}
 <table>
 <tr><th>날짜</th><th>단계</th><th>사건</th></tr>
 <tr><td>2026-10-22</td><td>2-E</td><td>전문가 3종 확정, 글로벌 벤치 측정, merging 11종 선별, 상위 2개 K-BDS 본평가(kgpu 장애로 이전)</td></tr>
-<tr><td>2026-10-19~20</td><td>2-D</td><td>E1(TIS 켬)/E1c(TIS 끔) 통제 실험 — TIS 는 붕괴 지연만</td></tr>
+<tr><td>2026-10-19~20</td><td>2-D</td><td>E1(TIS 켬)/E1c(TIS 끔) 통제 실험. TIS 는 붕괴를 늦추기만 한다</td></tr>
 <tr><td>2026-10-15</td><td>3</td><td>kgpu 에서 Stage-3 스모크 통과(38 s/step), 심판 모델 선정</td></tr>
-<tr><td>2026-10-14~18</td><td>2-C</td><td>deepvision KISTI 이어학습 → step 3428 붕괴</td></tr>
+<tr><td>2026-10-14~18</td><td>2-C</td><td>deepvision KISTI 이어학습, step 3428 에서 붕괴</td></tr>
 <tr><td>2026-09-28</td><td>2-C</td><td>deepvision 2192 글로벌 벤치 57.52%</td></tr>
 <tr><td>2026-09-01</td><td>2-C</td><td>pmcvqa 1 epoch(4,896 step) 완주</td></tr>
 <tr><td>2026-08-21</td><td>2-C</td><td>deepvision(B200) 2,203 step, holdout 67.4% / mmk12 ~450 붕괴</td></tr>
 <tr><td>2026-08-13</td><td>2-B → 2-C</td><td>혼합 학습 폐기, 도메인 전문가 + 통합 구조로 재설계</td></tr>
-<tr><td>2026-07-28 ~ 08</td><td>2-B</td><td>혼합 확장 실행(73924) — step ~900 형식 붕괴</td></tr>
-<tr><td>2026-07-18~20</td><td>1</td><td>v3 콜드스타트 학습·평가 — 형식 천장 해소</td></tr>
-<tr><td>2026-07-09</td><td>1</td><td>콜드스타트 ablation — 필수성 확정</td></tr>
+<tr><td>2026-07-28 ~ 08</td><td>2-B</td><td>혼합 확장 실행(73924), step ~900 에서 형식 붕괴</td></tr>
+<tr><td>2026-07-18~20</td><td>1</td><td>v3 콜드스타트 학습·평가, 형식 천장 해소</td></tr>
+<tr><td>2026-07-09</td><td>1</td><td>콜드스타트 ablation, 필수성 확정</td></tr>
 <tr><td>2026-07-01</td><td>3</td><td>RaR 보상 배선 end-to-end 스모크 통과(유닛 29/29)</td></tr>
 <tr><td>2026-06 ~ 07</td><td>2-A</td><td>GRPO 변형 5종 A/B, GSPO·GDPO 검증</td></tr>
 </table>
 
 <!-- ============================================================ -->
-<h3 id="final">최종 결과 — SFT 모델 대비 통합 모델(ta_w07)</h3>
+<h3 id="final">최종 결과: SFT 모델 대비 통합 모델(ta_w07)</h3>
 <table>
 <tr><th>평가</th><th>SFT 모델</th><th>통합 모델</th><th>향상 폭</th></tr>
 <tr><td><b>도메인 holdout 전체 (1,772)</b></td><td class="n">42.67%</td><td class="n"><b>63.32%</b></td><td class="n"><b>+20.65pp</b></td></tr>
@@ -125,13 +125,13 @@ li{margin:3px 0}
 <tr><td>MMMU-H&amp;M (1,712)</td><td class="n">62.27%</td><td class="n">77.75%</td><td class="n">+15.48pp</td></tr>
 <tr><td>형식 점수 (holdout)</td><td class="n">0.909 (Stage-1 측정)</td><td class="n">0.997</td><td></td></tr>
 </table>
-<p>전체 흐름: base → Stage-1 콜드스타트 SFT → Stage-2 도메인 전문가 3종(GRPO) → 가중치 산술 통합(ta_w07, 추가 학습 없음).</p>
+<p>전체 흐름은 4단계다: 기본 모델, Stage-1 콜드스타트 SFT, Stage-2 도메인 전문가 3종(GRPO), 가중치 산술 통합(ta_w07, 추가 학습 없음).</p>
 
 <!-- ============================================================ -->
 <h3 id="terms">용어</h3>
 <table>
 <tr><th>용어</th><th>뜻</th></tr>
-<tr><td>base</td><td>공개 모델 Qwen3.5-9B(멀티모달, 9B).</td></tr>
+<tr><td>기본 모델 (base)</td><td>공개 모델 Qwen3.5-9B(멀티모달, 9B).</td></tr>
 <tr><td>SFT 모델</td><td>Stage-1 v3 콜드스타트 SFT 병합본 <code>sft_mixed_merged</code>. Stage-2 의 모든 실험은 이 모델에서 시작한다.</td></tr>
 <tr><td>형식</td><td>응답이 <code>&lt;think&gt;…&lt;/think&gt;&lt;answer&gt;…&lt;/answer&gt;</code> 구조를 지키는 비율. 채점 함수는 <code>configs/accuracy.py</code> 의 <code>format_think</code> 다.</td></tr>
 <tr><td>형식 붕괴</td><td>학습 중 형식 점수가 짧은 구간에 크게 떨어지는 현상. 붕괴한 응답은 <code>&lt;/think&gt;</code> 전에 끝난다.</td></tr>
@@ -148,7 +148,7 @@ li{margin:3px 0}
 <h2 id="s1">1. Stage-1 · 콜드스타트 SFT</h2>
 <h3>1.1 목적</h3>
 <ul>
-<li>base 모델은 추론을 길게 쓴다(3.5~4.6K 토큰). 출력이 잘려 답에 닿지 못한다(파일럿 77% 잘림).</li>
+<li>기본 모델은 추론을 길게 쓴다(3.5~4.6K 토큰). 출력이 잘려 답에 닿지 못한다(파일럿 77% 잘림).</li>
 <li>답이 없으면 보상이 0 이다. 보상이 0 이면 RL 은 학습하지 못한다.</li>
 <li>콜드스타트 SFT 는 짧은 추론과 <code>&lt;think&gt;/&lt;answer&gt;</code> 형식을 가르친다.</li>
 </ul>
@@ -157,7 +157,7 @@ li{margin:3px 0}
 <table>
 <tr><th>버전</th><th>데이터</th><th>건수</th><th>데이터의 형식 점수</th><th>상태</th></tr>
 <tr><td>v1</td><td>VLAA-Thinking clevr_math</td><td class="n">2,913</td><td>—</td><td class="ng">폐기(문제가 쉬워 일반화 실패)</td></tr>
-<tr><td>v2</td><td>자기 롤아웃 자기증류(RFT)</td><td class="n">727</td><td class="n">0.473</td><td>대체됨</td></tr>
+<tr><td>v2</td><td>자기 롤아웃 자기증류(RFT)</td><td class="n">727</td><td class="n">0.473</td><td>v3 로 교체</td></tr>
 <tr><td><b>v3</b></td><td>OpenMedReason 4,999 · VisualWebInstruct 2,390 · VLAA synthesis 1,250 · VLAA clevr_math 1,250</td><td class="n">9,889 (train 9,507 / val 382)</td><td class="n">1.000</td><td class="ok">채택</td></tr>
 </table>
 <p>v3 데이터 규칙: 형식 점수 1.0 인 샘플만 넣었다. 응답은 6,000자 이하로 제한했다. OpenMedReason 은 정답 문자(A~D)를 균등하게 뽑았다. train/val 은 질문 단위로 나눴다.</p>
@@ -165,7 +165,7 @@ li{margin:3px 0}
 <h3>1.3 학습 설정</h3>
 <table>
 <tr><th>항목</th><th>v3 (채택)</th><th>v2</th></tr>
-<tr><td>base</td><td colspan="2">Qwen3.5-9B</td></tr>
+<tr><td>기본 모델</td><td colspan="2">Qwen3.5-9B</td></tr>
 <tr><td>LoRA</td><td colspan="2">r16, α32, dropout 0.05, all-linear</td></tr>
 <tr><td>학습률 / 스케줄 / warmup</td><td colspan="2">1e-4 / cosine / 0.03</td></tr>
 <tr><td>max_length / max_pixels</td><td colspan="2">4,096 / 1,003,520</td></tr>
@@ -185,7 +185,7 @@ li{margin:3px 0}
 </table>
 
 <h3>1.5 Ablation: 콜드스타트 × RL (2×2)</h3>
-<p>질문: 콜드스타트 없이 base 에서 RL 을 해도 되는가? 평가: DeepVision 층화 holdout 200건.</p>
+<p>질문: 콜드스타트 없이 기본 모델에서 RL 을 할 수 있는가? 평가: DeepVision 층화 holdout 200건.</p>
 <table>
 <tr><th></th><th>RL 없음</th><th>RL 있음 (dr_grpo)</th><th>RL 효과</th></tr>
 <tr><td>콜드스타트 없음</td><td class="n">0.15</td><td class="n">0.18 (step 200)</td><td class="n">+0.03</td></tr>
@@ -282,7 +282,7 @@ li{margin:3px 0}
 <li>의료(pmcvqa)는 측정한 여섯 지점 모두에서 개선을 검출하지 못했다(+0.75pp, p &gt; 0.5).</li>
 <li>소스별 노출은 0.09 epoch 에 그쳤다.</li>
 </ul>
-<div class="note"><b>결정(2026-08-13).</b> 혼합 학습을 중단했다. 도메인별 전문가를 따로 학습하고 나중에 통합한다. 같은 step 에서 도메인 전용 학습은 각 소스를 1.7~4.9배 더 노출한다. 상세: <a href="22_stage2b_mixed_run.html">22_stage2b_mixed_run.html</a>, <a href="21_stage2a_design.html">21_stage2a_design.html</a>.</div>
+<div class="note"><b>결정(2026-08-13).</b> 혼합 학습을 중단했다. 도메인별 전문가를 따로 학습하고 나중에 통합한다. 같은 850 step 에서 도메인 전용 학습은 각 소스를 1.9~4.9배 더 노출한다. 상세: <a href="22_stage2b_mixed_run.html">22_stage2b_mixed_run.html</a>, <a href="21_stage2a_design.html">21_stage2a_design.html</a>.</div>
 
 <!-- ============================================================ -->
 <h2 id="s2c">2-C. Stage-2 · 도메인 전문가 3종</h2>
@@ -355,7 +355,7 @@ li{margin:3px 0}
 <tr><th>실험</th><th>질문</th><th>바꾼 설정</th><th>결과</th></tr>
 <tr><td>X2</td><td>deepvision 을 1 epoch 까지 이어 학습할 수 있는가?</td><td>KISTI 이어학습, lr 이 8.2e-6 으로 다시 오름</td><td>step 3428 에서 붕괴</td></tr>
 <tr><td>X3</td><td>mmk12 가 KISTI 에서 버틴 것은 beta 덕인가?</td><td>ckpt-350, beta 0.01, lr 고정</td><td>붕괴(형식 0.89 → 0.55). 버틴 이유는 lr 감소다.</td></tr>
-<tr><td>X4</td><td>붕괴한 응답은 어떤 모양인가?</td><td>롤아웃 분석</td><td>96% 이상이 <code>&lt;/think&gt;</code> 전에 끝남. 붕괴 전에 학습↔롤아웃 확률 불일치가 커짐(0.04 → 0.82)</td></tr>
+<tr><td>X4</td><td>붕괴한 응답은 어떤 모양인가?</td><td>롤아웃 분석</td><td>96% 이상이 <code>&lt;/think&gt;</code> 전에 끝남. 붕괴 전에 학습↔롤아웃 불일치가 커짐(0.04 → 0.82)</td></tr>
 <tr><td>X5 E1</td><td>불일치가 붕괴의 원인인가?</td><td>ckpt-250 → 500, TIS 켬</td><td>약 431 에서 붕괴, 마지막 형식 0.79</td></tr>
 <tr><td>X5 E1c</td><td>(대조)</td><td>ckpt-250 → 500, TIS 끔</td><td>약 411 에서 붕괴, 마지막 형식 0.62</td></tr>
 </table>
@@ -402,7 +402,7 @@ li{margin:3px 0}
 <tr><td>model_stock</td><td class="n">50.5</td><td class="n">50.7</td><td>74% / 88% / 89%</td><td class="ng">탈락</td></tr>
 <tr><td>della_d05</td><td colspan="3">mergekit 오류(확률값 범위 초과)</td><td class="ng">실패</td></tr>
 </table>
-<p>부호 충돌을 다루는 기법(TIES, DARE, RAM)은 단순 합산보다 낫지 않았다. τ 가 직교해 충돌이 적기 때문으로 본다(추정).</p>
+<p>부호 충돌을 다루는 기법(TIES, DARE, RAM)은 단순 합산보다 낫지 않았다. 원인은 τ 가 직교해 충돌이 적기 때문으로 추정한다.</p>
 
 <h3>2-E.5 본평가 (전체셋, K-BDS)</h3>
 <p>설정: 통합 모델은 <code>scripts/merge_experts.py</code> 로 KISTI 에서 만들었다. 평가 조건은 <a href="#s4">4. 평가 체계</a>와 같다.</p>
@@ -447,10 +447,10 @@ li{margin:3px 0}
 <h3>3.1 보상: 루브릭 기반 보상(Rubric-as-a-Reward)</h3>
 <table>
 <tr><th>항목</th><th>유형(가중치)</th><th>판정 기준</th></tr>
-<tr><td>c1 정답 일치</td><td>필수(5)</td><td><code>&lt;answer&gt;</code> 가 참조 답과 의미가 같다(동의어·단위 환산 허용)</td></tr>
-<tr><td>c2 시각 근거</td><td>중요(3)</td><td><code>&lt;think&gt;</code> 가 이미지와 모순 없는 관찰을 쓴다</td></tr>
-<tr><td>c3 수치·단위</td><td>중요(3)</td><td>측정형 문제만. 참조 답의 ±15% 이내</td></tr>
-<tr><td>c4 환각 없음</td><td>함정(4)</td><td>이미지에 없는 소견을 주장하지 않는다</td></tr>
+<tr><td>c1 정답 정확성</td><td>필수(5)</td><td><code>&lt;answer&gt;</code> 가 참조 답과 의미가 같다(동의어·단위 환산 허용)</td></tr>
+<tr><td>c2 시각적 근거</td><td>중요(3)</td><td><code>&lt;think&gt;</code> 가 이미지와 모순 없는 관찰을 쓴다</td></tr>
+<tr><td>c3 정밀도·단위</td><td>중요(3)</td><td>측정형 문제만. 참조 답의 ±15% 이내</td></tr>
+<tr><td>c4 환각·과잉주장 없음</td><td>함정(4)</td><td>이미지에 없는 소견을 주장하지 않는다</td></tr>
 </table>
 <ul>
 <li>보상 = Σ wⱼ·cⱼ / Σ wⱼ (0~1). 형식을 어기면 심판을 부르지 않고 0 을 준다.</li>
@@ -474,10 +474,10 @@ li{margin:3px 0}
 <table>
 <tr><th>평가</th><th>구성</th><th>디코딩 · 최대 출력</th><th>용도</th><th>스크립트</th></tr>
 <tr><td>도메인 holdout</td><td>1,772문항(deepvision 972 · mmk12 400 · pmcvqa 400), 이미지 해시로 누수 0</td><td>greedy · 8,192</td><td>체크포인트 선택, 보존율</td><td><code>scripts/eval_midtrain.slurm</code>, <code>eval_compare.py</code></td></tr>
-<tr><td>글로벌 의료 벤치</td><td>MedXpertQA-MM 2,000 + MMMU-H&amp;M 1,712</td><td>greedy · 4,096</td><td>계획서 지표(SFT 대비 향상)</td><td><code>scripts/eval_global_bench.slurm</code>, <code>eval_global_bench.py</code></td></tr>
+<tr><td>글로벌 벤치</td><td>MedXpertQA-MM 2,000 + MMMU-H&amp;M 1,712</td><td>greedy · 4,096</td><td>계획서 지표(SFT 대비 향상)</td><td><code>scripts/eval_global_bench.slurm</code>, <code>eval_global_bench.py</code></td></tr>
 <tr><td>Stage-1·2-A holdout(초기)</td><td>DeepVision 972 또는 층화 200</td><td>greedy · 2,048</td><td>콜드스타트·GRPO 변형 비교</td><td><code>scripts/eval_v3_holdout.py</code> 등</td></tr>
 <tr><td>pass@k</td><td>K=8</td><td>temperature 1.0</td><td>지식 부족 대 학습 신호 부족 구분</td><td><code>scripts/eval_pass_at_k.py</code></td></tr>
-<tr><td>HealthBench Hard</td><td>n=1,000, 텍스트</td><td>—</td><td>참고(base 0.229, v2 0.224)</td><td>—</td></tr>
+<tr><td>HealthBench Hard</td><td>n=1,000, 텍스트</td><td>—</td><td>참고(기본 모델 0.229, v2 0.224)</td><td>—</td></tr>
 </table>
 <ul>
 <li>채점 규칙은 RL 보상과 같다(<code>accuracy_mix</code>).</li>
@@ -508,7 +508,7 @@ li{margin:3px 0}
 <ol>
 <li>결과보고서(연구요약서): 원본 양식 <code>(양식) 결과보고서(연구요약서).hwp</code> 에 작성을 끝냈다(초안 <code>docs/99_report_draft.html</code>). 남은 일은 마켓플레이스 등록 화면 캡처를 붙이는 것이다. 마감은 과제 종료 후 1개월(약 10/30).</li>
 <li>통합 모델 가중치: Hugging Face 비공개 저장소 <code>easypyeong/Qwen3.5-9B-MedCrossReason</code> 에 올렸다(bf16, 18GB). 4개 파일의 sha256 이 KISTI 평가 모델과 같다. 모델 카드의 vLLM·transformers 예시를 카드 그대로 실행해 4문항 모두 정답을 확인했다(<code>kgpu/card_test.sh</code>).</li>
-<li>마켓플레이스 기탁 패키지 <code>share/kbds_integrated_model_v2.zip</code>: LoRA 4개, <code>merge.sh</code>(재구성본이 평가 모델과 bf16 기준 비트 단위로 같음), 도메인 데이터 3종 + medix 전처리본 51,335건 + holdout, 학습·복합 보상·심판·평가·병합 코드. 업로드는 사람이 한다.</li>
+<li>마켓플레이스 기탁 패키지는 <code>share/kbds_integrated_model_v2.zip</code> 다. 내용: LoRA 4개, <code>merge.sh</code>(재구성본이 평가 모델과 bf16 기준 비트 단위로 같음), 도메인 데이터 3종 + medix 전처리본 51,335건 + holdout, 학습·복합 보상·심판·평가·병합 코드. 업로드는 사람이 한다.</li>
 <li>2차: 통합 모델에서 Stage-3(medix RaR)를 시작한다. merging 이 부족한 도메인이 있으면 증류(계단 1~2)를 한다.</li>
 </ol>
 <h3 id="limits">한계와 확인하지 않은 것</h3>

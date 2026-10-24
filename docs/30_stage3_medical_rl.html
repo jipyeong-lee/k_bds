@@ -38,11 +38,11 @@ li{margin:3px 0}
 <div class="meta">원본: <code>docs/stage3_and_eval.md</code>, <code>docs/medical_reward_spec.md</code> (2026-10-22 HTML 로 통합) · 작성 방식 ASD-STE100 지향(한 문장에 한 사실, 능동문, 주의 사항을 먼저)<br>
 1부 = 현재 설계(<code>stage3_and_eval.md</code>) · 2부 = 최초 보상 스펙(<code>medical_reward_spec.md</code>, 2026-06-29).</div>
 
-<div class="key"><b>요약 (결론 먼저)</b>
+<div class="key"><b>요약</b>
 <ul>
-<li><b>보상은 준비됐다.</b> Stage-3 보상 <code>clinical_judge</code> 는 RaR 정적 4항목 루브릭(c1 정답 5 · c2 시각근거 3 · c3 수치 3 · c4 환각 4)이다. 유닛테스트 29/29, judge 분포 프로브(good 0.96 / wrong 0.00, c2 변별 Δ0.94), GRPO end-to-end 스모크를 모두 통과했다.</li>
-<li><b>실행은 아직 안 했다.</b> judge 는 KHDP <code>deepseek-v4-1-flash-ax</code> 다(2026-10-15~). init 은 <b>전문가 3종 통합 모델</b>이다(2차 과제).</li>
-<li><b>평가는 HealthBench Hard 1,000건</b>이다. base 종합 0.229, 콜드스타트 SFT v2 0.224(동률). Stage-2·3 행은 아직 비어 있다. 채점자가 GPT-4.1 이 아니므로 공식 리더보드와 비교하지 마라.</li>
+<li><b>보상 구현과 검증을 끝냈다.</b> Stage-3 보상 <code>clinical_judge</code> 는 RaR 정적 4항목 루브릭(c1 정답 5 · c2 시각근거 3 · c3 수치 3 · c4 환각 4)이다. 유닛테스트 29/29, 심판 분포 프로브(good 0.96 / wrong 0.00, c2 변별 Δ0.94), GRPO end-to-end 스모크를 모두 통과했다.</li>
+<li><b>본 학습은 하지 않았다.</b> 심판은 KHDP <code>deepseek-v4-1-flash-ax</code> 다(2026-10-15~). 시작 모델은 전문가 3종 통합 모델이다(2차 과제).</li>
+<li><b>평가는 HealthBench Hard 1,000건이다.</b> 종합 점수는 기본 모델 0.229, 콜드스타트 SFT v2 0.224 로 같은 수준이다. Stage-2·3 행은 비어 있다. 채점자가 GPT-4.1 이 아니므로 공식 리더보드와 비교하지 않는다.</li>
 </ul></div>
 
 <nav>
@@ -50,7 +50,7 @@ li{margin:3px 0}
 <b>1부</b> <a href="#stage-3--의료-rl-rar--healthbench-평가">현재 설계</a> ·
 <a href="#stage-3--의료-rl-rar-루브릭-보상">RaR 보상</a> ·
 <a href="#루브릭-구성-configsmedical_rewardpy-build_rubric">루브릭 구성</a> ·
-<a href="#구현--judge">구현 &amp; judge</a> ·
+<a href="#구현--judge">구현과 심판</a> ·
 <a href="#검증-전부-완료">검증</a> ·
 <a href="#남은-것-다음-임계경로">남은 것</a> ·
 <a href="#타겟-벤치마크-healthbench--의료-성능-측정">HealthBench</a> ·
@@ -61,78 +61,78 @@ li{margin:3px 0}
 
 <!-- ============================================================ -->
 <h2 id="stage-3--의료-rl-rar--healthbench-평가">1부. Stage-3 · 의료 RL (RaR) &amp; HealthBench 평가</h2>
-<div class="note">이 1부는 <a href="../README.md">README.md</a> 에서 분리한 상세 기록이다. 요약·현황은 README 에, 상세는 여기에 있다.</div>
+<div class="note">이 1부는 <a href="../README.md">README.md</a> 에서 분리한 상세 기록이다. 요약과 현황은 README 에 있다.</div>
 
 <h2 id="stage-3--의료-rl-rar-루브릭-보상">Stage-3 · 의료 RL (RaR 루브릭 보상)</h2>
-<p>개방형 의료 VQA(medix)는 정답이 하나가 아니다. 그래서 규칙 검증을 할 수 없다. 대신 <b>Rubric-as-a-Reward</b>(<a href="https://arxiv.org/abs/2507.17746">arXiv:2507.17746</a>)를 쓴다. judge 가 가중 다기준 체크리스트를 항목별 0/1 로 채점한다. 집계는 explicit 이다: <code>r = Σwⱼcⱼ / Σwⱼ ∈ [0,1]</code>. 부분점수가 생기므로 보상이 dense 하다. 상세는 2부(<a href="#42-루브릭--rubric-as-a-rewardrar-arxiv250717746-방식--확정">§4.2</a>)에 있다.</p>
+<p>개방형 의료 VQA(medix)는 정답이 하나가 아니다. 그래서 규칙 검증을 할 수 없다. 대신 <b>Rubric-as-a-Reward</b>(<a href="https://arxiv.org/abs/2507.17746">arXiv:2507.17746</a>)를 쓴다. 심판이 가중 다기준 체크리스트를 항목별 0/1 로 채점한다. 보상은 가중 평균이다: <code>r = Σwⱼcⱼ / Σwⱼ ∈ [0,1]</code>. 부분점수가 생기므로 보상이 0 과 1 사이의 값을 갖는다(dense).</p>
 
 <h3 id="루브릭-구성-configsmedical_rewardpy-build_rubric">루브릭 구성 (<code>configs/medical_reward.py</code> <code>build_rubric</code>)</h3>
-<p><b>의도</b>: medix 는 <b>단답 + 멀티모달</b>이다. "정답 하나 맞히면 끝"이 아니다. <b>"이미지를 실제로 보고 근거를 대며 맞혔는가"</b>를 항목으로 나눠 채점한다. 그러면 부분점수(dense) 보상이 된다. judge LLM 이 아래 항목을 0/1 로 판정한다.</p>
-<p id="rar-rubric"><b>RaR 루브릭 표 (두 원본의 표를 하나로 합쳤다)</b>. 가중치는 RaR 정수 스킴(Essential 5 / Important 3 / Pitfall 4)이다. 2부 §4.2 의 "정적 4차원 루브릭" 표도 이 표다.</p>
+<p><b>의도</b>: medix 는 단답 멀티모달 문항이다. 루브릭은 정답 여부와 함께 "이미지를 보고 근거를 대며 맞혔는가"를 항목별로 채점한다.</p>
+<p id="rar-rubric"><b>RaR 루브릭 표</b>. 가중치는 RaR 정수 스킴(Essential 5 / Important 3 / Pitfall 4)이다.</p>
 <table>
 <tr><th>키 (#)</th><th>항목 (한/영)</th><th>유형(가중)</th><th>대상</th><th>판정 기준(요지)</th></tr>
-<tr><td><b>c1</b> (1)</td><td>정답 정확성 / Answer correctness</td><td>Essential <b>5</b></td><td><code>&lt;answer&gt;</code></td><td><code>&lt;answer&gt;</code> 가 <b>참조답과 의미 일치</b>(동의어·단위환산·paraphrase(환언) 허용). 참조답을 기준 문장에 <b>직접 주입</b>(템플릿 주입)</td></tr>
-<tr><td><b>c2</b> (2)</td><td>시각적 근거 / Visual grounding</td><td>Important <b>3</b></td><td><code>&lt;think&gt;</code></td><td><code>&lt;think&gt;</code> 가 <b>이미지와 모순 없는 image-relevant 관찰</b>을 언급하고 답을 뒷받침한다(⭐ 교차추론). 없는 구조·풍경을 지어내면 실패(엉뚱/날조 묘사 = 0)</td></tr>
-<tr><td><b>c3</b> (3)</td><td>정밀도·단위 / Numeric precision &amp; unit</td><td>Important <b>3</b></td><td><code>&lt;answer&gt;</code></td><td>수치 크기 + 단위가 참조답의 <b>±15% 이내</b>. <b>측정형 문제만</b> 자동 추가(참조답에 숫자+단위 정규식 매치 시)</td></tr>
-<tr><td><b>c4</b> (4)</td><td>환각·과잉주장 없음 / No hallucination / overclaim</td><td>Pitfall <b>4</b></td><td>전체</td><td>이미지에 없는 소견, 질문 범위 밖(질문 안 한) 주장을 추가하지 않는다(긍정형 문장)</td></tr>
+<tr><td><b>c1</b> (1)</td><td>정답 정확성 / Answer correctness</td><td>Essential <b>5</b></td><td><code>&lt;answer&gt;</code></td><td><code>&lt;answer&gt;</code> 가 참조답과 의미가 같다(동의어·단위 환산·환언 허용). 참조답을 기준 문장에 넣는다(템플릿 주입)</td></tr>
+<tr><td><b>c2</b> (2)</td><td>시각적 근거 / Visual grounding</td><td>Important <b>3</b></td><td><code>&lt;think&gt;</code></td><td><code>&lt;think&gt;</code> 가 이미지와 모순 없는 관찰을 쓰고 답을 뒷받침한다(교차 추론). 없는 구조·풍경을 지어내면 0 이다</td></tr>
+<tr><td><b>c3</b> (3)</td><td>정밀도·단위 / Numeric precision &amp; unit</td><td>Important <b>3</b></td><td><code>&lt;answer&gt;</code></td><td>수치와 단위가 참조답의 ±15% 이내다. 측정형 문제에만 자동으로 넣는다(참조답이 숫자+단위 정규식에 맞을 때)</td></tr>
+<tr><td><b>c4</b> (4)</td><td>환각·과잉주장 없음 / No hallucination / overclaim</td><td>Pitfall <b>4</b></td><td>전체</td><td>이미지에 없는 소견과 질문 범위 밖의 주장을 추가하지 않는다(긍정형 문장)</td></tr>
 </table>
 <p><b>집계</b>: <code>r = Σwⱼ·cⱼ / Σwⱼ ∈ [0,1]</code>. 실제 비중:</p>
 <ul>
-<li><b>비측정형</b>(분모 12): c1 <b>42%</b> · c2 25% · c4 33%.</li>
-<li><b>측정형</b>(분모 15): c1 33% · c2 20% · c3 20% · c4 27%.</li>
-<li>→ 정답성(c1)이 가장 크다. 환각 억제(c4)가 다음이다.</li>
+<li>비측정형(분모 12): c1 42% · c2 25% · c4 33%.</li>
+<li>측정형(분모 15): c1 33% · c2 20% · c3 20% · c4 27%.</li>
+<li>정답성(c1)의 비중이 가장 크다. 환각 억제(c4)가 다음이다.</li>
 </ul>
 <p><b>설계 결정</b>:</p>
 <ul>
-<li><b>정적 통일 루브릭</b>(문제마다 생성하지 않는다). 인스턴스식(논문 방식)과 실증 비교했다(medix 40건). 정적이 오답 기각(0.000 vs 0.118)과 <b>환각 변별(+0.338 vs +0.021)</b>에서 우세했다. 인스턴스식은 이미지 없이 텍스트로 생성된다. 그래서 <b>시각근거 항목을 만들지 못한다</b> → <b>정적 채택</b>.</li>
-<li><b>참조답 템플릿 주입</b>: 단답이므로 핵심 사실 = 참조답 1개다. c1 기준에 참조답을 넣는다. 그러면 <b>오프라인 LLM 루브릭 생성이 필요 없다</b>(비용 0, 결정적). 오프라인 GPT 생성 파이프라인 없이 코드로 루브릭을 만든다.</li>
-<li><b>측정형 자동 분기</b>(<code>is_measurement</code>): 정답에 의료 단위(mm/cm/HU/° 등)가 있으면 c3 를 자동 편입한다. 스펙 표현은 참조답 <code>\d+\s*(mm|cm|...)</code> 매치 → 기준3 포함, 아니면 제외(예: "X-ray" 문항은 1·2·4).</li>
-<li><b>형식 게이트</b>(<code>format_ok</code>): <code>&lt;think&gt;</code> 에 실질 추론(≥15자)과 <code>&lt;answer&gt;</code> 가 있어야 judge 를 호출한다. 위반하면 <b>judge 를 생략하고 0.0</b> 을 준다(비용↓, reward-hacking 방지).</li>
-<li id="c2-relax"><b>c2 완화 이력</b>: 초판 "실제 소견 인용"("구체적이 아니면 0")은 너무 엄격했다. 점수가 항상 0 이었다. <b>"이미지(영상)와 모순 없는 관찰"</b>로 완화했다. 완화 후 4항목이 모두 활성화됐다. 분포 프로브에서 c2 는 good 0.94 vs halluc 0.00 이다(<a href="#8-결과-분포-프로브-결과-2026-06-29-judgeqwen36-27b-fp8-medix-100건3변형">2부 §8-결과</a>).</li>
-<li><b>데이터</b>: medix = 단답 VQA(정답 중앙값 46자, 예 "28×27mm"·"28 x 27 mm"·"X-ray"). RaR-Medicine-20k(텍스트전용·장문, 9~12항목 인스턴스 루브릭)는 <b>비채택</b>하고 <b>스키마만 차용</b>한다: <code>{"title","description":"&lt;Category&gt; Criteria: ...","weight":정수}</code>.</li>
+<li><b>정적 통일 루브릭</b>: 문제마다 루브릭을 만들지 않는다. 인스턴스식(논문 방식)과 medix 40건으로 비교했다. 정적 루브릭이 오답 기각(0.000 대 0.118)과 환각 변별(+0.338 대 +0.021)에서 나았다. 인스턴스식은 이미지 없이 텍스트만으로 루브릭을 만든다. 그래서 시각 근거 항목을 만들지 못한다. 그러므로 정적 루브릭을 채택했다.</li>
+<li><b>참조답 템플릿 주입</b>: 단답이므로 채점할 사실은 참조답 1개다. c1 기준에 참조답을 넣는다. 그러므로 코드가 루브릭을 만든다. 오프라인 LLM 생성 단계가 없다(비용 0, 매번 같은 루브릭).</li>
+<li><b>측정형 자동 분기</b>(<code>is_measurement</code>): 정답에 의료 단위(mm/cm/HU/° 등)가 있으면 c3 를 넣는다. 판정식은 참조답의 <code>\d+\s*(mm|cm|...)</code> 매치다. 매치하지 않으면 c3 를 뺀다(예: "X-ray" 문항은 c1·c2·c4).</li>
+<li><b>형식 게이트</b>(<code>format_ok</code>): <code>&lt;think&gt;</code> 에 실질 추론(≥15자)과 <code>&lt;answer&gt;</code> 가 있어야 심판을 부른다. 형식을 어기면 심판을 부르지 않고 0.0 을 준다(비용 절감, 보상 해킹 방지).</li>
+<li id="c2-relax"><b>c2 완화 이력</b>: 초판 "실제 소견 인용"("구체적이 아니면 0")은 너무 엄격했다. 점수가 항상 0 이었다. 기준을 "이미지(영상)와 모순 없는 관찰"로 완화했다. 완화 후 4항목이 모두 작동했다. 분포 프로브에서 c2 는 good 0.94 대 halluc 0.00 이다(<a href="#8-결과-분포-프로브-결과-2026-06-29-judgeqwen36-27b-fp8-medix-100건3변형">2부 §8-결과</a>).</li>
+<li><b>데이터</b>: medix 는 단답 VQA 다(정답 중앙값 46자, 예 "28×27mm"·"28 x 27 mm"·"X-ray"). RaR-Medicine-20k(텍스트 전용·장문, 9~12항목 인스턴스 루브릭)는 쓰지 않는다. 스키마만 빌린다: <code>{"title","description":"&lt;Category&gt; Criteria: ...","weight":정수}</code>.</li>
 </ul>
-<p>상세 스펙은 2부 <a href="#42-루브릭--rubric-as-a-rewardrar-arxiv250717746-방식--확정">§4.2</a> 이다.</p>
+<p>심판 출력 형식은 2부 <a href="#42-루브릭--rubric-as-a-rewardrar-arxiv250717746-방식--확정">§4.2</a> 에 있다.</p>
 
-<h3 id="구현--judge">구현 &amp; judge</h3>
+<h3 id="구현--judge">구현과 심판</h3>
 <ul>
-<li><code>configs/medical_reward.py</code> <code>ClinicalJudgeReward(AsyncORM)</code>: 형식 게이트 → 멀티모달 judge(env <code>JUDGE_BASE_URL/MODEL/API_KEY</code>) → JSON 0/1 파싱 → 집계. 타임아웃·파싱 실패 → 0.0.</li>
+<li><code>configs/medical_reward.py</code> <code>ClinicalJudgeReward(AsyncORM)</code>: 처리 순서는 형식 게이트, 멀티모달 심판 호출(env <code>JUDGE_BASE_URL/MODEL/API_KEY</code>), JSON 0/1 파싱, 집계다. 타임아웃과 파싱 실패는 0.0 이다.</li>
 <li>사용법:
 <pre style="overflow-x:auto;background:var(--card);padding:10px 12px;border-radius:6px"><code>--reward_funcs format_think clinical_judge --external_plugins configs/accuracy.py configs/medical_reward.py --reward_weights 0.2 1.0</code></pre></li>
-<li><b>judge = KHDP <code>deepseek-v4-1-flash-ax</code></b>(2026-10-15~). <code>JUDGE_API_KEY=$KHDP_PAT</code> 를 pod env 로 넘긴다. KISTI 계산노드에 외부망이 없어서 kgpu 에서 실행한다(<a href="../CLAUDE.md">../CLAUDE.md</a> §2.5).</li>
+<li>심판은 KHDP <code>deepseek-v4-1-flash-ax</code> 다(2026-10-15~). <code>JUDGE_API_KEY=$KHDP_PAT</code> 를 pod env 로 넘긴다. KISTI 계산 노드에 외부망이 없어서 kgpu 에서 실행한다(<a href="../CLAUDE.md">../CLAUDE.md</a> §2.5).</li>
 </ul>
 
-<h3 id="검증-전부-완료">검증 (전부 완료)</h3>
+<h3 id="검증-전부-완료">검증</h3>
 <ul>
-<li>✅ 유닛테스트 <b>29/29</b> · judge 스모크(FP8 이 단일 40GB 에 적합 · 정답 1.0 &gt; 오답 0.0) · 내부망 도달성 · 분포 프로브(good 0.96 / wrong 0.00, c2 변별 Δ0.94; 상세 <a href="#8-결과-분포-프로브-결과-2026-06-29-judgeqwen36-27b-fp8-medix-100건3변형">2부 §8-결과</a>).</li>
-<li>✅ <b>GRPO 배선 end-to-end 스모크</b>(<code>35_stage3_smoke.slurm</code>): 플러그인 로드, <code>clinical_judge</code> 해석, kwargs 도달, 보상 통합을 실증했다.
-<ul><li>🐛 <b>실버그를 찾아 고쳤다</b>: swift 가 <code>images</code> 를 str 경로가 아니라 <b>dict <code>{bytes,path}</code></b> 로 넘긴다. <code>_image_to_data_url</code> 이 str/dict/PIL 을 모두 받도록 고쳤다. 고치지 않으면 시각근거 c2 가 blind 가 된다. 재검증 PASS(<code>data_url_ok=True</code>, <code>clinical_judge</code> 0.58→1.0, reward = 0.2·Format + 1.0·Clinical 로 정확히 통합).</li></ul></li>
-<li><b>RL 알고리즘</b>: RaR 는 보상 설계일 뿐이다. 최적화는 GRPO 계열이다. <b>Stage-3 는 <code>scale_rewards=gdpo</code>(GDPO)를 권고한다.</b> judge 1.0 + format 0.2 는 <b>스케일 차이가 큰 멀티리워드</b>이고, 이것이 GDPO 의 타깃이다. Stage-2 A/B 에서 downside 가 없음을 확인했다(<a href="21_stage2a_design.html#stage-2-3종-홀드아웃-판정-step600-n200">판정</a>). dr_grpo 코어(<code>loss_type=dr_grpo</code> · dynamic_sample)는 유지한다.</li>
+<li>통과한 검증: 유닛테스트 29/29, 심판 스모크(FP8 이 단일 40GB 에 적합, 정답 1.0 &gt; 오답 0.0), 내부망 도달성, 분포 프로브(<a href="#8-결과-분포-프로브-결과-2026-06-29-judgeqwen36-27b-fp8-medix-100건3변형">2부 §8-결과</a>).</li>
+<li>GRPO 배선 end-to-end 스모크(<code>35_stage3_smoke.slurm</code>)를 통과했다. 플러그인 로드, <code>clinical_judge</code> 해석, kwargs 전달, 보상 합산을 확인했다.
+<ul><li>버그 1건을 고쳤다. swift 는 <code>images</code> 를 str 경로가 아니라 dict <code>{bytes,path}</code> 로 넘긴다. <code>_image_to_data_url</code> 이 str/dict/PIL 을 모두 받도록 고쳤다. 고치지 않으면 심판이 이미지를 보지 못해 c2 를 채점하지 못한다. 재검증을 통과했다(<code>data_url_ok=True</code>, <code>clinical_judge</code> 0.58→1.0, reward = 0.2·Format + 1.0·Clinical).</li></ul></li>
+<li><b>RL 알고리즘</b>: RaR 는 보상 설계다. 최적화는 GRPO 계열이다. Stage-3 는 <code>scale_rewards=gdpo</code>(GDPO)를 권고한다. 심판 1.0 + 형식 0.2 는 스케일이 크게 다른 다중 보상이다. GDPO 는 이런 다중 보상을 위한 방법이다. Stage-2 A/B 에서 GDPO 는 성능을 낮추지 않았다(<a href="21_stage2a_design.html#stage-2-3종-홀드아웃-판정-step600-n200">판정</a>). dr_grpo 코어(<code>loss_type=dr_grpo</code> · dynamic_sample)는 그대로 쓴다.</li>
 </ul>
 
-<h3 id="남은-것-다음-임계경로">남은 것 (다음 임계경로)</h3>
-<p>⏳ Stage-3 는 <b>전문가 3종 통합 모델</b>에서 시작한다. 이 일은 2차 과제로 넘어갔다(<a href="00_overview.html#s3">00_overview.html</a> §3).</p>
+<h3 id="남은-것-다음-임계경로">남은 것</h3>
+<p>Stage-3 는 전문가 3종 통합 모델에서 시작한다. 이 일은 2차 과제로 넘겼다(<a href="00_overview.html#s3">00_overview.html</a> §3).</p>
 
 <!-- ============================================================ -->
-<h2 id="타겟-벤치마크-healthbench--의료-성능-측정">타겟 벤치마크 (HealthBench) — 의료 성능 측정</h2>
-<p>Stage-2 홀드아웃(DeepVision)은 <b>검증가능 정답</b> 기준의 내부 지표다. <b>최종 의료 능력</b>은 외부 의료 벤치 <b>HealthBench</b>(<a href="https://openai.com/index/healthbench/">OpenAI, 2025-05</a>, 의사 262명 · 대화 5,000건 · 루브릭 채점)로 잰다. 파이프라인(SFT→RLVR→RaR) 각 단계 모델을 <b>동일 하니스</b>로 재서 base 대비 개선을 추적한다.</p>
-<p><b>측정 세팅</b>(<code>scripts/45_healthbench_smoke.slurm</code> + <code>run_healthbench.py</code>, evalscope <code>health_bench</code>):</p>
+<h2 id="타겟-벤치마크-healthbench--의료-성능-측정">목표 벤치마크: HealthBench</h2>
+<p>Stage-2 holdout(DeepVision)은 검증 가능한 정답 기준의 내부 지표다. 최종 의료 능력은 외부 의료 벤치 HealthBench(<a href="https://openai.com/index/healthbench/">OpenAI, 2025-05</a>, 의사 262명 · 대화 5,000건 · 루브릭 채점)로 잰다. 파이프라인(SFT, RLVR, RaR)의 각 단계 모델을 같은 하니스로 재서 기본 모델 대비 개선을 추적한다.</p>
+<p><b>측정 설정</b>(<code>scripts/45_healthbench_smoke.slurm</code> + <code>run_healthbench.py</code>, evalscope <code>health_bench</code>):</p>
 <ul>
-<li><b>Hard 서브셋 전량 1,000건</b>(가장 변별력이 높은 부분집합), max_tokens 8192.</li>
-<li><b>채점자 = 자체 Qwen3.6-27B-FP8</b>(thinking off). 오프라인 클러스터라 GPT-4.1 을 쓸 수 없다. 데이터는 로컬 캐시(오프라인)다.</li>
-<li><code>HB_TARGET_MODEL</code> env 로 평가 대상을 바꾼다 → base/콜드스타트/Stage-2·3 모델을 같은 조건으로 비교한다.</li>
+<li>Hard 부분집합 전체 1,000건(변별력이 가장 높은 부분집합), max_tokens 8192.</li>
+<li>채점자는 자체 Qwen3.6-27B-FP8(thinking off)이다. 오프라인 클러스터라 GPT-4.1 을 쓸 수 없다. 데이터는 로컬 캐시(오프라인)다.</li>
+<li><code>HB_TARGET_MODEL</code> env 로 평가 대상을 바꾼다. 기본 모델, 콜드스타트, Stage-2·3 모델을 같은 조건으로 비교한다.</li>
 </ul>
 
-<h3 id="단계별-추적--healthbench-hard-n1000">단계별 추적 — HealthBench Hard (n=1000)</h3>
+<h3 id="단계별-추적--healthbench-hard-n1000">단계별 추적: HealthBench Hard (n=1000)</h3>
 <table>
-<tr><th>모델</th><th><b>종합</b></th><th>comm</th><th>instr</th><th>acc</th><th>complete</th><th>context</th><th>judge실패</th><th>평균길이</th></tr>
-<tr><td><b>base</b> (Qwen3.5-9B)</td><td class="n"><b>0.229</b></td><td class="n">0.580</td><td class="n">0.489</td><td class="n">0.351</td><td class="n">0.235</td><td class="n">0.098</td><td class="n">9.9%</td><td class="n">10,689자</td></tr>
-<tr><td><b>① 콜드스타트 SFT (v2)</b></td><td class="n">0.224</td><td class="n">0.551</td><td class="n"><b>0.533</b></td><td class="n">0.342</td><td class="n">0.218</td><td class="n">0.091</td><td class="n">5.0%</td><td class="n"><b>8,850자</b></td></tr>
-<tr><td><b>① 콜드스타트 SFT (v3, 현행)</b></td><td><i>미측정</i></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+<tr><th>모델</th><th><b>종합</b></th><th>comm</th><th>instr</th><th>acc</th><th>complete</th><th>context</th><th>심판 실패</th><th>평균길이</th></tr>
+<tr><td>기본 모델 (Qwen3.5-9B)</td><td class="n"><b>0.229</b></td><td class="n">0.580</td><td class="n">0.489</td><td class="n">0.351</td><td class="n">0.235</td><td class="n">0.098</td><td class="n">9.9%</td><td class="n">10,689자</td></tr>
+<tr><td>① 콜드스타트 SFT (v2)</td><td class="n">0.224</td><td class="n">0.551</td><td class="n"><b>0.533</b></td><td class="n">0.342</td><td class="n">0.218</td><td class="n">0.091</td><td class="n">5.0%</td><td class="n"><b>8,850자</b></td></tr>
+<tr><td>① 콜드스타트 SFT (v3, 현행)</td><td><i>미측정</i></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
 <tr><td>② Stage-2 (dr_grpo/GDPO)</td><td><i>예정</i></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
 <tr><td>③ Stage-3 (RaR)</td><td><i>예정</i></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
 </table>
-<p class="meta">평균길이 = 답변 문자수(HealthBench Hard 1000건). base 는 최대 44,521자, 24K자 이상 7.8% 로 폭주했다 → 콜드스타트가 ~17% 단축(간결화)했다.</p>
-<details><summary>base 주제(theme)별 점수</summary>
+<p class="meta">평균길이는 답변 문자 수다(HealthBench Hard 1000건). 기본 모델은 최대 44,521자이고, 24K자 이상이 7.8% 다. 콜드스타트는 평균 길이를 ~17% 줄였다.</p>
+<details><summary>기본 모델 주제(theme)별 점수</summary>
 <table>
 <tr><th>주제</th><th>점수 (n)</th><th></th><th>주제</th><th>점수 (n)</th></tr>
 <tr><td>emergency_referrals</td><td class="n">0.249 (66)</td><td></td><td>health_data_tasks</td><td class="n">0.237 (115)</td></tr>
@@ -142,86 +142,85 @@ li{margin:3px 0}
 </table>
 </details>
 <ul>
-<li><b>base 프로파일</b>: 말을 잘한다(comm 0.58). 지시도 따른다(0.49). 그러나 <b>맥락 인지(0.10)·완결성(0.24)·복잡 시나리오(0.14)가 약하다</b>. 즉 "그럴듯하나 상황을 온전히 파악·완결하지 못한다". 이것은 의료 특화 학습 전 base 의 전형이다. Stage-3 RaR 루브릭이 겨냥하는 바로 그 결함이다.</li>
-<li><b>콜드스타트 = 종합 동률(−0.005, 노이즈 내)</b>: SFT 는 <b>형식·간결성 정렬</b>이다. 의료 지식 주입이 아니다. 그래서 텍스트 의료 QA 가 변하지 않는 것이 정상이다. 단 <b>instr +0.044</b>(지시 따르기 개선)와 출력 간결화(평균 8.9K자, judge 실패 9.9%→5.0%)로 프로파일만 이동했다. 콜드스타트의 본래 목적은 <b>DeepVision 시각추론 RL 인에이블</b>이다(→ 의료 성능은 Stage-2/3 RL 의 몫).</li>
+<li><b>기본 모델 프로파일</b>: 소통(comm 0.58)과 지시 따르기(0.49)는 상대적으로 높다. 맥락 인지(0.10)·완결성(0.24)·복잡 시나리오(0.14)는 낮다. Stage-3 RaR 루브릭은 이 약점을 겨냥한다.</li>
+<li><b>콜드스타트</b>: 종합 점수는 기본 모델과 같은 수준이다(−0.005, 노이즈 범위). SFT 는 형식과 간결성을 맞추는 단계다. SFT 는 의료 지식을 넣지 않는다. 그래서 텍스트 의료 QA 점수가 변하지 않는다. 변한 것은 지시 따르기(instr +0.044)와 출력 길이(평균 8.9K자, 심판 실패 9.9%→5.0%)다. 콜드스타트의 목적은 DeepVision 시각 추론 RL 을 가능하게 하는 것이다. 의료 성능은 Stage-2·3 RL 이 맡는다.</li>
 </ul>
-<div class="warn"><b>⚠️ 해석 주의</b>
+<div class="warn"><b>해석 주의.</b>
 <ol>
-<li>채점자 ≠ GPT-4.1 → <b>공식 리더보드와 직접 비교할 수 없다</b>(내부 상대비교 전용).</li>
-<li>judge 파싱 실패를 보수적으로 처리한다 → 점수는 <b>완만한 하한</b>이다.</li>
-<li>base 가 장황하다(최대 44K자). 그래서 일부 답이 잘렸다.</li>
+<li>채점자가 GPT-4.1 이 아니다. 그래서 공식 리더보드와 직접 비교할 수 없다(내부 비교 전용).</li>
+<li>심판 파싱 실패를 보수적으로 처리한다. 그래서 점수는 하한으로 읽는다.</li>
+<li>기본 모델은 응답이 길다(최대 44K자). max_tokens 가 일부 답을 잘랐다.</li>
 </ol></div>
-<div class="note"><b>추적 계획</b>: 통합 모델과 Stage-3(RaR) 모델을 같은 하니스로 잰다. 위 표 ②③ 행을 채운다. base 0.229 대비 단계별 개선을 정량화한다.</div>
+<div class="note"><b>추적 계획</b>: 통합 모델과 Stage-3(RaR) 모델을 같은 하니스로 잰다. 결과로 위 표 ②③ 행을 채운다.</div>
 
 <!-- ============================================================ -->
 <h2 id="3단계-의료-복합-보상-clinical_judge-구현-스펙">2부. 3단계 의료 복합 보상 (clinical_judge) 구현 스펙</h2>
 <div class="note">대상: <code>configs/medical_reward.py</code> + <code>scripts/30_medical_rl.slurm</code><br>
-상태: <b>구현·검증 완료</b>(보상 + judge Qwen3.6-27B-FP8 분포 프로브 통과). 배선은 <code>35_stage3_smoke.slurm</code> 로 실증했다(1부 <a href="#검증-전부-완료">검증</a>).</div>
+상태: 구현·검증 완료(보상, 심판 Qwen3.6-27B-FP8 분포 프로브 통과). 배선은 <code>35_stage3_smoke.slurm</code> 로 확인했다(1부 <a href="#검증-전부-완료">검증</a>).</div>
 
 <h3 id="1-목표--범위">1. 목표 &amp; 범위</h3>
 <ul>
-<li><b>judge 는 3단계(개방형 의료 RL) 전용이다.</b> 2단계 RLVR(DeepVision)은 judge 를 쓰지 않는다. 검증가능 정답을 <code>accuracy</code>(math_verify, <code>\boxed{}</code> vs ground_truth)로 규칙 채점한다(RLVR 의 정의). judge 는 불필요하고 부적합하다.</li>
-<li>3단계 데이터 <code>MBZUAI/medix-rl-data</code>(자유형식 임상 QA, <code>solution</code> = 참조답)는 <b>단일 정답이 없다</b>. 그래서 exact-match/규칙 채점을 할 수 없다 → <b>LLM-as-judge</b> 로 임상 유효성을 평가한다.</li>
-<li>복합 보상 = 형식(rule) + 임상 유효성(judge). 계획서 요구: 보상해킹·환각 억제, 다각도 평가.</li>
-<li>(참고) medix 일부 답은 측정값 등 준-검증가능이다 → 필요하면 verifiable 부분집합에 <code>accuracy</code> 를 병용할 수 있다(옵션).</li>
+<li><b>심판은 3단계(개방형 의료 RL)에서만 쓴다.</b> 2단계 RLVR(DeepVision)은 심판을 쓰지 않는다. 2단계는 검증 가능한 정답을 <code>accuracy</code>(math_verify, <code>\boxed{}</code> vs ground_truth)로 규칙 채점한다(RLVR 의 정의).</li>
+<li>3단계 데이터 <code>MBZUAI/medix-rl-data</code>(자유형식 임상 QA, <code>solution</code> = 참조답)는 단일 정답이 없다. 그래서 exact-match 나 규칙 채점을 할 수 없다. 대신 LLM 심판(LLM-as-judge)이 임상 유효성을 평가한다.</li>
+<li>복합 보상은 형식(규칙)과 임상 유효성(심판)을 합친다. 계획서는 보상 해킹·환각 억제와 다각도 평가를 요구한다.</li>
+<li>medix 일부 답(측정값 등)은 거의 검증 가능하다. 그 부분집합에는 <code>accuracy</code> 를 함께 쓸 수 있다(선택).</li>
 </ul>
 
-<h3 id="2-핵심-결정--asyncorm-로-외부-멀티모달-judge-api-호출">2. 핵심 결정 — <code>AsyncORM</code> 로 외부 멀티모달 judge API 호출</h3>
-<p>judge 는 <b>(나중에) 대형·멀티모달 모델을 API 로 사용</b>할 예정이었다 → in-process 방식은 맞지 않는다.</p>
+<h3 id="2-핵심-결정--asyncorm-로-외부-멀티모달-judge-api-호출">2. 결정: <code>AsyncORM</code> 으로 외부 멀티모달 심판 API 호출</h3>
+<p>심판은 대형 멀티모달 모델을 API 로 쓸 예정이었다. 그래서 in-process 방식은 맞지 않는다.</p>
 <ul>
-<li>ms-swift 네이티브 <code>GenRMPlugin</code> 은 judge 모델을 <code>TransformersEngine</code> 로 <b>in-process 적재</b>한다 → 외부 API 와 맞지 않는다. 학습 GPU 도 점유한다. → <b>사용하지 않는다.</b></li>
-<li>대신 <b><code>AsyncORM</code> 을 상속</b>한다. 검증: GRPO 트레이너가 async ORM 을 <code>asyncio.gather</code> 로 병렬 호출한다. <code>reward_kwargs</code> 에 <code>images</code>/<code>solution</code> 등 데이터셋 컬럼이 전달된다. judge API 를 async 로 호출 → 학습 GPU 미점유.
-<ul><li>등록 <code>orms['clinical_judge']</code>, 사용법은 1부 <a href="#구현--judge">구현 &amp; judge</a>.</li></ul></li>
+<li>ms-swift 네이티브 <code>GenRMPlugin</code> 은 심판 모델을 <code>TransformersEngine</code> 로 학습 프로세스 안에 적재한다. 이 방식은 외부 API 와 맞지 않고 학습 GPU 를 점유한다. 그래서 쓰지 않는다.</li>
+<li>대신 <code>AsyncORM</code> 을 상속한다. GRPO 트레이너는 async ORM 을 <code>asyncio.gather</code> 로 병렬 호출한다. 트레이너는 <code>images</code>/<code>solution</code> 등 데이터셋 컬럼을 <code>reward_kwargs</code> 로 넘긴다. 심판 API 를 async 로 호출하므로 학습 GPU 를 점유하지 않는다.
+<ul><li>등록 <code>orms['clinical_judge']</code>, 사용법은 1부 <a href="#구현--judge">구현과 심판</a>.</li></ul></li>
 </ul>
 
-<h3 id="4-clinical_judge-상세-clinicaljudgerewardasyncorm--멀티모달-api-judge">4. clinical_judge 상세 (<code>ClinicalJudgeReward(AsyncORM)</code>) — 멀티모달 API judge</h3>
-<p>파일: <code>configs/medical_reward.py</code> → 끝에 <code>orms['clinical_judge'] = ClinicalJudgeReward</code>.</p>
+<h3 id="4-clinical_judge-상세-clinicaljudgerewardasyncorm--멀티모달-api-judge">4. clinical_judge 상세 (<code>ClinicalJudgeReward(AsyncORM)</code>): 멀티모달 API 심판</h3>
+<p>파일: <code>configs/medical_reward.py</code>. 파일 끝에서 <code>orms['clinical_judge'] = ClinicalJudgeReward</code> 로 등록한다.</p>
 
 <h3 id="41-동작">4.1 동작</h3>
 <ul>
 <li><code>async __call__(self, completions, **kwargs)</code>: kwargs 에서 <code>solution</code>(참조답), <code>images</code>(이미지), 질문(messages)을 꺼낸다.</li>
-<li>completion 마다 <b>멀티모달 judge API</b> 를 호출한다(이미지 + 질문 + 참조답 + 모델 답변) → 0~1 점수 파싱 → <code>asyncio.gather</code> 로 병렬.</li>
-<li>클라이언트: <code>AsyncOpenAI(base_url=$JUDGE_BASE_URL, api_key=$JUDGE_API_KEY)</code>, model=<code>$JUDGE_MODEL</code>. 이미지는 OpenAI 멀티모달 포맷(<code>image_url</code> base64)으로 보낸다. (실제로 swift 는 이미지를 dict <code>{bytes,path}</code> 로 넘긴다 → <code>_image_to_data_url</code> 수정, 1부 <a href="#검증-전부-완료">검증</a>.)</li>
+<li>completion 마다 멀티모달 심판 API 를 호출한다(이미지, 질문, 참조답, 모델 답변). 응답에서 0~1 점수를 파싱한다. 호출은 <code>asyncio.gather</code> 로 병렬 처리한다.</li>
+<li>클라이언트: <code>AsyncOpenAI(base_url=$JUDGE_BASE_URL, api_key=$JUDGE_API_KEY)</code>, model=<code>$JUDGE_MODEL</code>. 이미지는 OpenAI 멀티모달 포맷(<code>image_url</code> base64)으로 보낸다. swift 는 실제로 이미지를 dict <code>{bytes,path}</code> 로 넘긴다. 그래서 <code>_image_to_data_url</code> 을 고쳤다(1부 <a href="#검증-전부-완료">검증</a>).</li>
 </ul>
 
-<h3 id="42-루브릭--rubric-as-a-rewardrar-arxiv250717746-방식--확정">4.2 루브릭 = Rubric-as-a-Reward(RaR, <a href="https://arxiv.org/abs/2507.17746">arXiv:2507.17746</a>) 방식 — <b>확정</b></h3>
-<p>판정을 단일 스칼라로 하지 않는다. <b>가중 다기준 체크리스트(0/1)</b>로 나눈다. judge 가 항목별 0/1 을 주고 explicit 집계한다: <code>r = Σⱼ wⱼ·cⱼ / Σⱼ wⱼ</code> (∈[0,1]). 부분점수가 dense 하다 → GRPO zero-std 를 완화한다(2단계 교훈).</p>
-<p><b>데이터 실측 반영</b>, <b>핵심 단순화(LLM 루브릭 생성 불필요)</b>, RaR-Medicine-20k 스키마 차용은 1부 <a href="#루브릭-구성-configsmedical_rewardpy-build_rubric">루브릭 구성 · 설계 결정</a>에 합쳤다.</p>
-<p><b>정적 4차원 루브릭</b>(가중치 = RaR 정수 스킴 Essential 5 / Important 3 / Pitfall 4): 표는 1부 <a href="#rar-rubric">RaR 루브릭 표</a> 하나로 합쳤다(#1 정답 정확성 5 · #2 시각적 근거 3 · #3 정밀도·단위 3 · #4 환각·과잉주장 없음 4).</p>
+<h3 id="42-루브릭--rubric-as-a-rewardrar-arxiv250717746-방식--확정">4.2 루브릭 = Rubric-as-a-Reward(RaR, <a href="https://arxiv.org/abs/2507.17746">arXiv:2507.17746</a>) 방식 (확정)</h3>
+<p>판정을 단일 스칼라 대신 가중 다기준 체크리스트(0/1)로 나눈다(집계식은 1부). 부분점수가 생기므로 GRPO zero-std 문제를 완화한다(2단계 교훈).</p>
+<p>데이터 실측, 루브릭 생성 생략, RaR-Medicine-20k 스키마 차용은 1부 <a href="#루브릭-구성-configsmedical_rewardpy-build_rubric">루브릭 구성 · 설계 결정</a>에 있다.</p>
+<p>정적 4차원 루브릭은 1부 <a href="#rar-rubric">RaR 루브릭 표</a>에 있다.</p>
 <ul>
-<li><b>측정형 자동 분기</b>: 1부 설계 결정 참조(참조답 <code>\d+\s*(mm|cm|...)</code> 매치 → 기준3 포함).</li>
-<li>judge 출력 = 파싱 가능한 JSON. temperature=0. 파싱 실패 → 0.0.
+<li>심판 출력은 파싱 가능한 JSON 이다.
 <pre style="overflow-x:auto;background:var(--card);padding:10px 12px;border-radius:6px"><code>{"c1":0/1,"c2":0/1,"c3":0/1|null,"c4":0/1}</code></pre></li>
-<li>보상해킹 완화: 시각근거를 <code>&lt;think&gt;</code> 에 부여한다(운으로 맞힌 답 vs 진짜 교차추론 구분). 환각 Pitfall 과 형식 게이팅(4.3)을 더한다.</li>
+<li>보상 해킹 완화: c2 시각 근거를 <code>&lt;think&gt;</code> 에서 채점한다. 이 항목은 운으로 맞힌 답과 교차 추론으로 맞힌 답을 구분한다. 환각 Pitfall(c4)과 형식 게이팅(4.3)을 더한다.</li>
 </ul>
 
 <h3 id="43-견고성">4.3 견고성</h3>
 <ul>
-<li>타임아웃/실패/파싱 불가 → 0.0 을 반환한다(학습 중단 방지). 결정적 채점을 위해 judge temperature=0.</li>
-<li>형식 게이팅: <code>&lt;think&gt;</code> 에 실질 추론(≥15자)과 <code>&lt;answer&gt;</code> 가 없으면 judge 호출을 생략하고 0 을 준다(비용 절감 + 형식 강제).</li>
+<li>타임아웃, 호출 실패, 파싱 불가는 0.0 을 반환한다(학습 중단 방지). 같은 입력에 같은 점수를 주도록 심판 temperature 는 0 이다.</li>
+<li>형식 게이팅은 1부 설계 결정의 형식 게이트와 같다.</li>
 </ul>
 
 <h3 id="8-검증-계획">8. 검증 계획</h3>
 <ul>
-<li>단위: 샘플 답변군(정답/오답/빈답/장황답)에 judge 를 적용한다 → <b>점수 단조성</b>(정답 &gt; 오답 &gt; 빈답)을 확인한다.</li>
-<li>분포: 변환 데이터 100~200건의 judge 점수 히스토그램 → 붕괴 여부.</li>
-<li>reward-hacking 프로브: 형식만 맞고 내용이 틀린 답 → 낮은 점수를 확인한다.</li>
-<li>속도: step 당 judge 지연을 잰다 → 병목이면 judge 축소/병렬/배치를 조정한다.</li>
+<li>단위: 샘플 답변군(정답/오답/빈답/장황답)을 심판에 넣고 점수 단조성(정답 &gt; 오답 &gt; 빈답)을 확인한다.</li>
+<li>분포: 변환 데이터 100~200건의 심판 점수 히스토그램으로 붕괴 여부를 본다.</li>
+<li>보상 해킹 프로브: 형식만 맞고 내용이 틀린 답에 심판이 낮은 점수를 주는지 확인한다.</li>
+<li>속도: step 당 심판 지연을 잰다. 병목이면 심판 축소, 병렬, 배치를 조정한다.</li>
 </ul>
 
 <h3 id="10-리스크">10. 리스크</h3>
 <ul>
-<li>judge 비용/속도 → 학습 throughput 저하.</li>
-<li>reward collapse / judge 편향·환각(임상 오판) → 강력한 judge + 참조답 의존 + 다차원 루브릭으로 완화.</li>
-<li>judge 자기일관성 부족 → 온도 0 / 결정적 디코딩.</li>
+<li>심판 비용과 속도가 학습 처리량을 낮춘다.</li>
+<li>보상 붕괴, 심판 편향·환각(임상 오판): 성능이 높은 심판, 참조답 기준 채점, 다차원 루브릭으로 완화한다.</li>
+<li>심판 자기일관성 부족: temperature 0(결정적 디코딩)으로 완화한다.</li>
 </ul>
 
-<h3 id="8-결과-분포-프로브-결과-2026-06-29-judgeqwen36-27b-fp8-medix-100건3변형">8-결과. 분포 프로브 결과 (2026-06-29, judge=Qwen3.6-27B-FP8, medix 100건×3변형)</h3>
+<h3 id="8-결과-분포-프로브-결과-2026-06-29-judgeqwen36-27b-fp8-medix-100건3변형">8-결과. 분포 프로브 결과 (2026-06-29, 심판=Qwen3.6-27B-FP8, medix 100건×3변형)</h3>
 <ul>
-<li>good 0.96 / wrong 0.00 / halluc 0.64. 단조성 good &gt; wrong <b>99%</b>, parsefail 0/300.</li>
-<li><b>c2 변별 good 0.94 vs halluc 0.00 (Δ+0.94)</b> — judge 가 이미지를 실제로 확인한다(엉뚱한 묘사 차단).</li>
-<li>c2 완화 이력(초판 과엄격 → "영상과 모순 안 되는 관찰")은 1부 <a href="#c2-relax">설계 결정</a>에 합쳤다.</li>
-<li>스크립트: <code>scripts/33_judge_probe.slurm</code> + <code>judge_probe.py</code>. → <b>보상은 Stage-3 에 쓸 준비가 됐다.</b></li>
+<li>good 0.96 / wrong 0.00 / halluc 0.64. 단조성 good &gt; wrong 99%, parsefail 0/300.</li>
+<li>c2 변별: good 0.94 대 halluc 0.00 (Δ+0.94). 심판이 이미지를 실제로 보고 엉뚱한 묘사를 걸러낸다.</li>
+<li>c2 완화 이력은 1부 <a href="#c2-relax">설계 결정</a>에 있다.</li>
+<li>스크립트: <code>scripts/33_judge_probe.slurm</code> + <code>judge_probe.py</code>.</li>
 </ul>
 </main>
 </body>

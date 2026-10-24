@@ -168,7 +168,7 @@ KISTI 에서 deepvision 이어학습을 시도했으나 즉시 크래시했습�
 ### 왜 도메인을 3개로 나누는가
 
 - 구 혼합 학습은 소스별 노출이 0.09 epoch 로 같았습니다.
-- 도메인 전용 학습은 같은 step 에서 소스를 1.7~4.9배 더 많이 노출합니다.
+- 도메인 전용 학습은 같은 850 step 에서 소스를 1.9~4.9배 더 많이 노출합니다.
 - 이 구조는 Kimi K3 의 "넓은 도메인 3개" 원칙과 맞습니다.
 - 소스별 LoRA 는 같은 rank(16)를 사용합니다. 나중에 어댑터 산술로 통합할 수 있습니다(계단 0).
 
@@ -290,8 +290,7 @@ sbatch          --dependency=afterok:$JID3 scripts/40_eval.slurm                
 | [`docs/30_stage3_medical_rl.html`](docs/30_stage3_medical_rl.html) | 의료 보상 스펙 |
 | [`docs/90_ops_infra.html`](docs/90_ops_infra.html) | 환경, 베이스 모델, LoRA, 보상 설계, 논문 레퍼런스 |
 | [`docs/90_ops_infra.html`](docs/90_ops_infra.html) | 자원·운영 정책. 데이터 소스. 홀드아웃 분리(누수 차단) |
-| [`docs/90_ops_infra.html`](docs/90_ops_infra.html) | 진행 이력, 핵심 의사결정, 날짜별 기록, TODO |
-| [`docs/90_ops_infra.html`](docs/90_ops_infra.html) | 일별 상세 로그(2026-06-15 ~ 07-01, 날짜별 절) |
+| [`docs/90_ops_infra.html`](docs/90_ops_infra.html) | kgpu 운영 함정. 노드시간 최종 사용량 |
 | [`docs/00_overview.html`](docs/00_overview.html) | 전 단계 실험 정리(대표 개요, 2026-10-22 기준) |
 | [`docs/23_stage2ce_experts.html`](docs/23_stage2ce_experts.html) | Stage-2 도메인 전문가: 학습·체크포인트 확정, 10월 붕괴 원인 추적(X1~X6), 전문가 통합(merging) |
 | [`docs/99_report_draft.html`](docs/99_report_draft.html) | 결과보고서(연구요약서) 초안 |

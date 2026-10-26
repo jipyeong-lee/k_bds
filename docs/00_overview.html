@@ -511,8 +511,9 @@ li{margin:3px 0}
 <ol>
 <li>결과보고서(연구요약서): 원본 양식 <code>(양식) 결과보고서(연구요약서).hwp</code> 에 결과보고서를 다 썼다(초안 <code>docs/99_report_draft.html</code>). 마켓플레이스 등록 화면 캡처만 붙이면 된다. 마감은 과제 종료 후 1개월(약 2026-10-30)이다.</li>
 <li>통합 모델 가중치: Hugging Face 비공개 저장소 <code>easypyeong/Qwen3.5-9B-MedCrossReason</code> 에 올렸다(bf16, 18GB). 4개 파일의 sha256 이 KISTI 평가 모델과 같다. 모델 카드의 vLLM·transformers 예시를 카드 그대로 실행해 4문항 모두 정답임을 확인했다(<code>kgpu/card_test.sh</code>).</li>
-<li>마켓플레이스 기탁 패키지는 <code>share/kbds_integrated_model_v2.zip</code> 이다. 내용: LoRA 4개(SFT 1개 + 전문가 3개), <code>merge.sh</code>(재구성본이 평가 모델과 bf16 기준 비트 단위로 같음), 도메인 데이터 3종 + medix 전처리본 51,335건 + holdout, 학습·복합 보상·심판·평가·병합 코드. 업로드는 사람이 한다.</li>
+<li>마켓플레이스 기탁 패키지는 <code>share/Qwen3.5-9B-MedCrossReason_KBDS2026-1.zip</code> 이다. 내용: LoRA 4개(SFT 1개 + 전문가 3개), <code>merge.sh</code>(재구성본이 평가 모델과 bf16 기준 비트 단위로 같음), 도메인 데이터 3종 + medix 전처리본 51,335건 + holdout, 학습·복합 보상·심판·평가·병합 코드. 업로드는 사람이 한다.</li>
 <li>2차: 통합 모델에서 Stage-3(medix RaR)를 시작한다. merging 후 보존율이 부족한 도메인이 있으면 증류(<a href="23_stage2ce_experts.html#partC">23 C.1</a> 의 계단 1~2)를 한다.</li>
+<li>MTP 를 고려한 서빙 설정 개선: 통합 모델에는 기반 모델의 MTP(다중 토큰 예측) 텐서 15개가 없다. LoRA 병합이 MTP 층을 다루지 않기 때문이다. 그래서 HF <code>config.json</code> 의 <code>mtp_num_hidden_layers</code> 를 0 으로 두었다. 개선 순서는 다음과 같다. (1) 공식 Qwen3.5-9B(revision <code>c2022362</code>)의 <code>mtp.*</code> 텐서를 별도 shard 로 붙이고 값을 1 로 되돌린다. 학습은 LoRA 라 MTP 층은 바뀌지 않았다. (2) kgpu 에서 vLLM 추측 디코딩을 켜고 정답 일치와 draft 수락률·처리량을 잰다. (3) 본체가 학습으로 바뀌어 수락률이 낮으면 통합 모델의 hidden state 로 MTP 층만 짧게 다시 학습한다. 추측 디코딩은 정답을 바꾸지 않으므로 평가 결과는 그대로다. 단 결과보고서의 "평가에 쓴 모델 원본" 문구와 맞추어야 한다.</li>
 </ol>
 <h3 id="limits">한계와 확인하지 않은 것</h3>
 <ul>

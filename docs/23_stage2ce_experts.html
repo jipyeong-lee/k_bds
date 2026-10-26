@@ -472,7 +472,7 @@ li{margin:3px 0}
 <p>본평가는 KISTI 에서 끝났다(<a href="#fulleval">C.6</a>). 결과보고서 초안(<a href="99_report_draft.html"><code>docs/99_report_draft.html</code></a>)에는 ta_w07 수치를 넣었다.</p>
 <ol>
 <li>breadcrumbs_d09 의 holdout 평가는 job 83070 에서 끝났다. 앞의 두 시도(job 83041·83058)는 vLLM 기동이 600초 대기 한도를 넘어 결과 없이 끝났다. 한도를 늘렸다(<code>EVAL_READY_TRIES</code>).</li>
-<li>통합 모델 가중치는 Hugging Face 비공개 저장소 <code>easypyeong/Qwen3.5-9B-MedCrossReason</code> 에 올렸다. sha256 이 평가 모델과 같다. 마켓플레이스 패키지(<code>share/kbds_integrated_model_v2.zip</code>)에는 LoRA 4개(SFT 1개 + 전문가 3개), <code>merge.sh</code>, 데이터, 코드를 넣었다. 추론 비용은 <a href="00_overview.html#s2e-7">00_overview 2-E.7</a> 에 있다.</li>
+<li>통합 모델 가중치는 Hugging Face 비공개 저장소 <code>easypyeong/Qwen3.5-9B-MedCrossReason</code> 에 올렸다. sha256 이 평가 모델과 같다. 마켓플레이스에는 2건으로 기탁한다. 모델 패키지(LoRA 4개, <code>merge.sh</code>)는 비공개, 데이터·파이프라인 패키지(데이터, 코드)는 개인회원 공개다(<a href="00_overview.html#s6">00_overview 6</a>). 추론 비용은 <a href="00_overview.html#s2e-7">00_overview 2-E.7</a> 에 있다.</li>
 <li>2차: 통합 모델로 Stage-3 를 kgpu 에서 시작한다.</li>
 </ol>
 <h3 id="unverified">확인하지 않은 것</h3>

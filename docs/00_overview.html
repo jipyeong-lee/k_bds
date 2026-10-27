@@ -509,7 +509,7 @@ li{margin:3px 0}
 <!-- ============================================================ -->
 <h2 id="s6">6. 다음 단계 · 한계</h2>
 <ol>
-<li>결과보고서(연구요약서): 원본 양식 <code>(양식) 결과보고서(연구요약서).hwp</code> 에 결과보고서를 다 썼다(초안 <code>docs/99_report_draft.html</code>). 마켓플레이스 등록 화면 캡처도 6쪽에 넣었다(양식의 "등록 화면을 캡처하여 제출" 안내). 남은 일은 포털(마이페이지 > 성과관리 > 보고서 등록)에 올리는 것뿐이다. 마감은 과제 종료 후 1개월(약 2026-10-30)이다.</li>
+<li>결과보고서(연구요약서): 원본 양식 <code>(양식) 결과보고서(연구요약서).hwp</code> 에 결과보고서를 다 썼다(초안 <code>docs/99_report_draft.html</code>). 마켓플레이스 등록 화면 캡처도 6쪽에 넣었다(양식의 "등록 화면을 캡처하여 제출" 안내). 2026-10-27 에 포털(마이페이지 > 성과관리 > 보고서 등록)에 등록했다. 기한 안 제출 의무(결과보고서·산출물 기탁)를 모두 마쳤다. 마감은 과제 종료 후 1개월(약 2026-10-30)이다.</li>
 <li>통합 모델 가중치: Hugging Face 비공개 저장소 <code>easypyeong/Qwen3.5-9B-MedCrossReason</code> 에 올렸다(bf16, 18GB). 4개 파일의 sha256 이 KISTI 평가 모델과 같다. 모델 카드의 vLLM·transformers 예시를 카드 그대로 실행해 4문항 모두 정답임을 확인했다(<code>kgpu/card_test.sh</code>).</li>
 <li>마켓플레이스 기탁은 2건이다. 계획서의 "전면 개방"과 보고서의 "가중치 비공개"를 함께 지키려고 나누었다. ① 모델 <code>share/Qwen3.5-9B-MedCrossReason_KBDS2026-1.zip</code>(비공개): LoRA 4개(SFT 1개 + 전문가 3개), <code>merge.sh</code>(재구성본이 평가 모델과 bf16 기준 비트 단위로 같음). ② 데이터·파이프라인 <code>share/MedCrossReason-Data-Pipeline_KBDS2026-1.zip</code>(2026-10-27 비공개로 바꿈. 코드는 GitHub 에 공개): 도메인 데이터 3종 + medix 전처리본 51,335건 + holdout, 학습·복합 보상·심판·평가·병합 코드. 등록 문구는 각 폴더의 <code>MARKETPLACE.md</code> 에 있다. 2026-10-26 에 두 건 모두 등록했다(② 자료ID 3448).</li>
 <li>2차: 통합 모델에서 Stage-3(medix RaR)를 시작한다. merging 후 보존율이 부족한 도메인이 있으면 증류(<a href="23_stage2ce_experts.html#partC">23 C.1</a> 의 계단 1~2)를 한다.</li>

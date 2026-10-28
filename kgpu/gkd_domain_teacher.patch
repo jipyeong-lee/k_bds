@@ -1,0 +1,74 @@
+--- a/swift/rlhf_trainers/gkd_trainer.py
++++ b/swift/rlhf_trainers/gkd_trainer.py
+@@ -110,6 +110,22 @@
+         self._teacher_use_disable_adapter = teacher_use_disable_adapter
+         self._is_self_distillation = (teacher_model is None and teacher_model_server is None)
+ 
++        # Domain-routed multi-teacher: GKD_TEACHER_DOMAIN_ADAPTERS="deepvision=/p/a,mmk12=/p/b,pmcvqa=/p/c" loads each
++        # expert LoRA onto the single teacher base under its own name; every micro-batch picks one (_set_teacher_domain).
++        self._teacher_domains = []
++        spec = os.environ.get('GKD_TEACHER_DOMAIN_ADAPTERS')
++        if spec is not None:
++            assert spec, 'GKD_TEACHER_DOMAIN_ADAPTERS is set but empty'
++            assert teacher_model is not None, 'GKD_TEACHER_DOMAIN_ADAPTERS requires a local --teacher_model'
++            from peft import PeftModel
++            assert not is_peft_model(teacher_model), 'GKD_TEACHER_DOMAIN_ADAPTERS cannot be combined with --reward_adapters'
++            pairs = [kv.split('=', 1) for kv in spec.split(',')]
++            self._teacher_domains = [name for name, _ in pairs]
++            teacher_model = PeftModel.from_pretrained(teacher_model, pairs[0][1], adapter_name=pairs[0][0])
++            for name, path in pairs[1:]:
++                teacher_model.load_adapter(path, adapter_name=name)
++            self._teacher_domain_steps = defaultdict(int)
++
+         # Initialize teacher model
+         if teacher_model is not None:
+             if self.is_deepspeed_enabled:
+@@ -478,6 +494,23 @@
+ 
+         return batch_encoded
+ 
++    def _set_teacher_domain(self, inputs):
++        """Activate the teacher expert adapter of this micro-batch's domain (image path contains /<domain>/)."""
++        if not self._teacher_domains:
++            return
++        hits = set()
++        for inp in inputs:
++            paths = ' '.join(str(p.get('path') if isinstance(p, dict) else p) for p in inp.get('images') or [])
++            found = [d for d in self._teacher_domains if f'/{d}/' in paths]
++            if len(found) != 1:
++                raise ValueError(f'teacher domain not resolvable: images={paths[:200]!r} domains={self._teacher_domains}')
++            hits.add(found[0])
++        if len(hits) != 1:
++            raise ValueError(f'micro-batch mixes domains {sorted(hits)}; use per_device_train_batch_size 1')
++        domain = hits.pop()
++        self.accelerator.unwrap_model(self.teacher_model).set_adapter(domain, inference_mode=True)
++        self._teacher_domain_steps[domain] += 1
++
+     # Code borrowed from huggingface/trl
+     @profiling_decorator
+     def training_step(self,
+@@ -494,6 +527,7 @@
+         When use_vllm is enabled, vLLM engine is used for faster generation.
+         """
+         args = self.args
++        self._set_teacher_domain(inputs)
+ 
+         # build data if dataset has teacher_prompt column
+         teacher_data = self._build_opsd_teacher_data(inputs)
+@@ -674,6 +708,7 @@
+         return logprobs_out, indices_out
+ 
+     def prediction_step(self, model, inputs, *args, **kwargs):
++        self._set_teacher_domain(inputs)
+         # Prediction uses full messages
+         encoded_inputs = self._prepare_batch_inputs(inputs, encode_prompt_only=False)
+ 
+@@ -879,6 +914,8 @@
+ 
+     def log(self, logs: Dict[str, float], start_time: Optional[float] = None) -> None:
+         """Override log method to include completion table logging (aligned with GRPO)."""
++        if self._teacher_domains:
++            logs.update({f'teacher_steps/{d}': self._teacher_domain_steps[d] for d in self._teacher_domains})
+         # Call parent log method
+         import transformers
+         from packaging import version

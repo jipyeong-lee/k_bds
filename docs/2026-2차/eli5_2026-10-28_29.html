@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>어제부터 한 일 — 5살 버전 (2026-10-28 ~ 29)</title>
+<style>
+:root{--bg:#fffdf7;--fg:#222;--mute:#666;--card:#fff;--line:#e8e2d0;--acc:#2563eb;--good:#15803d;--warn:#b45309;--warn-bg:#fff4e0;--red:#e5484d;--green:#30a46c;--blue:#3b82f6}
+@media (prefers-color-scheme:dark){:root{--bg:#16181c;--fg:#eee;--mute:#aaa;--card:#1f2228;--line:#363a42;--acc:#60a5fa;--good:#4ade80;--warn:#fbbf24;--warn-bg:#2b2416}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:20px/1.6 -apple-system,"Segoe UI","Apple SD Gothic Neo","Noto Sans KR",sans-serif}
+main{max-width:860px;margin:0 auto;padding:28px 16px 80px}
+header{text-align:center;padding:24px 0 8px}
+header .big{font-size:84px;line-height:1.1}
+h1{font-size:34px;margin:8px 0 4px}
+.sub{color:var(--mute);font-size:16px}
+section{background:var(--card);border:2px solid var(--line);border-radius:22px;padding:22px 22px 26px;margin:26px 0}
+.step{display:inline-flex;align-items:center;justify-content:center;width:44px;height:44px;border-radius:50%;background:var(--acc);color:#fff;font-weight:700;margin-right:10px;flex:none}
+h2{font-size:28px;margin:0 0 10px;display:flex;align-items:center}
+.emo{font-size:84px;line-height:1;text-align:center;margin:6px 0 10px}
+.row{display:flex;flex-wrap:wrap;gap:14px;justify-content:center;align-items:stretch;margin:14px 0}
+.tile{flex:1 1 200px;max-width:260px;text-align:center;border:2px solid var(--line);border-radius:18px;padding:16px 10px;background:var(--bg)}
+.tile .e{font-size:76px;line-height:1.1;white-space:nowrap}
+.tile .e.sm{font-size:56px;line-height:1.5}
+.tile.mini{flex:1 1 150px;max-width:190px}
+.tile b{display:block;font-size:22px;margin-top:4px}
+.tile small{display:block;color:var(--mute);font-size:18px;line-height:1.4;margin-top:4px}
+.xl{flex-basis:300px;max-width:340px;padding:22px 12px}
+.xl .e{font-size:96px;line-height:1.05}
+.xl b{font-size:30px;margin-top:8px}
+.xl small{font-size:24px;margin-top:6px}
+.xl.wide{flex-basis:480px;max-width:560px}
+.arrow{align-self:center;font-size:40px;color:var(--mute)}
+.say{font-size:24px;text-align:center;margin:12px 0}
+.hl{background:linear-gradient(transparent 60%,rgba(250,204,21,.55) 60%);font-weight:700}
+code{font:15px ui-monospace,Consolas,monospace;background:var(--bg);border:1px solid var(--line);padding:1px 6px;border-radius:6px;word-break:break-all}
+.num{font-size:56px;font-weight:800;line-height:1.1}
+.num small{font-size:17px;font-weight:400;color:var(--mute);display:block}
+.ok{color:var(--good)}
+.dv{color:var(--red)}.mm{color:var(--green)}.pm{color:var(--blue)}
+.warn{background:var(--warn-bg);border-left:6px solid var(--warn);border-radius:10px;padding:10px 16px;margin:12px 0;font-size:19px}
+.warn li{margin:8px 0}
+ul{padding-left:22px;margin:8px 0}
+.vflow{display:none}
+.vflow .tile{display:flex;align-items:center;gap:14px;text-align:left;max-width:none;flex:none;padding:10px 14px}
+.vflow .tile .e{font-size:48px;line-height:1;flex:none}
+.vflow .tile b{margin-top:0;font-size:20px}
+.vflow .tile small{margin-top:0}
+.vdown{text-align:center;font-size:28px;color:var(--mute);line-height:1.1;margin:2px 0}
+.chips{display:flex;flex-direction:column;gap:6px;align-items:flex-start}
+.chip{border:2px solid var(--line);border-radius:10px;padding:2px 10px;font-size:17px;line-height:1.4}
+.chip.pick{border-color:var(--green);font-weight:700}
+svg{width:100%;height:auto;display:block}
+svg text{fill:var(--fg);font-family:inherit}
+.next{text-align:center;font-size:26px;border:3px dashed var(--acc);border-radius:22px;padding:22px;margin:30px 0}
+.foot{color:var(--mute);font-size:14px;text-align:center;margin-top:30px}
+@media (max-width:480px){
+  body{font-size:17px}
+  main{padding:16px 10px 60px}
+  section{padding:16px 12px 20px}
+  header .big{font-size:44px}
+  .tile{flex:1 1 140px;max-width:none}
+  .tile.full,.xl{flex-basis:100%}
+  .tile.mini{flex-basis:120px}
+  .arrow{flex-basis:100%;text-align:center;transform:rotate(90deg);line-height:1;height:44px}
+  .scroll{display:none}
+  .vflow{display:flex;flex-direction:column;margin:14px 0}
+  code{font-size:13px}
+  h1{font-size:26px}
+  h2{font-size:23px}
+  .tile .e{font-size:60px}
+  .tile .e.sm{font-size:48px}
+  .xl .e{font-size:72px}
+  .xl b{font-size:24px}
+  .xl small{font-size:20px}
+  .say{font-size:19px}
+  .next{font-size:21px}
+}
+</style>
+</head>
+<body>
+<main>
+
+<header>
+  <div class="big">🧒➕🧑‍🏫🧑‍🏫🧑‍🏫</div>
+  <h1>어제부터 한 일 — 5살 버전</h1>
+  <div class="sub">2026-10-28 ~ 29 · 학생 AI 한 명, 선생님 세 분</div>
+</header>
+
+<section>
+  <h2>📌 한 줄로</h2>
+  <p class="say">문제마다 <span class="hl">맞는 선생님 한 분</span>이<br>학생 AI 를 가르치게 만들었어요.<br>
+  그리고 KISTI 교실에 <span class="hl">수업 신청서</span>를 냈어요.</p>
+</section>
+
+<section>
+  <h2><span class="step">1</span>누가 나와요?</h2>
+  <div class="row">
+    <div class="tile"><div class="e">🧒</div><b>학생</b><small><code>merged_ta_w07</code></small></div>
+    <div class="tile"><div class="e">🧑‍🏫</div><b>선생님 한 분</b><small><code>sft_mixed_merged</code></small></div>
+    <div class="tile full"><div class="e sm"><span class="dv">👓</span><span class="mm">👓</span><span class="pm">👓</span></div><b>안경 3개</b><small>deepvision · mmk12 · pmcvqa</small></div>
+  </div>
+  <p class="say"><span class="hl">안경을 바꿔 쓰면</span><br>그 과목 전문가가 돼요.</p>
+</section>
+
+<section>
+  <h2><span class="step">2</span>뭐가 문제였어요?</h2>
+  <div class="row">
+    <div class="tile"><div class="e">😟</div><b>전</b><small>선생님 1명만<br>쓸 수 있었어요</small></div>
+    <div class="arrow">➜</div>
+    <div class="tile"><div class="e">💡</div><b>지금</b><small>안경을 바꿔 씌워요<br><b>패치 35줄</b></small></div>
+  </div>
+  <div class="scroll"><svg viewBox="0 0 880 190" role="img" aria-label="사진 주소를 읽어 맞는 안경을 고르는 그림">
+    <g font-size="56" text-anchor="middle">
+      <text x="55" y="108">📷</text>
+      <text x="235" y="108">🚦</text>
+      <text x="410" y="54">👓</text>
+      <text x="410" y="108">👓</text>
+      <text x="410" y="162">👓</text>
+      <text x="725" y="108">🧑‍🏫</text>
+      <text x="835" y="108">🧒</text>
+    </g>
+    <g font-size="21" text-anchor="middle">
+      <text x="55" y="146">사진 주소</text>
+      <text x="55" y="170" font-size="16">…/mmk12/…</text>
+      <text x="235" y="146">주소에서</text>
+      <text x="235" y="170">과목 찾기</text>
+      <text x="725" y="146">안경 낀 선생님</text>
+      <text x="835" y="146">배움</text>
+    </g>
+    <g font-size="21" text-anchor="start">
+      <text x="445" y="41" style="fill:#e5484d">deepvision</text>
+      <text x="445" y="95" style="fill:#30a46c;font-weight:700">mmk12 ◀ 이거!</text>
+      <text x="445" y="149" style="fill:#3b82f6">pmcvqa</text>
+    </g>
+    <g stroke="#999" stroke-width="3" fill="none" stroke-linecap="round">
+      <path d="M98 88 H196"/><path d="M274 88 H366"/><path d="M638 88 H684"/><path d="M766 88 H796"/>
+    </g>
+    <rect x="372" y="60" width="262" height="56" rx="12" fill="none" stroke="#30a46c" stroke-width="3"/>
+  </svg></div>
+  <div class="vflow">
+    <div class="tile"><div class="e">📷</div><div><b>사진 주소</b><small><code>…/mmk12/…</code></small></div></div>
+    <div class="vdown">↓</div>
+    <div class="tile"><div class="e">🚦</div><b>주소에서 과목 찾기</b></div>
+    <div class="vdown">↓</div>
+    <div class="tile"><div class="e">👓</div><div class="chips"><span class="chip dv">deepvision</span><span class="chip pick mm">mmk12 ◀ 이거!</span><span class="chip pm">pmcvqa</span></div></div>
+    <div class="vdown">↓</div>
+    <div class="tile"><div class="e">🧑‍🏫</div><b>안경 낀 선생님</b></div>
+    <div class="vdown">↓</div>
+    <div class="tile"><div class="e">🧒</div><b>배움</b></div>
+  </div>
+  <p class="say">주소에 <code>/mmk12/</code> → <b class="mm">초록 안경</b></p>
+</section>
+
+<section>
+  <h2><span class="step">3</span>진짜로 되는지 봤어요</h2>
+  <div class="row">
+    <div class="tile"><div class="e">🔬</div><b>안경 적용됨</b>
+      <small>안경 없음 <b>0.7088</b><br>안경 있음 <b>0.3856</b><br>달라요 <span class="ok">✅</span></small></div>
+    <div class="tile"><div class="e">🎯</div><b>알맞게 고름</b>
+      <small>선생님 호출 <b>4 / 4 / 4</b><br>점수 차이 <b>0.0000</b> <span class="ok">✅</span></small></div>
+    <div class="tile"><div class="e">🧪</div><b>컴퓨터 검사</b>
+      <small><b>38개</b> 통과 <span class="ok">✅</span><br>(GPU 없이)</small></div>
+  </div>
+  <div class="warn">솔직 메모: 자동 채점이 처음엔 <b>불합격</b>이라 했어요. 문제 순서가 섞여서 생긴 오판이고, 순서 무관 재계산은 <b>합격</b>이에요.</div>
+</section>
+
+<section>
+  <h2><span class="step">4</span>벽: KISTI 인터넷 없음</h2>
+  <div class="row">
+    <div class="tile xl"><div class="e">🏫🚫</div><b>계산 노드</b><small>밖으로 ✗</small></div>
+    <div class="tile xl"><div class="e">🛎️📞</div><b>접수대</b><small>밖으로 ○</small></div>
+  </div>
+  <p class="say" style="font-size:28px">밖의 심판(KHDP)<br><b>못 불러요</b></p>
+  <div class="row">
+    <div class="tile xl wide"><div class="e">✅🤖</div><b>교실 안 심판 사용</b><small><code>Qwen3.6-27B-FP8</code></small></div>
+  </div>
+  <p class="say" style="font-size:28px"><span class="hl">1차 끝 · 2차 시작</span></p>
+</section>
+
+<section>
+  <h2><span class="step">5</span>준비물을 점검했어요</h2>
+  <div class="row">
+    <div class="tile"><div class="e">🧬</div><b>파일 지문</b><small>원본과 같아요 <span class="ok">✅</span></small></div>
+    <div class="tile"><div class="e">👓</div><b>안경 3개</b><small>모두 있어요 <span class="ok">✅</span></small></div>
+    <div class="tile"><div class="e">🧰</div><b>도구 버전</b><small>kgpu 와 같아요 <span class="ok">✅</span></small></div>
+  </div>
+  <div class="row">
+    <div class="tile"><div class="e">🔧</div><b>컨테이너 고장</b><small><code>runc.sh</code> 로 우회</small></div>
+    <div class="tile"><div class="e">🧹</div><b>kgpu 창고</b><small>100GB 중 <b>30.4GB</b></small></div>
+    <div class="tile"><div class="e">🤖</div><b>GPU 자동 반납</b><small><code>run_pod.sh</code></small></div>
+  </div>
+</section>
+
+<section>
+  <h2><span class="step">6</span>수업 신청서를 냈어요</h2>
+  <div class="emo">📝</div>
+  <p class="say"><code>scripts/36_opd_domain.slurm</code><br>→ KISTI <b>job 83739</b> 접수</p>
+  <div class="row">
+    <div class="tile mini"><div class="num">23<small>가짜 환경 시험</small></div></div>
+    <div class="tile mini"><div class="num">3<small>일부러 망가뜨리기</small></div></div>
+    <div class="tile mini"><div class="num ok">✅<small>진짜 로더 리허설</small></div></div>
+    <div class="tile mini"><div class="num ok">✅<small>신청서 머리글</small></div></div>
+  </div>
+  <p class="say">⏰ 예상 시작 <span class="hl">10-30 07:36</span><br><small style="font-size:16px;color:var(--mute)">(앞선 job 79310 이 시간을 다 쓴다고 가정)</small></p>
+  <p class="say" style="font-size:19px">🗂️ 커밋 <code>43746b4</code> · 푸시는 안 했어요</p>
+</section>
+
+<section>
+  <h2>🤷 아직 몰라요</h2>
+  <div class="warn">
+  <ul>
+    <li><b>A100 80GB 에 들어가나?</b> 계산으론 넘쳐서 선생님을 CPU 로 내렸어요(offload).</li>
+    <li><b>8장 예약, 1장 사용.</b> vLLM colocate 때문이에요.</li>
+    <li><b>진짜 GPU 실행은 아직.</b> 합격 = <code>OPD_DOMAIN PASS</code> · 호출 합계 80.</li>
+    <li><b>알려진 구멍 1개.</b> <code>--dataset_shuffle false</code> 누락.</li>
+  </ul>
+  </div>
+</section>
+
+<div class="next">
+  👉 <b>10-30 07:36 이후</b><br>
+  "<b>83739 확인해줘</b>"<br>
+  <small style="font-size:16px;color:var(--mute)">소켓이 끊겼으면 먼저 <code>! ssh -fN kbds266</code></small>
+</div>
+
+<div class="foot">근거: 커밋 0397b5a · 4cf9f5a · 6e046c8 · e4ff19a · 43746b4 + 이 세션의 실측 · 작성 2026-10-29</div>
+
+</main>
+</body>
+</html>

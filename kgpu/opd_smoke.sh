@@ -23,6 +23,10 @@
 #           FIXED_JSON=<~/files/kbds 아래 파일> → 고정 응답 모드. [{"user","completion"}] 로 만든 데이터셋을 --lmbda 0(샘플링 없음)·vLLM 끄고 돌린다.
 #             학생·토큰이 두 실행에서 완전히 같아서 loss 차이는 교사(어댑터 유무)만 반영한다. MAX_STEPS=1 · 응답 4개 = 1 step.
 #           NO_ADAPTER=1 → --reward_adapters 를 뺀 대조 실행(RUN_TAG=control). FIXED_JSON 과 같은 설정으로 두 번 돌려 step 1 loss 를 비교한다.
+#           DOMAIN_ROUTE=1 → (FIXED_JSON 필요, T5) kgpu/gkd_domain_teacher.patch 를 실모델로 시험한다. 고정 응답 4개를 /deepvision/·/mmk12/·/pmcvqa/ 폴더로 복사해
+#             12 step 을 patched 교사(어댑터 3개 dv 2192·mm 350·pmc 4896)로 한 번, 같은 4개를 --reward_adapters 한 개로만 돌린 기준 실행을 도메인마다 한 번(4 step) 돌린다.
+#             학습률 0·GAS 1·셔플 끔이라 step 별 loss 가 (행, 교사) 만의 함수다. 끝의 판정 블록이 C0 step 수 · C1 도메인 카운터 · C2 routed = 단일 교사(오차 1%) · C3 기준 실행끼리 3% 이상 다름을 낸다.
+#             전제: ~/files/kbds/gkd_domain_teacher.patch · ckpt_mm350.tar · ckpt_pmc.tar. bash kgpu/run_pod.sh opd_smoke.sh HF_TOKEN FIXED_JSON=fixed_step1.json DOMAIN_ROUTE=1 RUN_TAG=t5 MAX_SEC=3600
 # PROMPTS 기본값은 배선 확인용 medix 200행이다. mmk12/pmcvqa 모드는 아직 없다(mmk12 데이터는 kbds/mmk12_data.tar 에 있고, pmcvqa 프롬프트·이미지는 kgpu 에 없다).
 set -uo pipefail
 F=/root/files/kbds; W=/root/w; VENV=/root/venv; RUN_TAG=${RUN_TAG:-adapter${PROMPTS:+_$PROMPTS}}; LOG=$F/logs/opd_smoke_${RUN_TAG}_$(date +%m%d-%H%M).log
@@ -44,9 +48,25 @@ mkdir -p "$W/ck_$TAG" && tar xf "$F/ckpt_$TAG.tar" -C "$W/ck_$TAG" --no-same-own
 ADAPTER=$(ls -d "$W"/ck_$TAG/checkpoint-* | head -1); ls "$ADAPTER"
 [ -f "$ADAPTER/adapter_model.safetensors" ] || { echo "❌ adapter_model.safetensors 없음: '$ADAPTER'"; exit 1; }
 ADAPTER_ARG=(--reward_adapters "$ADAPTER"); [ "${NO_ADAPTER:-0}" = 1 ] && ADAPTER_ARG=()   # swift 는 교사 어댑터를 reward_adapters 에서 읽는다
+if [ "${DOMAIN_ROUTE:-0}" = 1 ]; then   # T5: 어댑터 3개를 풀고 GKD_TEACHER_DOMAIN_ADAPTERS 값을 만든다(머리말)
+  { [ -n "${FIXED_JSON:-}" ] && [ "${NO_ADAPTER:-0}" != 1 ] && [ "$TAG" = dv ]; } || { echo "❌ DOMAIN_ROUTE 는 FIXED_JSON 필요 · NO_ADAPTER 불가 · TEACHER_TAG=dv"; exit 1; }
+  [ -f "$F/gkd_domain_teacher.patch" ] || { echo "❌ ~/files/kbds/gkd_domain_teacher.patch 없음"; exit 1; }
+  declare -A AD=([deepvision]=$ADAPTER)
+  for p in mmk12:mm350 pmcvqa:pmc; do
+    t=${p#*:}; mkdir -p "$W/ck_$t" && tar xf "$F/ckpt_$t.tar" -C "$W/ck_$t" --no-same-owner || { echo "❌ ckpt_$t"; exit 1; }
+    AD[${p%%:*}]=$(ls -d "$W"/ck_$t/checkpoint-* | head -1)
+  done
+  for d in "${!AD[@]}"; do [ -f "${AD[$d]}/adapter_model.safetensors" ] && [ -f "${AD[$d]}/adapter_config.json" ] || { echo "❌ $d 어댑터 파일 없음: '${AD[$d]}'"; exit 1; }; done
+  SPEC="deepvision=${AD[deepvision]},mmk12=${AD[mmk12]},pmcvqa=${AD[pmcvqa]}"; echo "teacher adapters: $SPEC"
+fi
 
 stamp "2) venv"
 . "$F/setup_venv.sh"
+if [ "${DOMAIN_ROUTE:-0}" = 1 ]; then   # 설치된 ms-swift(4.1.3 핀)에 패치를 적용한다. 컨텍스트가 어긋나면 patch 가 실패하고 여기서 멈춘다
+  SP=$($PY -c "import importlib.util as u,os;print(os.path.dirname(u.find_spec('swift').submodule_search_locations[0]))")
+  command -v patch >/dev/null || $APT install -y -qq patch >/dev/null
+  patch -p1 -d "$SP" < "$F/gkd_domain_teacher.patch" || { echo "❌ gkd_domain_teacher.patch 적용 실패"; exit 1; }
+fi
 
 stamp "2b) 학생 ← HF easypyeong/Qwen3.5-9B-MedCrossReason (ta_w07)"
 $PY -c "from huggingface_hub import snapshot_download as s;s('easypyeong/Qwen3.5-9B-MedCrossReason',local_dir='$W/student')" || { echo "❌ student download"; exit 1; }
@@ -90,27 +110,88 @@ with open(out, "w") as f:
                             "images": r["images"], "solution": r.get("solution", "")}, ensure_ascii=False) + "\n"); n += 1
 print("fixed rows:", n)
 PY
+  if [ "${DOMAIN_ROUTE:-0}" = 1 ]; then   # 같은 행을 도메인 폴더로 복사 → routed.jsonl(12행, 도메인 순서) + ref_<도메인>.jsonl(4행)
+    $PY - "$W/data/fixed.jsonl" "$W/data" <<'PY' || { echo "❌ routed dataset"; exit 1; }
+import json, os, shutil, sys
+src, root = sys.argv[1:3]
+rows = [json.loads(l) for l in open(src)]
+allf = open(f"{root}/routed.jsonl", "w")
+for d in ("deepvision", "mmk12", "pmcvqa"):
+    with open(f"{root}/ref_{d}.jsonl", "w") as f:
+        for i, r in enumerate(rows):
+            imgs = []
+            for j, p in enumerate(r["images"]):
+                p = p["path"] if isinstance(p, dict) else p
+                dst = f"{root}/domain_imgs/{d}/{i}_{j}_{os.path.basename(p)}"
+                os.makedirs(os.path.dirname(dst), exist_ok=True); shutil.copy(p, dst); imgs.append(dst)
+            line = json.dumps({**r, "images": imgs}, ensure_ascii=False) + "\n"
+            f.write(line); allf.write(line)
+print("routed rows:", 3 * len(rows))
+PY
+  fi
   DATASET=$W/data/fixed.jsonl; LMBDA=0; USE_VLLM=false; VLLM_MODE=""   # ms-swift 는 use_vllm=false 일 때 --vllm_mode 를 거부한다(rlhf_args.py:393)
 fi
 
 stamp "4) swift rlhf gkd — ${MAX_STEPS:=10} step, 학생 ta_w07(LoRA r32) ← 교사 SFT+$TAG 어댑터, lmbda 1.0(순수 온폴리시)"
 SYS="You are a multimodal reasoning assistant. Carefully examine the image(s) and reason step by step INSIDE <think> </think>, keeping the reasoning concise. Then give ONLY the final answer INSIDE <answer> </answer>. For multiple-choice, put only the letter, e.g. <answer>A</answer>."
-NPROC_PER_NODE=1 "$VENV/bin/swift" rlhf --rlhf_type gkd \
-  --model "$W/student" --model_type qwen3_5 --system "$SYS" --dataset "$DATASET" ${FIXED_JSON:+--split_dataset_ratio 0} \
-  --teacher_model "$W/teacher_base" "${ADAPTER_ARG[@]}" \
-  --lmbda $LMBDA --beta ${BETA:-1.0} --seq_kd false --sft_alpha 0 --temperature 1.0 ${TOP_K:+--top_k $TOP_K} \
-  --offload_teacher_model ${OFFLOAD_TEACHER:-false} \
-  --tuner_type lora --lora_rank 32 --lora_alpha 32 --use_rslora true --lora_dropout 0 --target_modules all-linear --torch_dtype bfloat16 \
-  --enable_thinking true --max_completion_length $MAX_COMP \
-  --per_device_train_batch_size 1 --gradient_accumulation_steps 4 --learning_rate 1e-5 \
-  --max_length $(( 2048 + MAX_COMP )) --max_pixels 262144 --gradient_checkpointing true --attn_impl sdpa \
-  --use_vllm $USE_VLLM $VLLM_MODE --vllm_tensor_parallel_size 1 --vllm_mm_processor_cache_gb 0 \
-  --vllm_gpu_memory_utilization ${VLLM_UTIL:-0.35} --vllm_max_model_len $(( 3072 + MAX_COMP )) --sleep_level 1 \
-  --log_completions true --logging_steps 1 --save_strategy no --report_to none \
-  --output_dir "$W/runs/opd_smoke" --max_steps $MAX_STEPS
-echo "SWIFT_EXIT=$?"
-stamp "[$RUN_TAG] step 별 지표 — adapter 실행과 control 실행의 step 1 loss 를 비교한다"
-tr '\r' '\n' < "$W/smoke.log" | grep -E "^\{'loss'" | cut -c1-300 | head -n "$MAX_STEPS"
+gkd(){   # $1=데이터셋 $2=step 수 $3=출력 하위폴더, 나머지는 swift 에 그대로 넘긴다. GAS·LR env 로 학습 설정을 바꾼다
+  local ds=$1 ms=$2 out=$3; shift 3
+  NPROC_PER_NODE=1 "$VENV/bin/swift" rlhf --rlhf_type gkd \
+    --model "$W/student" --model_type qwen3_5 --system "$SYS" --dataset "$ds" ${FIXED_JSON:+--split_dataset_ratio 0} \
+    --teacher_model "$W/teacher_base" "$@" \
+    --lmbda $LMBDA --beta ${BETA:-1.0} --seq_kd false --sft_alpha 0 --temperature 1.0 ${TOP_K:+--top_k $TOP_K} \
+    --offload_teacher_model ${OFFLOAD_TEACHER:-false} \
+    --tuner_type lora --lora_rank 32 --lora_alpha 32 --use_rslora true --lora_dropout 0 --target_modules all-linear --torch_dtype bfloat16 \
+    --enable_thinking true --max_completion_length $MAX_COMP \
+    --per_device_train_batch_size 1 --gradient_accumulation_steps ${GAS:-4} --learning_rate ${LR:-1e-5} \
+    --max_length $(( 2048 + MAX_COMP )) --max_pixels 262144 --gradient_checkpointing true --attn_impl sdpa \
+    --use_vllm $USE_VLLM $VLLM_MODE --vllm_tensor_parallel_size 1 --vllm_mm_processor_cache_gb 0 \
+    --vllm_gpu_memory_utilization ${VLLM_UTIL:-0.35} --vllm_max_model_len $(( 3072 + MAX_COMP )) --sleep_level 1 \
+    --log_completions true --logging_steps 1 --save_strategy no --report_to none \
+    --output_dir "$W/runs/$out" --max_steps $ms
+}
+if [ "${DOMAIN_ROUTE:-0}" = 1 ]; then
+  RX=(--train_dataloader_shuffle false)
+  GAS=1 LR=0 GKD_TEACHER_DOMAIN_ADAPTERS="$SPEC" gkd "$W/data/routed.jsonl" 12 route_routed "${RX[@]}"; RC=$?
+  for d in deepvision mmk12 pmcvqa; do
+    GAS=1 LR=0 gkd "$W/data/ref_$d.jsonl" 4 "route_ref_$d" "${RX[@]}" --reward_adapters "${AD[$d]}" || RC=$?
+  done
+  echo "SWIFT_EXIT=$RC"
+  grep -iE "missing (adapter )?keys|unexpected keys" "$W/smoke.log" | cut -c1-200 | head -n 5
+  mkdir -p "$F/logs/opd_runs_${RUN_TAG}"; for f in "$W"/runs/route_*/*/logging.jsonl; do cp "$f" "$F/logs/opd_runs_${RUN_TAG}/$(basename "$(dirname "$(dirname "$f")")")_logging.jsonl"; done
+  stamp "[$RUN_TAG] T5 판정"
+  $PY - "$W/runs" <<'PY'
+import glob, json, sys
+doms = ("deepvision", "mmk12", "pmcvqa")
+def steps(tag):
+    fs = glob.glob(f"{sys.argv[1]}/{tag}/*/logging.jsonl")
+    if len(fs) != 1: sys.exit(f"❌ {tag}: logging.jsonl {len(fs)}개(1개여야 한다)")
+    return [r for r in map(json.loads, open(fs[0])) if "loss" in r]
+R = steps("route_routed"); ref = {d: steps(f"route_ref_{d}") for d in doms}
+ok = True
+def check(name, cond, info=""):
+    global ok; ok &= bool(cond); print(("✅ " if cond else "❌ ") + name, info)
+rel = lambda x, y: abs(x - y) / max(abs(y), 1e-9)
+check("C0 step 수 12/4/4/4", len(R) == 12 and all(len(v) == 4 for v in ref.values()), f"{len(R)} {[len(v) for v in ref.values()]}")
+prev = dict.fromkeys(doms, 0); seq = []
+for r in R:
+    cur = {d: r.get(f"teacher_steps/{d}", 0) for d in doms}
+    seq.append([d for d in doms if cur[d] - prev[d] == 1]); prev = cur
+check("C1 step 별 교사 도메인 = 데이터 순서(4/4/4)", seq == [[d] for d in doms for _ in range(4)], str(seq))
+for i, d in enumerate(doms):
+    a, b = [r["loss"] for r in R[4*i:4*i+4]], [r["loss"] for r in ref[d]]
+    check(f"C2 {d}: routed = 단일 교사(오차 1%)", len(a) == len(b) == 4 and all(rel(x, y) < 0.01 for x, y in zip(a, b)), f"routed {a} ref {b}")
+sens = {(d, e): max(rel(x["loss"], y["loss"]) for x, y in zip(ref[d], ref[e])) for d in doms for e in doms if d < e}
+check("C3 기준 실행끼리 3% 이상 다름(아니면 C2 는 의미 없음)", all(v > 0.03 for v in sens.values()), str({f"{d}/{e}": round(v, 3) for (d, e), v in sens.items()}))
+print("T5", "PASS" if ok else "FAIL"); sys.exit(0 if ok else 1)
+PY
+  echo "T5_EXIT=$?"
+else
+  gkd "$DATASET" "$MAX_STEPS" opd_smoke "${ADAPTER_ARG[@]}"
+  echo "SWIFT_EXIT=$?"
+  stamp "[$RUN_TAG] step 별 지표 — adapter 실행과 control 실행의 step 1 loss 를 비교한다"
+  tr '\r' '\n' < "$W/smoke.log" | grep -E "^\{'loss'" | cut -c1-300 | head -n "$MAX_STEPS"
+fi
 # 학생 응답이 두 실행에서 같은지 비교하려면 jsonl 이 필요하다(작은 파일만 복사)
 mkdir -p "$F/logs/opd_runs_${RUN_TAG}"; find "$W/runs/opd_smoke" -name '*.jsonl' -size -50M -exec cp {} "$F/logs/opd_runs_${RUN_TAG}/" \; 2>/dev/null
 [ -n "$(ls -A "$F/logs/opd_runs_${RUN_TAG}")" ] || echo "⚠️ jsonl 없음 — 학생 응답 비교 불가(loss 만 비교할 수 있다)"

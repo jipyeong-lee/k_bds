@@ -2,26 +2,27 @@
 # stage3_smoke.sh — kgpu pod 에서 Stage-3(의료 RL, KHDP judge) 3 step 스모크. 배선 검증용.
 # 전제(~/files = /root/files, 영속):
 #   kbds/code.tgz            configs/ + scripts/ (로컬에서 tar 해 PUT)
-#   kbds/dr_grpo_merged/     init 모델(KISTI 반출본) — MODEL_HF 를 주면 대신 HF 에서 받는다
-# env(필수): JUDGE_API_KEY=$KHDP_PAT — exec 의 env 로 넘긴다. 파일에 남기지 말 것.
-# env(선택): MODEL_HF=easypyeong/Qwen3.5-9B-MedCrossReason(통합 모델 ta_w07, 비공개라 HF_TOKEN 도 pod env 로)
+#   (init 모델은 HF 의 통합 모델 ta_w07 — pod 에서 받는다. 구 kbds/dr_grpo_merged 는 지웠다. KISTI work/checkpoints 에 있다)
+# env(필수): JUDGE_API_KEY=$KHDP_PAT — exec 의 env 로 넘긴다. 파일에 남기지 말 것. HF_TOKEN 도 pod env 로(모델 저장소가 비공개).
+# env(선택): MODEL_HF — 기본 easypyeong/Qwen3.5-9B-MedCrossReason(통합 모델 ta_w07)
 # env(선택): NUM_GEN·MAX_COMP·PDTBS·ACCUM·MAX_STEPS — 기본은 3 step 스모크, 키우면 step 시간 측정용
 # 무거운 산출물은 pod 로컬(/root/w)에 둔다 — ~/files 는 네트워크 공유라 작은 파일 대량 생성 금지.
 set -uo pipefail
 : "${JUDGE_API_KEY:?JUDGE_API_KEY(KHDP PAT) 필요}"
+: "${HF_TOKEN:?HF_TOKEN 필요(통합 모델 저장소가 비공개) — 없으면 venv 설치 뒤에야 401 로 죽는다}"
+MODEL_HF=${MODEL_HF:-easypyeong/Qwen3.5-9B-MedCrossReason}
 F=/root/files/kbds; W=/root/w; VENV=/root/venv; LOG=$F/logs/stage3_smoke_$(date +%m%d-%H%M).log
 mkdir -p "$W" "$F/logs"; exec > >(tee "$W/smoke.log") 2>&1   # 끝에 $LOG 로 1회 복사
 T0=$(date +%s); stamp(){ echo "[+$(( $(date +%s)-T0 ))s] $*"; }
 export HF_HOME=$W/hf UV_CACHE_DIR=$W/uv UV_HTTP_TIMEOUT=180 PIP_DISABLE_PIP_VERSION_CHECK=1
 nvidia-smi -L
 
-stamp "1) code + model → pod 로컬 디스크"
+stamp "1) code → pod 로컬 디스크"
 tar xzf "$F/code.tgz" -C "$W" --no-same-owner || { echo "❌ code.tgz"; exit 1; }
-[ -n "${MODEL_HF:-}" ] || [ -d "$W/model" ] || cp -r "$F/dr_grpo_merged" "$W/model" || { echo "❌ model copy"; exit 1; }
 
 stamp "2) venv"
 . /root/files/kbds/setup_venv.sh
-if [ -n "${MODEL_HF:-}" ] && [ ! -f "$W/model/config.json" ]; then
+if [ ! -f "$W/model/config.json" ]; then
   stamp "2b) model ← HF $MODEL_HF"
   $PY -c "from huggingface_hub import snapshot_download as s;s('$MODEL_HF',local_dir='$W/model')" || { echo "❌ model download"; exit 1; }
 fi

@@ -130,7 +130,7 @@ job 73925 (v1) 의 저장 이력: 800, 850, 900, 950, 1000   ← 취소 시점�
 <h3 id="1-5-감시-설계의-결론">1-5. 감시 설계의 결론</h3>
 <table>
 <tr><th>문제</th><th>조치</th></tr>
-<tr><td>"지금 정상인가"를 보는 장치가 없었다. 붕괴 뒤에도 학습이 계속 돌았다.</td><td><a href="../scripts/watch_format_collapse.py"><code>scripts/watch_format_collapse.py</code></a> 를 구현했다. <code>FormatThink</code> 50-step 창 평균이 0.85 미만이면 <code>scancel</code> 로 정지한다(<code>WATCHDOG=1</code>). 로그 재생에서 감시자는 step 901 에 경보를 냈다. 1,047 step 전 구간에서 오경보는 0회였다. 실제 발견(step 1046)보다 145 step(약 13.5시간) 빨랐다.</td></tr>
+<tr><td>"지금 정상인가"를 보는 장치가 없었다. 붕괴 뒤에도 학습이 계속 돌았다.</td><td><a href="../../scripts/watch_format_collapse.py"><code>scripts/watch_format_collapse.py</code></a> 를 구현했다. <code>FormatThink</code> 50-step 창 평균이 0.85 미만이면 <code>scancel</code> 로 정지한다(<code>WATCHDOG=1</code>). 로그 재생에서 감시자는 step 901 에 경보를 냈다. 1,047 step 전 구간에서 오경보는 0회였다. 실제 발견(step 1046)보다 145 step(약 13.5시간) 빨랐다.</td></tr>
 <tr><td>최고 체크포인트를 잃을 뻔했다.</td><td>(권고) <code>save_total_limit</code> 를 올린다. 또는 holdout 최고점이 바뀔 때 별도 디렉터리로 즉시 스냅샷한다.</td></tr>
 <tr><td>붕괴를 안 뒤 소급 평가에 하루가 걸렸다.</td><td>(권고) 체크포인트를 저장할 때 holdout 서브셋을 자동 평가한다(n=300 이면 20분).</td></tr>
 </table>
@@ -518,7 +518,7 @@ step 900 →  ... corresponding to option A.\n&lt;/think&gt;                    
 </table>
 
 <h2 id="2-학습-곡선">2. 학습 곡선</h2>
-<p><img src="assets/stage2_expanded_73924_curves.png" alt="Stage-2 확장셋 GDPO 학습 곡선 — job 73924" style="max-width:100%" /></p>
+<p><img src="../assets/stage2_expanded_73924_curves.png" alt="Stage-2 확장셋 GDPO 학습 곡선 — job 73924" style="max-width:100%" /></p>
 <p><em>옅은 선 = step별 원본(logging_steps=1) · 굵은 선 = 25-step 이동평균 · 우측 수치 = 이동평균 종점.</em></p>
 <h3 id="구간-대조-1100-step-평균-vs-최근-100-step-평균-step-800-시점">구간 대조 (1~100 step 평균 vs 최근 100 step 평균, step 800 시점)</h3>
 <p>이 표는 <code>scripts/plot_train_curves.py</code> 의 출력이다.</p>
@@ -606,7 +606,7 @@ step 900 →  ... corresponding to option A.\n&lt;/think&gt;                    
 
 <h3 id="6-c-학습-로그도-더-학습하면-오르나에-답하지-못한다-2026-08-03">6-c. 학습 로그도 기울기를 판별하지 못한다 (2026-08-03)</h3>
 <p><code>completions.jsonl</code> 에는 문항별 정답 여부가 있다. step ≤750 의 롤아웃은 24,000 개로 holdout n=300 의 80배다. 질문 텍스트로 학습셋과 조인해 소스를 모두 붙였다(귀속 오염 0.03%, §8-i).</p>
-<p><img src="assets/stage2_source_trend.png" alt="소스별 학습 정확도 추세" style="max-width:100%" /></p>
+<p><img src="../assets/stage2_source_trend.png" alt="소스별 학습 정확도 추세" style="max-width:100%" /></p>
 <ul>
 <li>최근 상승의 대부분은 길이 구성 효과다. 장문(SoftOverlong≠0) 롤아웃은 정답률이 낮다(deepvision 원 계열 39.4% vs 장문 제외 44.6%). 장문 비중은 10.97% → 15.41% → 16.78% → 11.87% 로 움직였다. 원 계열의 601~750 상승 +2.4pp 중 장문 제외 기준으로 남는 것은 +0.8pp(t=0.64, 미검출)다.</li>
 <li>장문 제외 계열은 초기 상승 후 평탄하다(42.2% → 44.6% → 44.7% → 45.5%). 전 구간 직선 적합은 t=+2.68 이지만, 이 유의성은 이미 지나간 초기 상승에서 나온다.</li>
@@ -634,7 +634,7 @@ step 900 →  ... corresponding to option A.\n&lt;/think&gt;                    
 <tr><td>대상</td><td>init(<code>sft_mixed_merged</code>)</td><td>step 400</td><td>step 500</td><td>step 600</td><td>step 700</td></tr>
 <tr><td>소요</td><td>1:00:44</td><td>1:16:17</td><td>1:10:07</td><td>1:11:46</td><td>0:55:08</td></tr>
 </table>
-<p><img src="assets/stage2_holdout_paired.png" alt="Stage-2 holdout 전량 평가" style="max-width:100%" /></p>
+<p><img src="../assets/stage2_holdout_paired.png" alt="Stage-2 holdout 전량 평가" style="max-width:100%" /></p>
 <p>점수표(소스별·format·mean_chars)는 <a href="#2-4-소스별-학습-신호--step-600-에-절반이-이미-포화-">1부 §2-4</a> 의 통합 표에 있다(init 43.34% → step 700 50.40%). 아래는 짝지음 판정이다. <code>p</code> 는 이항 정확검정이고, <code>±</code> 는 실측 불일치율 기반 검출 하한이다.</p>
 <table>
 <tr><th>비교</th><th>전체</th><th>deepvision</th><th>수학</th><th>의료</th></tr>
@@ -756,7 +756,7 @@ if self.beta != 0.0 and not self.kl_in_reward:      # ← 위에서 마스킹된
 <p>holdout 에서도 1단계(형식 붕괴)와 3단계(토큰 퇴화)가 따로 보인다. step 900 은 <code>format</code> 0.056 인데 <code>mean_chars</code> 는 2,264 로 정상이다. 이 시점은 순수한 형식 붕괴다. step 1000 에서 <code>mean_chars</code> 가 7,893 으로 뛴다(토큰 퇴화). 이 순서는 <a href="#8-b-붕괴는-두-단계다">§8-b</a> 와 일치한다.</p>
 <p>손상은 소스별로 크게 다르다. 850 → 900 짝지음은 의료 −47.50pp, deepvision −30.04pp, 수학 −7.50pp 다(모두 p&lt;0.001). 원인은 채점 방식이다. 의료는 <code>&lt;answer&gt;A&lt;/answer&gt;</code> 가 있어야 letter 를 뽑으므로 letter 층이 0.5810 에서 0.1047 로 떨어진다. vl 층은 0.0096 까지 간다. 수학은 본문 어디서든 숫자를 잡아 형식 붕괴에 덜 민감하다. step 900 의 수학은 init 과 구분되지 않는다(0.500 vs 0.4825, p=0.51). deepvision 의 −30.04pp 는 능력 상실보다 형식 상실에 가깝다. 실사용에서는 이 구분이 무의미하다.</p>
 <p>형식은 세 소스에서 비슷하게 깨졌다. 취약성 프로브(greedy)의 step 900 형식 실패율은 deepvision 96.7%, mmk12 92.1%, pmcvqa 83.3% 다. 같은 시점 정확도는 수학 50.00, deepvision 16.36, 의료 10.50 으로 갈린다. 손상은 비슷하고, 차이는 채점기가 그 손상을 통과시키는지에서 나온다. step 900 에서 형식이 온전한 문항은 1,772 중 99건(format 0.056)인데 정답은 401건이다. 채점기는 최소 302건(17.0pp)을 <code>&lt;answer&gt;</code> 태그 없이 정답으로 처리했다(<a href="#8-i-데이터보상-구조-심층-분석--폭주-메커니즘-규명">§8-i</a> ②).</p>
-<p><img src="assets/stage2_holdout_format_length.png" alt="Stage-2 holdout 형식·길이·층별 종합" style="max-width:100%" /></p>
+<p><img src="../assets/stage2_holdout_format_length.png" alt="Stage-2 holdout 형식·길이·층별 종합" style="max-width:100%" /></p>
 <div class="warn">그림 ①의 두 형식 곡선은 수준을 비교할 수 없다. 지표 정의(느슨한 <code>&lt;answer&gt;</code> 존재 여부 vs 엄격한 <code>FormatThink</code>), temperature(0.0 vs 0.9), 토큰 상한(2,048 vs 6,144)이 모두 다르다. 갈라지는 시점만 읽는다. holdout <code>format</code> 하락(0.947 → 0.89 대)은 길이 인플레이션의 결과다. RL 이 출력을 +16% 늘렸는데 holdout 은 2,048 토큰에서 자른다.</div>
 
 <h3 id="8-g-그래서-step-850-이-최고점이다--그리고-6-d-의-미검출이-뒤집힌다">8-g. step 850 이 최고점이고, §6-d 의 "미검출"은 분해능 부족이었다</h3>
@@ -905,14 +905,14 @@ work/checkpoints/grpo_expanded_gdpo/v0-20260731-094532/checkpoint-700   (v0 동�
 <tr><td>비절단 형식 실패율 (50 step 창)</td><td style="text-align:right">1.0%</td><td style="text-align:right">step 851</td><td style="text-align:right">49 step ≈ 4시간</td></tr>
 </table>
 <p>100 step 창의 형식 실패율(1 − <code>FormatThink</code> 평균) 임계는 오경보를 내거나 늦다. 상시 절단 실패(5~10%)가 신호를 묻기 때문이다. 절단을 뺀 형식 실패율은 잡음 바닥이 0.1~0.5% 로 낮아 1% 임계로 깨끗하게 잡을 수 있다.</p>
-<div class="note">실제로 구현·검증한 감시자 <a href="../scripts/watch_format_collapse.py"><code>scripts/watch_format_collapse.py</code></a> 는 다른 규칙을 쓴다. <code>FormatThink</code> 50-step 창 평균이 0.85 미만이면 자동 정지한다(<code>WATCHDOG=1</code>). 로그 재생 결과는 step 901 경보, 1,047 step 오경보 0회다(<a href="#1-5-감시-설계의-결론">1부 §1-5</a>).</div>
+<div class="note">실제로 구현·검증한 감시자 <a href="../../scripts/watch_format_collapse.py"><code>scripts/watch_format_collapse.py</code></a> 는 다른 규칙을 쓴다. <code>FormatThink</code> 50-step 창 평균이 0.85 미만이면 자동 정지한다(<code>WATCHDOG=1</code>). 로그 재생 결과는 step 901 경보, 1,047 step 오경보 0회다(<a href="#1-5-감시-설계의-결론">1부 §1-5</a>).</div>
 <div class="note">checkpoint-850 은 경보가 울렸을 step 851 바로 직전이다. <code>save_steps=50</code> 인데 배가 주기가 15 step 이므로 체크포인트 사이에 실패율이 10배 자란다. 저장 간격이 이 동역학에 비해 넓다.</div>
 <h5 id="남은-미해결과-다음-검증">남은 미해결</h5>
 <p>로그로 측정할 수 있는 모든 양은 step 800 까지 정상이었다. 남은 가능성은 출력 통계에 드러나지 않는 내부 표현의 점진적 드리프트다(‖BA‖ 는 7.8→12.1 로 매끄럽게 증가). 이 가능성은 로그로 검증할 수 없다.</p>
 
 <h2 id="관련-문서">관련 문서</h2>
 <ul>
-<li><a href="../README.md"><code>README.md</code></a> — 현황 요약</li>
+<li><a href="../../README.md"><code>README.md</code></a> — 현황 요약</li>
 <li><a href="21_stage2a_design.html"><code>21_stage2a_design.html</code></a> — Stage-2 실험 이력·A/B, 하이퍼파라미터 외부 관행 대조</li>
 <li><a href="21_stage2a_design.html#5-1-빌드-런북"><code>21_stage2a_design.html</code> §5-1</a> — 확장셋 재현 절차(구 <code>stage2_expansion_runbook.md</code>)</li>
 <li><a href="23_stage2ce_experts.html"><code>23_stage2ce_experts.html</code></a> — 이후 단계: 도메인 전문가 학습과 통합</li>

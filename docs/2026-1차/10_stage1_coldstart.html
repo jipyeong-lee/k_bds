@@ -36,7 +36,7 @@ li{margin:3px 0}
 <main>
 <h1 id="stage-1--콜드스타트-sft--상세">Stage-1 · 콜드스타트 SFT: 데이터 v1~v3, 학습 설정, ablation, 적합성 판단</h1>
 <div class="meta">원본: docs/stage1_coldstart.md (2026-10-22 HTML 로 통합) · 작성 방식 ASD-STE100(한 문장에 한 사실, 능동문)<br>
-요약과 현황은 <a href="../README.md"><code>README.md</code></a> 에 있다. 이 문서는 상세 기록이다.</div>
+요약과 현황은 <a href="../../README.md"><code>README.md</code></a> 에 있다. 이 문서는 상세 기록이다.</div>
 
 <div class="key"><b>요약.</b>
 <ul>
@@ -180,7 +180,7 @@ li{margin:3px 0}
 </table>
 <div class="note"><code>grad_accum</code> 16 과 8 의 차이는 GPU 수 보정이다. 유효 배치는 같다. epoch 수가 다른 이유: v2 는 727건이라 4 epoch 도 48 step 이다. v3 는 9,507건이라 2 epoch 이 298 step 이다. 실제 학습량은 약 6.2배다. v2 에서 val 이 epoch 1 이후 평탄했으므로 epoch 을 2 로 줄였다(<code>scripts/10_sft.slurm</code> 주석).</div>
 <div class="warn">v3 의 우위는 데이터 품질과 학습량(48 → 298 step)의 합산 효과다. LoRA 하이퍼파라미터, LR, 유효 배치, 시드는 같다. 따라서 튜닝 효과는 배제한다. 품질 효과만 따로 분리하지는 않았다.</div>
-<figure><img src="assets/sft_mixed_traincurve.png" alt="Stage-1 v3 콜드스타트 SFT 학습곡선" style="max-width:100%"><figcaption>Stage-1 v3 콜드스타트 SFT 학습곡선</figcaption></figure>
+<figure><img src="../assets/sft_mixed_traincurve.png" alt="Stage-1 v3 콜드스타트 SFT 학습곡선" style="max-width:100%"><figcaption>Stage-1 v3 콜드스타트 SFT 학습곡선</figcaption></figure>
 <p>val 은 epoch 끝에서 2회만 잰다(<code>--save_strategy epoch</code>). 5 step 간격의 train 값 60포인트는 <code>work/data/sft_mixed_traincurve.json</code> 에 있다.</p>
 <table>
 <tr><th>지표</th><th>epoch 1</th><th>epoch 2</th><th>판정</th></tr>

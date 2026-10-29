@@ -36,9 +36,11 @@ h2{font-size:28px;margin:0 0 10px;display:flex;align-items:center}
 code{font:15px ui-monospace,Consolas,monospace;background:var(--bg);border:1px solid var(--line);padding:1px 6px;border-radius:6px;word-break:break-all}
 .num{font-size:56px;font-weight:800;line-height:1.1}
 .num small{font-size:17px;font-weight:400;color:var(--mute);display:block}
+.num.s{font-size:40px;white-space:nowrap}
 .ok{color:var(--good)}
 .dv{color:var(--red)}.mm{color:var(--green)}.pm{color:var(--blue)}
 .warn{background:var(--warn-bg);border-left:6px solid var(--warn);border-radius:10px;padding:10px 16px;margin:12px 0;font-size:19px}
+.warn.done{background:var(--bg);border-left-color:var(--good)}
 .warn li{margin:8px 0}
 ul{padding-left:22px;margin:8px 0}
 .vflow{display:none}
@@ -75,6 +77,9 @@ svg text{fill:var(--fg);font-family:inherit}
   .xl small{font-size:20px}
   .say{font-size:19px}
   .next{font-size:21px}
+  .num.s{font-size:28px}
+  .row.g4{display:grid;grid-template-columns:1fr 1fr}
+  .row.g4 .tile{max-width:none}
 }
 </style>
 </head>
@@ -193,38 +198,44 @@ svg text{fill:var(--fg);font-family:inherit}
 </section>
 
 <section>
-  <h2><span class="step">6</span>수업 신청서를 냈어요</h2>
-  <div class="emo">📝</div>
-  <p class="say"><code>scripts/36_opd_domain.slurm</code><br>→ KISTI <b>job 83739</b> 접수</p>
-  <div class="row">
-    <div class="tile mini"><div class="num">23<small>가짜 환경 시험</small></div></div>
-    <div class="tile mini"><div class="num">3<small>일부러 망가뜨리기</small></div></div>
-    <div class="tile mini"><div class="num ok">✅<small>진짜 로더 리허설</small></div></div>
-    <div class="tile mini"><div class="num ok">✅<small>신청서 머리글</small></div></div>
+  <h2><span class="step">6</span>수업 신청서가 합격했어요</h2>
+  <div class="emo">🎉</div>
+  <p class="say"><code>scripts/36_opd_domain.slurm</code><br>→ KISTI <b>job 83739</b> · <span class="hl">OPD_DOMAIN PASS</span></p>
+  <div class="row g4">
+    <div class="tile mini"><div class="num ok">✅<small>20 step 끝까지</small></div></div>
+    <div class="tile mini"><div class="num s">28·19·33<small>선생님 호출 (합 80)</small></div></div>
+    <div class="tile mini"><div class="num s">72.25<small>최대 메모리 GiB (80 중)</small></div></div>
+    <div class="tile mini"><div class="num s">43분<small>10-29 09:38 시작</small></div></div>
   </div>
-  <p class="say">⏰ 예상 시작 <span class="hl">10-30 07:36</span><br><small style="font-size:16px;color:var(--mute)">(앞선 job 79310 이 시간을 다 쓴다고 가정)</small></p>
-  <p class="say" style="font-size:19px">🗂️ 커밋 <code>43746b4</code> · 푸시는 안 했어요</p>
+  <p class="say" style="font-size:19px">🗂️ 커밋 <code>43746b4</code> · 푸시는 안 했어요<br><small style="font-size:16px;color:var(--mute)">(예상은 10-30 07:36 이었어요. 실제로는 약 22시간 먼저 시작했어요)</small></p>
 </section>
 
 <section>
   <h2>🤷 아직 몰라요</h2>
+  <div class="warn done">
+  <b>✅ 풀렸어요</b>
+  <ul>
+    <li><b>A100 80GB 에 들어가요.</b> 최대 72.25 GiB (offload 켠 상태).</li>
+    <li><b>패치한 swift 가 적용돼요.</b> 선생님 3종이 모두 불렸어요.</li>
+  </ul>
+  </div>
   <div class="warn">
   <ul>
-    <li><b>A100 80GB 에 들어가나?</b> 계산으론 넘쳐서 선생님을 CPU 로 내렸어요(offload).</li>
+    <li><b>학습이 되는지.</b> 20 step 스모크라 알 수 없어요. 어댑터도 저장하지 않았어요.</li>
+    <li><b>메모리 여유는 약 8 GiB.</b> 길게·오래 돌리면 더 오를 수 있어요. offload 를 끄면 어떤지는 안 봤어요.</li>
+    <li><b>28/19/33 으로 고르지 않아요.</b> 섞는 옵션 때문으로 추정해요.</li>
     <li><b>8장 예약, 1장 사용.</b> vLLM colocate 때문이에요.</li>
-    <li><b>진짜 GPU 실행은 아직.</b> 합격 = <code>OPD_DOMAIN PASS</code> · 호출 합계 80.</li>
     <li><b>알려진 구멍 1개.</b> <code>--dataset_shuffle false</code> 누락.</li>
   </ul>
   </div>
 </section>
 
 <div class="next">
-  👉 <b>10-30 07:36 이후</b><br>
-  "<b>83739 확인해줘</b>"<br>
-  <small style="font-size:16px;color:var(--mute)">소켓이 끊겼으면 먼저 <code>! ssh -fN kbds266</code></small>
+  👉 <b>다음:</b> 본 실행 설정을 정해요<br>
+  <small style="font-size:16px;color:var(--mute)">step 수 · 어댑터 저장 · 응답 길이</small>
 </div>
 
-<div class="foot">근거: 커밋 0397b5a · 4cf9f5a · 6e046c8 · e4ff19a · 43746b4 + 이 세션의 실측 · 작성 2026-10-29</div>
+<div class="foot">근거: 커밋 0397b5a · 4cf9f5a · 6e046c8 · e4ff19a · 43746b4 + job 83739 로그(opd_domain_83739.log) · 작성 2026-10-29</div>
 
 </main>
 </body>

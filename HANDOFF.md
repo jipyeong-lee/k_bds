@@ -299,7 +299,7 @@ scripts/
 configs/
   accuracy.py                      accuracy_mix + 단계형 format_think 보상
   medical_reward.py                Stage-3 RaR clinical_judge
-docs/
+docs/2026-1차/
   22_stage2b_mixed_run.html    🚨 붕괴 사후분석 rev.2 — 인수인계 시 먼저 읽을 것
   21_stage2a_design.html          현재 설계의 근거
   21_stage2a_design.html                   확장셋 데이터·빌드 런북(§5-1, 구 stage2_expansion_runbook)

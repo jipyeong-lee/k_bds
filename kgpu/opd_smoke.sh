@@ -13,7 +13,7 @@
 #           PROMPTS=dv → deepvision 프롬프트. ~/files/kbds/opd_dv/{stage2_deepvision.jsonl, dv_images.tar} 의 앞 SMOKE_ROWS(200)행을 쓰고,
 #             jsonl 의 KISTI 절대경로를 pod 로컬 경로로 바꾸고 그 행이 쓰는 이미지만 tar 에서 푼다. 긴 응답에서의 메모리 확인용이다.
 #             dv 의 MAX_COMP 3072 는 위 결과 ③ 의 최대(3,068)에 맞춘 값이다. 이 값으로는 아직 실행하지 않았다(③ 은 4096 으로 돌렸다).
-#             (docs/00_overview 의 평균 토큰 4,184 / 702 / 872 는 도메인이 아니라 기본 모델 / SFT 모델 / ta_w07 의 평균이다.)
+#             (docs/2026-1차/00_overview 의 평균 토큰 4,184 / 702 / 872 는 도메인이 아니라 기본 모델 / SFT 모델 / ta_w07 의 평균이다.)
 #             결과 ③ 재현: bash kgpu/run_pod.sh opd_smoke.sh HF_TOKEN PROMPTS=dv MAX_STEPS=20 MAX_COMP=4096 RUN_TAG=dv20_repro
 #               ③ 의 원자료(응답 80개·step 지표)는 kbds/logs/opd_runs_adapter_dv/{completions,logging}.jsonl 이고 로그는 kbds/logs/opd_smoke_adapter_dv_1028-0608.log 다.
 #               opd_runs_<RUN_TAG>/ 에 파일이 이미 있으면 시작 직후 ❌ 로 종료한다(원자료 덮어쓰기 방지, 빈 폴더는 통과). RUN_TAG 를 빼면 기본 태그 adapter_dv 가 ③ 의 폴더와 같아 막히므로 재현은 다른 태그로 한다.

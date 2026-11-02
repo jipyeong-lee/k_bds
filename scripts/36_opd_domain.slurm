@@ -108,6 +108,7 @@ run_py swift rlhf --rlhf_type gkd \
   --max_length $(( 2048 + MAX_COMP )) --max_pixels "${OPD_MAX_PIXELS:-262144}" --gradient_checkpointing true --attn_impl "$ATTN_IMPL" \
   --use_vllm true --vllm_mode colocate --vllm_tensor_parallel_size 1 --vllm_mm_processor_cache_gb 0 \
   --vllm_gpu_memory_utilization "${VLLM_UTIL:-0.35}" --vllm_max_model_len $(( 3072 + MAX_COMP )) --sleep_level 1 \
+  --dataset_shuffle false --train_dataloader_shuffle false \
   --log_completions true --logging_steps 1 "${SAVE[@]}" --report_to none \
   --output_dir "$OUT" --max_steps "$MAX_STEPS"
 TR=$?; echo "SWIFT_EXIT=$TR"

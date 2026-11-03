@@ -3,7 +3,7 @@
 # 35_stage3_smoke.slurm — Stage-3(RaR) 배선 end-to-end 스모크.
 #   목적: ms-swift GRPO 루프 안에서 clinical_judge(RaR) 플러그인이 실제로 호출되고,
 #         swift 가 넘기는 kwargs(특히 images 경로)가 판정에 도달하는지 실증(=정적검증 보완).
-#   구성: idle 8gpu 노드 1대에서 GPU0=judge(Qwen3.6-27B-FP8), GPU1=소형 GRPO 트레이너(max_steps 2).
+#   구성: idle 8gpu 노드 1대에서 GPU0=judge(Qwen3.8-27B-FP8), GPU1=소형 GRPO 트레이너(max_steps 2).
 #   판정: 로그에 [JUDGE_DEBUG] images 경로 도달 + clinical_judge reward 값이 흐르면 PASS.
 # =============================================================================
 #SBATCH --job-name=s3-smoke
@@ -27,7 +27,7 @@ JUDGE_PORT=$PORT JUDGE_TP=1 bash scripts/judge_server.sh > logs/smoke_judge_${SL
 SRV=$!
 READY=0
 for i in $(seq 1 90); do
-  curl -s "http://localhost:$PORT/v1/models" 2>/dev/null | grep -q qwen36-judge && { READY=1; echo "[smoke] judge READY (~$((i*10))s)"; break; }
+  curl -s "http://localhost:$PORT/v1/models" 2>/dev/null | grep -q qwen38-judge && { READY=1; echo "[smoke] judge READY (~$((i*10))s)"; break; }
   kill -0 $SRV 2>/dev/null || { echo "[smoke] ❌ judge 프로세스 종료됨"; tail -25 logs/smoke_judge_${SLURM_JOB_ID}.log; break; }
   sleep 10
 done
@@ -37,7 +37,7 @@ if [ "$READY" != 1 ]; then echo "[smoke] ❌ judge not ready — abort"; kill $S
 export SINGULARITYENV_CUDA_VISIBLE_DEVICES=1
 export CUDA_VISIBLE_DEVICES=1
 export NPROC_PER_NODE=1
-export JUDGE_BASE_URL="http://localhost:$PORT/v1" JUDGE_MODEL=qwen36-judge JUDGE_API_KEY=EMPTY
+export JUDGE_BASE_URL="http://localhost:$PORT/v1" JUDGE_MODEL=qwen38-judge JUDGE_API_KEY=EMPTY
 export JUDGE_DEBUG=1          # ← images kwarg 도달 여부 로깅
 INIT_MODEL="${INIT_MODEL:-$CKPT_DIR/dr_grpo_merged}"
 echo "[smoke] 트레이너 시작: init=$INIT_MODEL judge=$JUDGE_BASE_URL"

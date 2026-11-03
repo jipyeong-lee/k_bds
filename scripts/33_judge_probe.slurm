@@ -24,7 +24,7 @@ SRV=$!
 
 READY=0
 for i in $(seq 1 60); do
-  curl -s "http://localhost:$PORT/v1/models" 2>/dev/null | grep -q qwen36-judge && { READY=1; echo "[probe] server READY (~$((i*10))s)"; break; }
+  curl -s "http://localhost:$PORT/v1/models" 2>/dev/null | grep -q qwen38-judge && { READY=1; echo "[probe] server READY (~$((i*10))s)"; break; }
   kill -0 $SRV 2>/dev/null || { echo "[probe] server died"; break; }
   sleep 10
 done
@@ -32,7 +32,7 @@ done
 RC=1
 if [ "$READY" = "1" ]; then
   singularity exec --nv --env HF_HUB_OFFLINE=1 \
-    --env JUDGE_BASE_URL=http://localhost:$PORT/v1 --env JUDGE_MODEL=qwen36-judge --env JUDGE_API_KEY=EMPTY \
+    --env JUDGE_BASE_URL=http://localhost:$PORT/v1 --env JUDGE_MODEL=qwen38-judge --env JUDGE_API_KEY=EMPTY \
     --env PROBE_N=$PROBE_N --env PROBE_CONC="${PROBE_CONC:-8}" \
     "$SB" python scripts/judge_probe.py
   RC=$?

@@ -1,7 +1,7 @@
 #!/bin/bash
 # =============================================================================
 # 45_healthbench_smoke.slurm — base(Qwen3.5-9B) HealthBench 스모크 (Hard, limit 20)
-#   GPU0 = judge(Qwen3.6-27B-FP8) vLLM · GPU1 = base(Qwen3.5-9B) vLLM · evalscope 채점.
+#   GPU0 = judge(Qwen3.8-27B-FP8) vLLM · GPU1 = base(Qwen3.5-9B) vLLM · evalscope 채점.
 #   채점자=자체 judge(오프라인, GPT-4.1 아님) → 내부 상대비교용 절대점수.
 #   데이터는 로그인노드서 미리 받아둔 work/ms_cache 사용(계산노드 오프라인).
 # =============================================================================
@@ -20,7 +20,7 @@ source scripts/00_common.sh
 SB="${CONTAINER_IMG:-work/images/ms-swift-413-sandbox}"
 
 BASE=$(ls -d work/hf_cache/hub/models--Qwen--Qwen3.5-9B/snapshots/*/ 2>/dev/null | head -1)
-JUDGE=$(ls -d work/hf_cache/hub/models--Qwen--Qwen3.6-27B-FP8/snapshots/*/ 2>/dev/null | head -1)
+JUDGE=$(ls -d work/hf_cache/hub/models--Qwen--Qwen3.8-27B-FP8/snapshots/*/ 2>/dev/null | head -1)
 # 평가대상 모델: 기본 base, HB_TARGET_MODEL 로 오버라이드(콜드스타트/학습모델 등). TID=served name.
 TARGET="${HB_TARGET_MODEL:-$BASE}"
 TID="${HB_MODEL_ID:-base9b}"
@@ -47,17 +47,17 @@ wait_ready() {  # $1=port $2=name
 }
 
 echo "[hb] target($TID)=$TARGET"; echo "[hb] judge=$JUDGE"
-JPID=$(serve 0 "$JUDGE" qwen36-judge $PORT_JUDGE 8192 "")
+JPID=$(serve 0 "$JUDGE" qwen38-judge $PORT_JUDGE 8192 "")
 BPID=$(serve 1 "$TARGET" "$TID"      $PORT_BASE 10240 "--limit-mm-per-prompt {\"image\":1}")
 
-wait_ready $PORT_JUDGE qwen36-judge || { tail -20 logs/hb_serve_qwen36-judge_${SLURM_JOB_ID}.log; kill $JPID $BPID 2>/dev/null; exit 1; }
+wait_ready $PORT_JUDGE qwen38-judge || { tail -20 logs/hb_serve_qwen38-judge_${SLURM_JOB_ID}.log; kill $JPID $BPID 2>/dev/null; exit 1; }
 wait_ready $PORT_BASE  "$TID"        || { tail -20 logs/hb_serve_${TID}_${SLURM_JOB_ID}.log; kill $JPID $BPID 2>/dev/null; exit 1; }
 
 echo "[hb] ===== evalscope HealthBench (Hard, limit ${HB_LIMIT:-20}) ====="
 singularity exec --nv \
   --env HF_HUB_OFFLINE=1 --env MODELSCOPE_CACHE=$MSCACHE --env MODELSCOPE_OFFLINE=1 \
   --env HB_MODEL_ID="$TID" --env HB_API_URL=http://localhost:$PORT_BASE/v1/ \
-  --env HB_JUDGE_ID=qwen36-judge --env HB_JUDGE_URL=http://localhost:$PORT_JUDGE/v1/ \
+  --env HB_JUDGE_ID=qwen38-judge --env HB_JUDGE_URL=http://localhost:$PORT_JUDGE/v1/ \
   --env HB_LOCAL_PATH=$MSCACHE/datasets/openai-mirror/healthbench \
   --env HB_CONC="${HB_CONC:-8}" --env HB_JUDGE_CONC="${HB_JUDGE_CONC:-8}" \
   --env HB_VERSION="${HB_VERSION:-Hard}" --env HB_LIMIT="${HB_LIMIT:-20}" \

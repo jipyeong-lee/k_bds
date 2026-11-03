@@ -40,7 +40,7 @@ rsync -a "$SRC/work/images/" "$DST/work/images/"
 
 if [ "${WITH_STAGE3:-0}" = 1 ]; then
   echo "[pull] ⑤ (Stage-3) judge(27B) + medix …"
-  rsync -a "$SRC/work/hf_cache/hub/models--Qwen--Qwen3.6-27B-FP8" "$DST/work/hf_cache/hub/"
+  rsync -a "$SRC/work/hf_cache/hub/models--Qwen--Qwen3.8-27B-FP8" "$DST/work/hf_cache/hub/"
   rsync -a "$SRC/work/data/medix_rl_train.jsonl" "$DST/work/data/" 2>/dev/null || true
 fi
 

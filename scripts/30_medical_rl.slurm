@@ -29,7 +29,7 @@ EXTRA_ARGS="${EXTRA_ARGS:-}"
 
 # ---- judge 엔드포인트 (env 주입 우선, 없으면 endpoint 파일) ------------------
 export JUDGE_BASE_URL="${JUDGE_BASE_URL:-$(cat "$PROJ_DIR/logs/judge_endpoint.txt" 2>/dev/null || true)}"
-export JUDGE_MODEL="${JUDGE_MODEL:-qwen36-judge}"
+export JUDGE_MODEL="${JUDGE_MODEL:-qwen38-judge}"
 export JUDGE_API_KEY="${JUDGE_API_KEY:-EMPTY}"
 if [[ -z "$JUDGE_BASE_URL" ]]; then
   echo "[medrl] ❌ JUDGE_BASE_URL 없음 — judge 잡 먼저 띄우세요(launch_stage3.sh 권장)"; exit 1

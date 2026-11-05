@@ -23,9 +23,9 @@ stamp "1) code·입력"
 tar xzf "$F/code.tgz" -C "$W" --no-same-owner || { echo "❌ code.tgz"; exit 1; }
 cp "$F/opd_server_probe.py" "$W/" || { echo "❌ probe"; exit 1; }
 
-stamp "2) venv(4.1.3 핀) → ms-swift 4.6.0 · datasets 4.0.0 으로 올림(4.6.0 요구: datasets>=4.0)"
+stamp "2) venv(4.1.3 핀) → ms-swift 4.6.0 · datasets 4.8.4 로 올림(datasets.features.Json 이 4.7.0 부터 있다 — 4.0.0 은 ImportError)"
 . "$F/setup_venv.sh"
-uv pip install --python "$PY" ms-swift==4.6.0 datasets==4.0.0 2>&1 | tail -3
+uv pip install --python "$PY" ms-swift==4.6.0 datasets==4.8.4 2>&1 | tail -3
 $PY -c "import swift, datasets; print('swift', swift.__version__, 'datasets', datasets.__version__)" || { echo "❌ 4.6.0 import"; exit 1; }
 
 stamp "3) 모델 병렬"
@@ -69,7 +69,9 @@ probe(){
   mkdir -p "$F/logs/opd_probe46_$COND"; cp "$W/check_$COND.txt" "$W"/probe_$COND/*.json "$F/logs/opd_probe46_$COND/" 2>/dev/null
   grep -a -E "Error|Traceback|differs from" "$W/serve_$COND.log" | tail -n 20 > "$F/logs/opd_probe46_${COND}_serve_err.log"
 }
-stop(){ kill $SRV 2>/dev/null; sleep 5; G=$(nvidia-smi --query-compute-apps=pid --format=csv,noheader); [ -n "$G" ] && kill -9 $G 2>/dev/null; sleep 5; }
+stop(){   # 서버를 끄고 포트가 닫힐 때까지 기다린다(안 기다리면 다음 조건이 옛 서버의 /health/ 에 속아 'READY' 가 된다)
+  kill $SRV 2>/dev/null; sleep 5; G=$(nvidia-smi --query-compute-apps=pid --format=csv,noheader); [ -n "$G" ] && kill -9 $G 2>/dev/null
+  for i in $(seq 1 30); do curl -s http://127.0.0.1:$PORT/health/ >/dev/null 2>&1 || break; sleep 2; done; sleep 5; }
 
 COND=A_qwen3_8; stamp "5) 조건 A — 교사 템플릿 qwen3_8(기본)"
 serve qwen3_8 && probe; stop

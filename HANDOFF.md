@@ -267,12 +267,16 @@ bash scripts/watch_train.sh          # 라이브 대시보드 (tmux)
 
 ## 5. 남은 일 (우선순위)
 
-1. **전문가 3종 완주 감시** — `WATCHDOG` 판정 확인, 메모리 평탄화 확인. 붕괴 재발 시 즉시 중단(이미 자동).
-2. **전문가별 홀드아웃 평가** → 도메인별 init 대비 이득 확인. `eval_paired.py` 로 McNemar.
-3. **어댑터 통합** → Stage-3 init 만들기.
-4. **Stage-3 본실행**: `bash scripts/launch_stage3.sh`. **계획서 핵심 산출물이고 미시작.** 잔여 예산 1,996 안에 넣어야 한다.
-5. (옵션) v3 HealthBench Hard(n=1000, ~28 노드시간, gpu:2) — base 0.229/v2 0.224 대비.
-6. (기록만) 구 DeepVision 홀드아웃 22% 오염 재구성 · 붕괴 개시 원인(재현 실패로 보류).
+(2026-11-05 갱신. 전문가 학습·평가·통합(ta_w07)·OPD100 평가는 끝났다. 전문가 단계의 붕괴: mmk12 450 step 부근 3연속, deepvision 이어학습 3,428 step(job 82476))
+
+1. **Stage-3 judge(Qwen3.8-27B) 검증** — 3.6 에서 바꾼 뒤 검증이 없었다. 2026-11-05 제출: judge 스모크 `84534`(1gpu) → 성공 시 루브릭 비교 `84535`(afterok). 결과는 `logs/judge_smoke_84534.log` · `logs/rubric_compare_84535.log`.
+   KISTI 사본은 git 이 아니라 파일 동기화다(HEAD 8/14, GitHub 키 없음) — 3.8 스크립트 9개와 `configs/medical_reward.py` 를 scp 로 올렸고 원본은 `*.pre38` 로 남겼다. `scripts/transfer_pull.sh` 는 원격 고유 수정이 있어 올리지 않았다.
+2. **Stage-3 본실행**: `bash scripts/launch_stage3.sh`. **계획서 핵심 산출물이고 미시작.** 1 이 통과하면 제출. 잔여 예산 1,996 안에 넣어야 한다. init 은 ta_w07 이 후보다.
+3. **27B 교사 OPD 사전 측정** — 학습 전에 (a) 학생 샘플 토큰의 교사 top-k 포함률, (b) Qwen3.8 채팅 템플릿(thinking) 정렬을 잰다. MAX_COMP 는 4096 이상으로. 근거·설계는 learning `l-0dd1ad14`.
+4. **도메인 교사 OPD 1,000 step 본학습은 보류** — OPD100 이 ta_w07 대비 홀드아웃 −0.3pp, gbench −1.1pp 로 learning `l-b08e8e02` 의 기준(+1.5pp 초과) 미달.
+5. **시각 의존도 진단 결론 정하기** — ta_w07 N=300: 오답 S 평균 0.132 vs 정답 0.099(1.34배), S>0.1 토큰 약 10%. VPPO 식 토큰 가중을 쓸지 미정(`scripts/diag_visual_dependence.py`).
+6. (옵션) v3 HealthBench Hard(n=1000, ~28 노드시간, gpu:2) — base 0.229/v2 0.224 대비.
+7. (기록만) 구 DeepVision 홀드아웃 22% 오염 재구성 · 붕괴 개시 원인(재현 실패로 보류).
 
 ---
 

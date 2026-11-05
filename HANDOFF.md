@@ -269,9 +269,11 @@ bash scripts/watch_train.sh          # 라이브 대시보드 (tmux)
 
 (2026-11-05 갱신. 전문가 학습·평가·통합(ta_w07)·OPD100 평가는 끝났다. 전문가 단계의 붕괴: mmk12 450 step 부근 3연속, deepvision 이어학습 3,428 step(job 82476))
 
-1. **Stage-3 judge(Qwen3.8-27B) 검증** — 3.6 에서 바꾼 뒤 검증이 없었다. 2026-11-05 제출: judge 스모크 `84534`(1gpu) → 성공 시 루브릭 비교 `84535`(afterok). 결과는 `logs/judge_smoke_84534.log` · `logs/rubric_compare_84535.log`.
+1. **Stage-3 실행 위치 결정** — 현재 계획은 kgpu + KHDP judge(위 표 ③)다. KISTI 8gpu 로 돌리려면 계산 노드에 외부망이 없어 로컬 judge(Qwen3.8-27B)가 필요하고, 3.8 은 judge 로 검증된 적이 없다.
+   KISTI 쪽을 열어 두려고 judge 스모크 `84534`(1gpu, 3.8 서버 기동·채점 1건 파싱)만 유지했다(결과 `logs/judge_smoke_84534.log`). 같이 냈던 루브릭 비교 `84535` 는 judge 검증이 아니라 루브릭 설계 실험이라 취소했다.
+   KISTI 로 정하면 3.8 검증은 `scripts/judge_audit.py`(근거 없는 답에 점수를 주는지 감사)로 한다.
    KISTI 사본은 git 이 아니라 파일 동기화다(HEAD 8/14, GitHub 키 없음) — 3.8 스크립트 9개와 `configs/medical_reward.py` 를 scp 로 올렸고 원본은 `*.pre38` 로 남겼다. `scripts/transfer_pull.sh` 는 원격 고유 수정이 있어 올리지 않았다.
-2. **Stage-3 본실행**: `bash scripts/launch_stage3.sh`. **계획서 핵심 산출물이고 미시작.** 1 이 통과하면 제출. 잔여 예산 1,996 안에 넣어야 한다. init 은 ta_w07 이 후보다.
+2. **Stage-3 본실행**: `bash scripts/launch_stage3.sh`. **계획서 핵심 산출물이고 미시작.** 1 의 위치가 정해지면 제출. 잔여 예산 1,996 안에 넣어야 한다. init 은 ta_w07 이 후보다.
 3. **27B 교사 OPD 사전 측정** — 학습 전에 (a) 학생 샘플 토큰의 교사 top-k 포함률, (b) Qwen3.8 채팅 템플릿(thinking) 정렬을 잰다. MAX_COMP 는 4096 이상으로. 근거·설계는 learning `l-0dd1ad14`.
 4. **도메인 교사 OPD 1,000 step 본학습은 보류** — OPD100 이 ta_w07 대비 홀드아웃 −0.3pp, gbench −1.1pp 로 learning `l-b08e8e02` 의 기준(+1.5pp 초과) 미달.
 5. **시각 의존도 진단 결론 정하기** — ta_w07 N=300: 오답 S 평균 0.132 vs 정답 0.099(1.34배), S>0.1 토큰 약 10%. VPPO 식 토큰 가중을 쓸지 미정(`scripts/diag_visual_dependence.py`).

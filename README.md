@@ -163,7 +163,7 @@ KISTI 에서 deepvision 이어학습을 시도했으나 즉시 크래시했습�
 - 원인: PyTorch 2.6 이상은 `weights_only=True` 가 기본값입니다. 이 설정이 `rng_state_*.pth` 안의 numpy 전역(`numpy._core.multiarray._reconstruct`)을 거부합니다.
 - 수정: 이 체크포인트는 자체 학습이 만든 신뢰할 수 있는 파일입니다. `scripts/pyfix/sitecustomize.py` 가 `torch.load` 의 기본값을 `weights_only=False` 로 되돌립니다. `runc.sh` 가 이 파일을 PYTHONPATH 맨 앞에 넣습니다.
 - 검증: 로그인 노드에서 rng_state 7개를 모두 다시 로드했습니다.
-- 상태: 재제출을 보류했습니다. 재개 여부와 recipe 는 사용자의 결정을 기다립니다.
+- 상태(2026-11-05 갱신): 이후 재제출해 이어학습이 진행됐습니다(로그 `v2-20261014-111314` 가 ~2,700 step, `v3-20261017-032732` 가 2,701 step 부터). job `82476` 이 **3,428 step 에서 형식 붕괴로 watchdog 중단**됐습니다 — FormatThink 50 step 평균 0.837 < 기준 0.85(`verdict_82476.json`). 위 표의 효과 확정치(2,203 step, job `76330`)는 이 붕괴 이전 체크포인트 기준입니다.
 
 ### 왜 도메인을 3개로 나누는가
 

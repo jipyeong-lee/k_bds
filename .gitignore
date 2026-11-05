@@ -39,3 +39,7 @@ core.*
 
 # graft's local graph cache — regenerable, not committed (run `graft build`).
 /graft/
+
+# 로컬 대시보드 — 이미지 포함 약 9MB, 로컬 전용(dashboard/build_data.py 로 재생성)
+/dashboard/
+/.archify/

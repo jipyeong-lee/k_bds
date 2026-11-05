@@ -24,8 +24,9 @@ from safetensors.torch import save_file
 
 def load_adapter(path):
     cfg = json.load(open(os.path.join(path, 'adapter_config.json')))
-    assert not cfg.get('use_rslora') and not cfg.get('use_dora'), f'{path}: rslora/dora 미지원'
-    scale = cfg['lora_alpha'] / cfg['r']
+    assert not cfg.get('use_dora'), f'{path}: dora 미지원'
+    assert not cfg.get('rank_pattern') and not cfg.get('alpha_pattern'), f'{path}: 모듈별 r/α 미지원'
+    scale = cfg['lora_alpha'] / (cfg['r'] ** 0.5 if cfg.get('use_rslora') else cfg['r'])  # peft: rslora 는 α/√r
     mods = {}
     with safe_open(os.path.join(path, 'adapter_model.safetensors'), 'pt') as f:
         for k in f.keys():

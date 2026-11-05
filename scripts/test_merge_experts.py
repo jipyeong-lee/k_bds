@@ -50,6 +50,15 @@ check('dtype bf16 유지', m[K].dtype == torch.bfloat16)
 check('config.json 복사', os.path.exists(f'{d}/lin/config.json'))
 check('merge_config.json 기록', json.load(open(f'{d}/lin/merge_config.json'))['modules'] == 1)
 
+print('== rslora ==')                            # OPD 어댑터(use_rslora true): peft 의 scale = α/√r
+for i in range(2):
+    json.dump({'r': 2, 'lora_alpha': 4, 'use_rslora': True}, open(f'{d}/a{i}/adapter_config.json', 'w'))
+rs = run('linear', 'rs')
+want_rs = (base[K].float() + sum(w * (4 / 2 ** 0.5) * (B @ A) for (A, B), w in zip(AB, [0.5, 1.0]))).bfloat16()
+check('rslora: W = W0 + Σ wᵢ·Bᵢ·Aᵢ·(α/√r)', torch.equal(rs[K], want_rs))
+for i in range(2):
+    json.dump({'r': 2, 'lora_alpha': 4}, open(f'{d}/a{i}/adapter_config.json', 'w'))
+
 print('== ties ==')
 t = run('ties', 'ties')[K].float() - base[K].float()
 st = torch.stack(taus)

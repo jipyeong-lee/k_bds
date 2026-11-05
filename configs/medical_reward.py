@@ -191,16 +191,131 @@ def parse_evidence(text: str) -> str:
 def apply_evidence_gate(verdicts: dict, evidence: str, completion: str) -> dict:
     """c2 는 인용이 <think> 에 실재할 때만 인정, c2 가 무효면 c4 도 무효(아무 주장 안 한 응답이
     '과장 없음' 을 공짜로 받는 Vacuous Credit 차단). 공백·대소문자는 무시하고 비교."""
-    norm = lambda s: ' '.join((s or '').split()).lower()
-    m = _FORMAT_RE.search(completion or '')
-    ev = norm(evidence)
-    ok = bool(m) and len(ev) >= _MIN_EVIDENCE_CHARS and ev in norm(m.group(1))
     out = dict(verdicts)
-    if not ok:
+    if not evidence_ok(evidence, completion):
         out['c2'] = 0.0
     if not out.get('c2'):
         out['c4'] = 0.0
     return out
+
+
+def evidence_ok(evidence: str, completion: str) -> bool:
+    """judge 가 인용한 문장이 <think> 안에 실제로 있는가(공백·대소문자 무시, 8자 이상)."""
+    norm = lambda s: ' '.join((s or '').split()).lower()
+    m = _FORMAT_RE.search(completion or '')
+    ev = norm(evidence)
+    return bool(m) and len(ev) >= _MIN_EVIDENCE_CHARS and ev in norm(m.group(1))
+
+
+# ---- 루브릭 조합 실험(2026-11-05) -------------------------------------------
+# C0 = 위의 v1 그대로(기본). C1~C4 는 앞 단계에 하나씩 더한다 — 단계별 효과를 따로 보기 위해서다.
+#   C1 질문 원문 전달(RaR 2507.17746 의 judge 입력) · C2 정답을 코드로(RLCF 2507.18624, RLR³ 2605.30244)
+#   C3 시각근거를 원자 항목으로 분할 + 인용 실재 확인(V-Rubrics 2608.25580, 복합 기준 부분충족 해킹 2605.12474)
+#   C4 '환각 없음' 가점 → 환각·과장 감점(HealthBench 2505.08775 의 음수 기준)
+# 학습에서는 RUBRIC_CONFIG env 로 고른다. 오프라인 비교는 scripts/rubric_ablation.py.
+_STEPS = ('question', 'code_c1', 'split_c2', 'penalties')
+RUBRIC_CONFIGS = {f'C{i}': {s: j < i for j, s in enumerate(_STEPS)} for i in range(len(_STEPS) + 1)}
+RUBRIC_CONFIG = os.environ.get('RUBRIC_CONFIG', 'C0')
+assert RUBRIC_CONFIG in RUBRIC_CONFIGS, f'RUBRIC_CONFIG={RUBRIC_CONFIG} (가능: {sorted(RUBRIC_CONFIGS)})'
+W_EVIDENCE, W_SUPPORT, W_P_HALLUC, W_P_OVERCLAIM = 1, 1, -4, -2
+
+
+def build_rubric_cfg(reference: str, measurement: bool, cfg: dict) -> List[dict]:
+    """조합별 루브릭. weight<0 은 감점 항목(판정 1 = 그 문제가 있음). c2a(인용 실재)는 judge 가 아니라 코드가 판정한다."""
+    base = {it['key']: it for it in build_rubric(reference, measurement)}
+    items = [base['c1']]
+    if cfg['split_c2']:
+        items += [
+            {'key': 'c2b', 'title': 'Observation matches image', 'weight': W_IMPORTANT,
+             'description': ("Important Criteria: The image observation quoted in c2_evidence is CONSISTENT with "
+                             "what the image actually shows (not fabricated and not contradicted by the image).")},
+            {'key': 'c2c', 'title': 'Observation supports answer', 'weight': W_SUPPORT,
+             'description': "Optional Criteria: The quoted observation is actually used in the reasoning to reach the <answer>."}]
+    else:
+        items.append(base['c2'])
+    if 'c3' in base:
+        items.append(base['c3'])
+    if cfg['penalties']:
+        items += [
+            {'key': 'p1', 'title': 'Hallucinated finding', 'weight': W_P_HALLUC,
+             'description': "Pitfall (1 = PRESENT): The output asserts a finding, structure, or detail that is NOT present in the image."},
+            {'key': 'p2', 'title': 'Overclaim beyond the question', 'weight': W_P_OVERCLAIM,
+             'description': "Pitfall (1 = PRESENT): The <answer> adds diagnoses or claims that the QUESTION did not ask for."}]
+    else:
+        items.append(base['c4'])
+    return items
+
+
+def aggregate_cfg(items: List[dict], verdicts: dict, cfg: dict) -> float:
+    """HealthBench 식: (충족한 가점 + 해당된 감점) / 가점 합, [0,1] 로 자른다. 판정이 없으면 0 으로 본다."""
+    pos = sum(it['weight'] for it in items if it['weight'] > 0) + (W_EVIDENCE if cfg['split_c2'] else 0)
+    got = sum(it['weight'] * verdicts.get(it['key'], 0.0) for it in items)
+    if cfg['split_c2']:
+        got += W_EVIDENCE * verdicts.get('c2a', 0.0)
+    return min(1.0, max(0.0, got / pos)) if pos else 0.0
+
+
+def code_correct(completion: str, reference: str) -> bool:
+    """정답을 코드로 판정(accuracy.AccuracyMix, 참조답의 마지막 줄 — medix 는 첫 줄이 모달리티 태그다).
+    판정 못 하는 환경(math_verify 없음 등)이면 False → judge 가 c1 을 본다."""
+    try:
+        import importlib.util as u
+        spec = u.spec_from_file_location('accuracy', os.path.join(os.path.dirname(os.path.abspath(__file__)), 'accuracy.py'))
+        acc = u.module_from_spec(spec); spec.loader.exec_module(acc)
+        gold = (reference or '').strip().splitlines()[-1] if (reference or '').strip() else ''
+        return acc.AccuracyMix()([completion], [gold])[0] >= 0.5
+    except Exception:
+        return False
+
+
+def build_judge_prompt_cfg(question: str, reference: str, answer_block: str, items: List[dict], evidence: bool) -> str:
+    keys = ', '.join(f'"{it["key"]}": 0 or 1' for it in items)
+    lines = [
+        "You are a strict grader for medical image VQA. Given the IMAGE, the QUESTION, a REFERENCE ANSWER (gold), and "
+        "the MODEL OUTPUT (with <think> reasoning and <answer>), judge EACH criterion independently as 0 or 1.",
+        "For Pitfall criteria, 1 means the problem IS present in the output.", "",
+        f"QUESTION: {question}", f"REFERENCE ANSWER: {reference}", f"MODEL OUTPUT: {answer_block}", "", "CRITERIA:",
+    ] + [f"- {it['key']} ({it['title']}): {it['description']}" for it in items]
+    if evidence:
+        keys = '"c2_evidence": "<quote>", ' + keys
+        lines += ["", "FIRST fill c2_evidence: copy VERBATIM from the <think> text one sentence that states an observation "
+                      "about the image (no braces or newlines). If <think> states no such observation, use an empty string."]
+    return '\n'.join(lines + ["", f"Respond with ONLY a JSON object: {{{keys}}}. No other text."])
+
+
+async def score_cfg(cfg: dict, question: str, reference: str, completion: str, image_path, client, model: str) -> dict:
+    """한 응답을 조합 cfg 로 채점한다. 반환 {'reward','v','err','tokens'} — 오프라인 실험과 학습이 같은 함수를 쓴다."""
+    if not format_ok(completion):
+        return {'reward': 0.0, 'v': {}, 'err': 'format', 'tokens': 0}
+    reference = str(reference).strip()
+    items = build_rubric_cfg(reference, is_measurement(reference), cfg)
+    pre = {'c1': 1.0} if cfg['code_c1'] and code_correct(completion, reference) else {}
+    jitems = [it for it in items if it['key'] not in pre]
+    q = question if cfg['question'] and question else '(see image)'
+    # 항목 구성이 v1 과 같은 C0~C2 는 v1 프롬프트를 그대로 쓴다 — 단계별 차이가 문구 변경과 섞이지 않게
+    prompt = (build_judge_prompt_cfg(q, reference, completion.strip(), jitems, evidence=cfg['split_c2'])
+              if cfg['split_c2'] or cfg['penalties'] else build_judge_prompt(q, reference, completion.strip(), jitems))
+    content = [{'type': 'text', 'text': prompt}]
+    if SEND_IMAGE and image_path:
+        du = _image_to_data_url(image_path)
+        if du:
+            content.append({'type': 'image_url', 'image_url': {'url': du}})
+    try:
+        resp = await client.chat.completions.create(model=model, messages=[{'role': 'user', 'content': content}],
+                                                    temperature=0.0, max_tokens=JUDGE_MAX_TOKENS, extra_body=_EXTRA_BODY)
+        text = _msg_text(resp)
+        tokens = getattr(getattr(resp, 'usage', None), 'total_tokens', None)
+    except Exception as e:
+        return {'reward': 0.0, 'v': {}, 'err': f'api:{type(e).__name__}', 'tokens': 0}
+    v = parse_verdicts(text, jitems)
+    if v is None:
+        return {'reward': 0.0, 'v': {}, 'err': 'parse', 'tokens': tokens}
+    v = {**pre, **v}
+    if cfg['split_c2']:
+        v['c2a'] = 1.0 if evidence_ok(parse_evidence(text), completion) else 0.0
+        if not v['c2a']:   # 인용이 없으면 그 인용에 대한 판정(c2b·c2c)도 무효
+            v['c2b'] = v['c2c'] = 0.0
+    return {'reward': aggregate_cfg(items, v, cfg), 'v': v, 'err': None, 'tokens': tokens}
 
 
 def _image_to_data_url(img) -> Optional[str]:
@@ -249,7 +364,10 @@ class ClinicalJudgeReward(AsyncORM):
                                        timeout=JUDGE_TIMEOUT)
         return self._client
 
-    async def _score_one(self, completion, solution, image_path):
+    async def _score_one(self, completion, solution, image_path, question=''):
+        if RUBRIC_CONFIG != 'C0':   # 조합 실험 경로. C0 은 아래 v1 경로를 그대로 탄다
+            return (await score_cfg(RUBRIC_CONFIGS[RUBRIC_CONFIG], question, solution, completion, image_path,
+                                    self._get_client(), JUDGE_MODEL))['reward']
         # 형식 게이트: 위반 시 judge 호출 생략(비용↓), 0.0
         if not format_ok(completion):
             return 0.0
@@ -307,9 +425,19 @@ class ClinicalJudgeReward(AsyncORM):
                   f'data_url_ok={bool(du)} '
                   f'(→ 시각근거 c2 채점에 이미지 {"전달됨" if du else "누락"})', flush=True)
 
+        msgs = kwargs.get('messages') or [None] * len(completions)
+
+        def question_of(m):   # 마지막 user 메시지의 글자 부분(<image> 자리표시 제거)
+            users = [x for x in (m or []) if isinstance(x, dict) and x.get('role') == 'user']
+            c = users[-1].get('content') if users else ''
+            if isinstance(c, list):
+                c = ' '.join(p.get('text', '') for p in c if isinstance(p, dict))
+            return str(c or '').replace('<image>', '').strip()
+
         tasks = [
             self._score_one(c, solutions[i] if i < len(solutions) else '',
-                            first_img(images[i]) if i < len(images) else None)
+                            first_img(images[i]) if i < len(images) else None,
+                            question_of(msgs[i]) if i < len(msgs) else '')
             for i, c in enumerate(completions)
         ]
         return list(await asyncio.gather(*tasks))

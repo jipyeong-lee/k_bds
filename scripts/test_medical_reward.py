@@ -134,5 +134,40 @@ check("게이트 ON + 유효 인용 → 1.0", abs(s_ev - 1.0) < 1e-6)
 check("게이트 ON + 인용 누락 → 감점(c1·c3 만 = 8/15)", abs(s_no - 8/15) < 1e-6)
 check("게이트 OFF(기본) 는 기존 동작 — judge all1 → 1.0", abs(asyncio.run(run_gate('{"c1":1,"c2":1,"c3":1,"c4":1}')) - 1.0) < 1e-6)
 
+print("== 9. 루브릭 조합(C0~C4) ==")
+C = M.RUBRIC_CONFIGS
+check("C0 = 전부 끔(v1 그대로)", not any(C['C0'].values()))
+check("C2 = 질문 + 정답 코드 판정만", C['C2'] == {'question': True, 'code_c1': True, 'split_c2': False, 'penalties': False})
+check("C4 = 전부 켬", all(C['C4'].values()))
+check("기본 RUBRIC_CONFIG 는 C0", M.RUBRIC_CONFIG == 'C0')
+it4 = M.build_rubric_cfg('X-ray', False, C['C4'])
+check("C4 비측정형 항목 = c1 c2b c2c p1 p2", [i['key'] for i in it4] == ['c1', 'c2b', 'c2c', 'p1', 'p2'])
+full = {'c1': 1, 'c2a': 1, 'c2b': 1, 'c2c': 1, 'p1': 0, 'p2': 0}
+check("C4 전부 충족·감점 없음 → 1.0", M.aggregate_cfg(it4, full, C['C4']) == 1.0)
+check("C4 환각 감점 → (10-4)/10 = 0.6", abs(M.aggregate_cfg(it4, {**full, 'p1': 1}, C['C4']) - 0.6) < 1e-9)
+check("C4 아무것도 없고 환각 → 0 으로 자름", M.aggregate_cfg(it4, {'p1': 1, 'p2': 1}, C['C4']) == 0.0)
+
+class _RecClient(_FakeClient):   # 보낸 프롬프트를 기록한다
+    async def create(self, **kw):
+        self.prompt = kw['messages'][0]['content'][0]['text']; return _FakeResp(self._txt)
+think_ok = f"<think>{EV} 그래서 답은 X-ray 다.</think><answer>X-ray</answer>"
+def run_cfg(cfg, txt, comp=think_ok, q='What modality?'):
+    cl = _RecClient(txt); r = asyncio.run(M.score_cfg(C[cfg], q, '<X_RAY>\nX-ray', comp, None, cl, 'm')); return r, getattr(cl, 'prompt', '')
+r, p = run_cfg('C4', '{"c2_evidence":"%s","c1":1,"c2b":1,"c2c":1,"p1":0,"p2":0}' % EV)
+check("C4 유효 인용 → c2a=1, 보상 1.0", r['v'].get('c2a') == 1.0 and r['reward'] == 1.0)
+check("C1 이상은 질문 원문을 judge 에 보낸다", 'QUESTION: What modality?' in p)
+r, _ = run_cfg('C4', '{"c2_evidence":"없는 문장입니다 정말로","c1":1,"c2b":1,"c2c":1,"p1":0,"p2":0}')
+check("C4 인용이 think 에 없으면 c2a·c2b·c2c = 0 → 5/10", r['v']['c2b'] == 0 and abs(r['reward'] - 0.5) < 1e-9)
+r, p = run_cfg('C0', '{"c1":1,"c2":1,"c4":1}')
+check("C0 은 질문 대신 '(see image)'", 'QUESTION: (see image)' in p)
+_orig = M.code_correct; M.code_correct = lambda c, ref: True
+try:
+    r, p = run_cfg('C2', '{"c2":1,"c4":1}')
+finally:
+    M.code_correct = _orig
+check("C2 코드가 정답이라 하면 c1 은 judge 에 묻지 않고 1", '"c1"' not in p and r['v']['c1'] == 1.0 and r['reward'] == 1.0)
+r, _ = run_cfg('C4', '{}', comp='<answer>X-ray</answer>')
+check("형식 위반은 judge 호출 없이 0", r['err'] == 'format' and r['reward'] == 0.0)
+
 print(f"\n== 결과: {PASS} pass / {FAIL} fail ==")
 sys.exit(1 if FAIL else 0)

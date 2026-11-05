@@ -107,9 +107,50 @@ def check(probe_dir, tok_dir):
     print(f'판정: C1 교사가 학생 답을 받음 {ok["C1"]}/{n} · C2 꼬리 정렬 일치 {ok["C2"]}/{n} · C3 top-20 포함 {inc[0]}/{inc[1]} = {inc[0] / max(1, inc[1]):.4f}')
 
 
+def run46(probe_dir, swift_args):
+    """ms-swift 4.6.0 용. 교사 요청은 샘플에서 만들어지고 위치는 앞에서부터 맞춘다(gkd_helpers.assemble_teacher_output).
+    조립이 끝난 교사 top-k 텐서에서 바로 C3 을 잰다 — 학습이 실제로 쓰는 값이라 정렬이 맞는지가 그대로 드러난다."""
+    os.makedirs(probe_dir, exist_ok=True)
+    import torch
+    from swift.rlhf_trainers.gkd_trainer import GKDTrainer
+    cnt = [0]
+    orig = GKDTrainer._fetch_and_assemble_teacher_logprobs
+
+    def wrapped(self, chunks):
+        reqs = [r for c in chunks for r in c.get('_teacher_requests', [])]
+        info = [{'roles': [m.get('role') for m in getattr(r, 'messages', [])],
+                 'last_content_type': type((getattr(r, 'messages', None) or [{}])[-1].get('content')).__name__} for r in reqs]
+        orig(self, chunks)
+        for c in chunks:
+            ids, lab = c['teacher_model_inputs']['input_ids'], c['teacher_model_inputs'].get('labels')
+            top = c['gkd_batch'].teacher_topk_indices
+            if lab is None or top is None: continue
+            nxt, m = ids[:, 1:], (lab[:, 1:] != -100)          # 위치 p 의 교사 분포는 토큰 p+1 을 예측한다
+            hit = (top[:, :-1, :20] == nxt.unsqueeze(-1)).any(-1)
+            cnt[0] += 1
+            with open(f'{probe_dir}/call_{cnt[0]:03d}.json', 'w') as f:
+                json.dump({'requests': info, 'n_pos': int(m.sum()), 'n_in_top20': int((hit & m).sum())}, f)
+
+    GKDTrainer._fetch_and_assemble_teacher_logprobs = wrapped
+    sys.argv = ['swift-rlhf'] + swift_args
+    from swift.pipelines import rlhf_main
+    rlhf_main()
+
+
+def check46(probe_dir):
+    C = [json.load(open(f'{probe_dir}/{f}')) for f in sorted(os.listdir(probe_dir)) if f.startswith('call_')]
+    roles = [r['roles'] for c in C for r in c['requests']]
+    got = sum(1 for r in roles if r and r[-1] == 'assistant')
+    n, h = sum(c['n_pos'] for c in C), sum(c['n_in_top20'] for c in C)
+    print(f'호출 {len(C)} · 요청 {len(roles)} · 예: roles={roles[:1]} last={[r["last_content_type"] for c in C for r in c["requests"]][:1]}')
+    print(f'판정46: C1 교사 요청에 학생 답(assistant) {got}/{len(roles)} · C3 학생 응답 위치의 다음 토큰이 교사 top-20 {h}/{n} = {h / max(1, n):.4f}')
+
+
 if __name__ == '__main__':
     cmd = sys.argv[1] if len(sys.argv) > 1 else 'selftest'
     if cmd == 'selftest': selftest()
     elif cmd == 'run': run(sys.argv[2], sys.argv[sys.argv.index('--') + 1:])
     elif cmd == 'check': check(sys.argv[2], sys.argv[3])
+    elif cmd == 'run46': run46(sys.argv[2], sys.argv[sys.argv.index('--') + 1:])
+    elif cmd == 'check46': check46(sys.argv[2])
     else: sys.exit(__doc__)

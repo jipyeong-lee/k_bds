@@ -5,6 +5,7 @@
 #   (init 모델은 HF 의 통합 모델 ta_w07 — pod 에서 받는다. 구 kbds/dr_grpo_merged 는 지웠다. KISTI work/checkpoints 에 있다)
 # env(필수): JUDGE_API_KEY=$KHDP_PAT — exec 의 env 로 넘긴다. 파일에 남기지 말 것. HF_TOKEN 도 pod env 로(모델 저장소가 비공개).
 # env(선택): MODEL_HF — 기본 easypyeong/Qwen3.5-9B-MedCrossReason(통합 모델 ta_w07)
+# env(선택): RUBRIC_CONFIG(C0~C4 루브릭 조합) · RUBRIC_EVIDENCE(0/1, 기본 1) · JUDGE_BASE_URL/JUDGE_MODEL(기본 KHDP; kgpu API 면 https://api.kgpu.net/v1 + JUDGE_API_KEY=$KGPU_API_TOKEN)
 # env(선택): NUM_GEN·MAX_COMP·PDTBS·ACCUM·MAX_STEPS — 기본은 3 step 스모크, 키우면 step 시간 측정용
 # 무거운 산출물은 pod 로컬(/root/w)에 둔다 — ~/files 는 네트워크 공유라 작은 파일 대량 생성 금지.
 set -uo pipefail
@@ -35,8 +36,8 @@ if [ ! -f "$W/data/medix.jsonl" ]; then
 fi
 wc -l "$W/data/medix.jsonl"
 
-stamp "4) swift rlhf — ${MAX_STEPS:=3} step, judge=KHDP ${JUDGE_MODEL:=deepseek-v4-1-flash-ax}, 증거 게이트 ON"
-export JUDGE_BASE_URL=${JUDGE_BASE_URL:-https://api.khdp.net/v1} JUDGE_MODEL RUBRIC_EVIDENCE=1 JUDGE_DEBUG=1
+stamp "4) swift rlhf — ${MAX_STEPS:=3} step, judge=${JUDGE_MODEL:=deepseek-v4-1-flash-ax} @ ${JUDGE_BASE_URL:-https://api.khdp.net/v1}, RUBRIC_CONFIG=${RUBRIC_CONFIG:-C0}, 증거 게이트 ${RUBRIC_EVIDENCE:-1}"
+export JUDGE_BASE_URL=${JUDGE_BASE_URL:-https://api.khdp.net/v1} JUDGE_MODEL RUBRIC_EVIDENCE=${RUBRIC_EVIDENCE:-1} JUDGE_DEBUG=1
 SYS="You are a multimodal reasoning assistant. Carefully examine the image(s) and reason step by step INSIDE <think> </think>, keeping the reasoning concise. Then give ONLY the final answer INSIDE <answer> </answer>. For multiple-choice, put only the letter, e.g. <answer>A</answer>."
 "$VENV/bin/swift" rlhf --rlhf_type grpo \
   --model "$W/model" --model_type qwen3_5 --system "$SYS" --dataset "$W/data/medix.jsonl" \

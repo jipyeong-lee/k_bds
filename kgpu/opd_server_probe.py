@@ -132,6 +132,20 @@ def run46(probe_dir, swift_args):
                 json.dump({'requests': info, 'n_pos': int(m.sum()), 'n_in_top20': int((hit & m).sum())}, f)
 
     GKDTrainer._fetch_and_assemble_teacher_logprobs = wrapped
+
+    import swift.rlhf_trainers.rollout_mixin as RM   # 교사 응답이 prompt_logprobs 를 실제로 담았는지 기록한다(없으면 조용히 빈 목록이 된다)
+    orig_parse, pc = RM.parse_prompt_logprobs, [0]
+    def parse(response, topk):
+        # 4.6.0 결함 우회: 서버는 prompt_logprobs 를 RolloutOutput.response 안에 넣는데 trainer 는 바깥 필드를 읽어 항상 빈 목록이 된다(실측 4/4 None, loss 0)
+        if getattr(response, 'prompt_logprobs', None) is None and getattr(response, 'response', None) is not None:
+            response = response.response
+        raw = getattr(response, 'prompt_logprobs', None)
+        pc[0] += 1
+        with open(f'{probe_dir}/parse_{pc[0]:03d}.json', 'w') as f:
+            json.dump({'raw_is_none': raw is None, 'raw_len': len(raw or []), 'topk': topk,
+                       'entry1_n': len(raw[1]) if raw and len(raw) > 1 and raw[1] else 0}, f)
+        return orig_parse(response, topk)
+    RM.parse_prompt_logprobs = parse
     sys.argv = ['swift-rlhf'] + swift_args
     from swift.pipelines import rlhf_main
     rlhf_main()
@@ -143,6 +157,8 @@ def check46(probe_dir):
     got = sum(1 for r in roles if r and r[-1] == 'assistant')
     n, h = sum(c['n_pos'] for c in C), sum(c['n_in_top20'] for c in C)
     print(f'호출 {len(C)} · 요청 {len(roles)} · 예: roles={roles[:1]} last={[r["last_content_type"] for c in C for r in c["requests"]][:1]}')
+    P = [json.load(open(f'{probe_dir}/{f}')) for f in sorted(os.listdir(probe_dir)) if f.startswith('parse_')]
+    print(f'교사 응답 {len(P)} · prompt_logprobs 없음 {sum(p["raw_is_none"] for p in P)} · 길이 {[p["raw_len"] for p in P][:8]} · 위치당 항목수 {[p["entry1_n"] for p in P][:8]}')
     print(f'판정46: C1 교사 요청에 학생 답(assistant) {got}/{len(roles)} · C3 학생 응답 위치의 다음 토큰이 교사 top-20 {h}/{n} = {h / max(1, n):.4f}')
 
 

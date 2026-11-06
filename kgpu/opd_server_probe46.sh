@@ -42,12 +42,12 @@ tar xf "$F/opd_dv/dv_images.tar" -C "$IMG" -T "$W/dv_need.txt" --no-same-owner |
 SYS="You are a multimodal reasoning assistant. Carefully examine the image(s) and reason step by step INSIDE <think> </think>, keeping the reasoning concise. Then give ONLY the final answer INSIDE <answer> </answer>. For multiple-choice, put only the letter, e.g. <answer>A</answer>."
 SRV=
 serve(){   # $1 = 교사 템플릿
-  CUDA_VISIBLE_DEVICES=0 "$VENV/bin/swift" rollout --model "$W/teacher" --model_type qwen3_5 --template "$1" \
+  CUDA_VISIBLE_DEVICES=0 setsid "$VENV/bin/swift" rollout --model "$W/teacher" --model_type qwen3_5 --template "$1" \
     --vllm_gpu_memory_utilization $TEACHER_UTIL --vllm_max_model_len $(( 4096 + MAX_COMP )) --vllm_enforce_eager true \
     --vllm_limit_mm_per_prompt '{"image": 1}' --max_pixels $MAXPIX --host 127.0.0.1 --port $PORT > "$W/serve_$COND.log" 2>&1 & SRV=$!
   for i in $(seq 1 90); do
     curl -s http://127.0.0.1:$PORT/health/ >/dev/null 2>&1 && { stamp "교사 READY ($COND)"; return 0; }
-    kill -0 $SRV 2>/dev/null || break; sleep 10
+    sleep 10   # setsid 가 pid 를 바꿔 kill -0 로는 생사를 못 본다
   done
   echo "❌ 교사 서버 기동 실패 ($COND)"; tail -40 "$W/serve_$COND.log"; return 1
 }
@@ -70,7 +70,8 @@ probe(){
   grep -a -E "Error|Traceback|differs from" "$W/serve_$COND.log" | tail -n 20 > "$F/logs/opd_probe46_${COND}_serve_err.log"
 }
 stop(){   # 서버를 끄고 포트가 닫힐 때까지 기다린다(안 기다리면 다음 조건이 옛 서버의 /health/ 에 속아 'READY' 가 된다)
-  kill $SRV 2>/dev/null; sleep 5; G=$(nvidia-smi --query-compute-apps=pid --format=csv,noheader); [ -n "$G" ] && kill -9 $G 2>/dev/null
+  kill -- -$SRV 2>/dev/null; kill $SRV 2>/dev/null; sleep 5;  # 프로세스 그룹째(엔진 자식 포함) 끈다 — 안 그러면 GPU 메모리가 남아 다음 조건 학생 vLLM 이 죽는다
+ G=$(nvidia-smi --query-compute-apps=pid --format=csv,noheader); [ -n "$G" ] && kill -9 $G 2>/dev/null
   for i in $(seq 1 30); do curl -s http://127.0.0.1:$PORT/health/ >/dev/null 2>&1 || break; sleep 2; done; sleep 5; }
 
 COND=A_qwen3_8; stamp "5) 조건 A — 교사 템플릿 qwen3_8(기본)"

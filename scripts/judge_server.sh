@@ -19,9 +19,12 @@ MAXLEN="${JUDGE_MAX_LEN:-8192}"
 UTIL="${JUDGE_GPU_UTIL:-0.92}"
 TP="${JUDGE_TP:-1}"           # tensor parallel (1gpu=1, 2gpu=2)
 
+JH="/tmp/judge_home_${USER}"; mkdir -p "$JH"   # 컨테이너 HOME 이 읽기 전용이라 flashinfer·vllm 이 쓸 곳을 따로 둔다
 echo "[judge] MODEL=$MODEL PORT=$PORT MAXLEN=$MAXLEN UTIL=$UTIL TP=$TP"
 exec singularity exec --nv \
   --env HF_HUB_OFFLINE=1 \
+  --env HOME="$JH" --env XDG_CACHE_HOME="$JH/.cache" --env XDG_CONFIG_HOME="$JH/.config" --env FLASHINFER_WORKSPACE_BASE="$JH" \
+  --env TRITON_CACHE_DIR="${TRITON_CACHE_DIR:-/tmp/triton_cache_${USER}}" \
   "$SB" vllm serve "$MODEL" \
     --served-model-name qwen38-judge \
     --max-model-len "$MAXLEN" \

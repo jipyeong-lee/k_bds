@@ -58,7 +58,7 @@ from math_verify import parse, verify
 src, out = sys.argv[1:3]
 SYS = ("You are a multimodal reasoning assistant. Carefully examine the image(s) and reason step by step INSIDE <think> </think>, "
        "keeping the reasoning concise. Then give ONLY the final answer INSIDE <answer> </answer>. For multiple-choice, put only the letter, e.g. <answer>A</answer>.")
-cli = AsyncOpenAI(base_url='http://127.0.0.1:8000/v1', api_key='x', timeout=1800); sem = asyncio.Semaphore(16)
+cli = AsyncOpenAI(base_url='http://127.0.0.1:8000/v1', api_key='x', timeout=1800); sem = asyncio.Semaphore(int(os.environ.get('SEM', 32)))  # 동시 문항 수. 16 이면 서버에 요청이 ~58개뿐이라 GPU 가 남았다
 rows = [json.loads(l) for l in open(f'{src}/rows.jsonl')]
 def ok(text, sol):   # <answer> 안의 내용만 비교한다. 없으면 오답
     m = re.findall(r'<answer>(.*?)</answer>', text, re.S)

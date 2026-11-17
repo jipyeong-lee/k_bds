@@ -54,4 +54,6 @@ if out:
     for k in ('short', 'fix'):
         xs = [x for x in out if x['kind'] == k]
         if xs: print(k, len(xs), '좋은 답 중앙 단어', S.median(w(x['messages'][2]['content']) for x in xs), '나쁜 답 중앙 단어', S.median(w(x['rejected_response']) for x in xs))
-assert all(x['messages'][2]['content'].count('</think>') == 1 and x['messages'][2]['content'].endswith('</answer>') for x in out)   # 형식 점검
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))   # -I 로 실행하면 스크립트 폴더가 경로에 없다
+from fmt_strict import strict
+assert all(strict(x['messages'][2]['content']) for x in out)   # 좋은 답 100% 엄격 형식(`</think>` 와 `<answer>` 사이 설명 금지)

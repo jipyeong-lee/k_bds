@@ -19,6 +19,7 @@ ms-swift 4.x 등록: from swift.rewards import ORM, orms; orms['accuracy_mix']=C
   사용: --external_plugins configs/accuracy.py --reward_funcs accuracy_mix format_think
        (+ --enable_thinking true 로 롤아웃 추론 템플릿 보장)
 """
+import os
 import re
 from typing import List
 
@@ -32,8 +33,11 @@ _LETTER_PICK = re.compile(r'^\(?([A-Ha-h])\)?[\s.):]', re.DOTALL)
 
 
 def _strip_answer(text):
-    m = _ANS_RE.search(text)
-    return (m.group(1).strip() if m else text.strip())
+    # 마지막 </think> 뒤의 마지막 <answer> 를 쓴다. 첫 태그를 쓰면 추론 중에 시스템 프롬프트 예시
+    # "<answer>A</answer>" 를 되뇐 것이 답으로 채점된다(풀이 줄이기 6차 시작 모델 롤아웃, 2026-11-11).
+    tail = text.rsplit('</think>', 1)[-1]
+    hits = _ANS_RE.findall(tail) or _ANS_RE.findall(text)
+    return hits[-1].strip() if hits else text.strip()
 
 
 # === 태그 없는 출력의 letter 폴백 ======================================
@@ -92,6 +96,12 @@ def _norm_pred(ans):
     return ans
 
 
+def _same(pred, gold):
+    """양쪽에 같은 정규화(\\boxed 해제·바깥 괄호·끝점·공백 제거, 대소문자 무시)를 하고 비교한다."""
+    f = lambda s: re.sub(r'\s+', '', _norm_pred(str(s))).casefold()
+    return f(pred) == f(gold) != ''
+
+
 def _letter_match(pred_ans, gold_letter):
     p = _norm_pred(pred_ans)
     if _LETTER_RE.match(p):
@@ -123,9 +133,10 @@ class AccuracyMix(ORM):
             if len(gold_parsed) != 0:
                 try:
                     ans_parsed = parse(ans, extraction_mode='first_match')
-                    rewards.append(float(verify(gold_parsed, ans_parsed)))
+                    ok = bool(verify(gold_parsed, ans_parsed))
                 except Exception:
-                    rewards.append(0.0)
+                    ok = False
+                rewards.append(float(ok or _same(ans, gold)))   # "[2]" 대 "2" 처럼 verify 가 놓치는 같은 답
                 continue
             # 2) 객관식 letter 경로
             if _LETTER_RE.match(gold):
@@ -138,8 +149,8 @@ class AccuracyMix(ORM):
                     rewards.append(0.0 if got is None
                                    else float(got == gold.upper()))
                 continue
-            # 3) 기타 짧은 문자열: 정규화 일치
-            rewards.append(float(_norm_pred(ans).casefold() == gold.casefold()))
+            # 3) 기타 짧은 문자열: 양쪽을 같게 정규화해 비교한다(정답만 그대로 두면 "(i)(ii)(iv)" 가 자기 자신과 다르다)
+            rewards.append(float(_same(ans, gold)))
         return rewards
 
 
@@ -153,6 +164,8 @@ orms['accuracy_mix'] = AccuracyMix
 _THINK_RE = re.compile(r'<think>(.*?)</think>', re.DOTALL)
 _FULL_RE = re.compile(r'^<think>.*?</think>\s*<answer>.*?</answer>(?![\s\S])',
                       re.DOTALL | re.MULTILINE)
+_LOOSE_RE = re.compile(r'^<think>.*?</think>[\s\S]*?<answer>.*?</answer>(?![\s\S])',
+                       re.DOTALL | re.MULTILINE)   # FMT_PREAMBLE_OK=1: `</think>` 뒤 설명을 받아 준다(6차 모델의 습관, 2026-11-12)
 _MIN_THINK_CHARS = 16        # think 내부 실질 추론 최소 길이(공백 제외). 빈/사소한 think 차단.
 _PARTIAL_CREDIT = 0.5        # 추론은 마쳤으나 답 봉투를 못 낸 경우 — 아래 설명
 
@@ -212,7 +225,8 @@ class FormatThink(ORM):
             if len(think) < _MIN_THINK_CHARS:        # 관문 ① 실패 — 추론 건너뛰기
                 rewards.append(0.0)
                 continue
-            rewards.append(1.0 if _FULL_RE.match(text) else _PARTIAL_CREDIT)
+            full = _LOOSE_RE if os.environ.get('FMT_PREAMBLE_OK') == '1' else _FULL_RE
+            rewards.append(1.0 if full.match(text) else _PARTIAL_CREDIT)
         return rewards
 
 

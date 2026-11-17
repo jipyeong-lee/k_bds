@@ -243,6 +243,7 @@ if [[ "${WATCHDOG:-0}" == "1" ]]; then
   python3 "$PROJ_DIR/scripts/watch_format_collapse.py" \
     --log "$WLOG" --verdict "$WVERDICT" --job-id "$SLURM_JOB_ID" \
     ${STOP_STEP:+--stop-step "$STOP_STEP"} \
+    ${FMT_TH:+--fmt-threshold "$FMT_TH"} \
     ${KL_BASELINE_VALUE:+--kl-baseline-value "$KL_BASELINE_VALUE"} \
     --poll "${WATCH_POLL:-120}" &
   WATCH_PID=$!

@@ -20,7 +20,7 @@ Stage-2 도메인 전문가 3종 RLVR 학습. 두 클러스터에서 실행 가�
 | | **KISTI K-BDS** | **Jukyung-Yadok (NHN B200)** |
 |---|---|---|
 | GPU | **`8gpu` 파티션 = A100 80GB PCIe × 8**(2026-08-21 실측 81,920 MiB), NVLink 없음. `1gpu`·`debug-1gpu` 노드만 A100-40GB 다 — 학습을 거기 넣으면 OOM | **8× B200 180GB, NVLink** |
-| 접속 | `ssh k266a01@kbds.kisti.re.kr` (OTP+PW) | HTTP API (PAT), 대화형 셸 없음 |
+| 접속 | `ssh -p 22022 k266a01@kbds.kisti.re.kr` (OTP+PW) | HTTP API (PAT), 대화형 셸 없음 |
 | 실행 | Slurm `sbatch` | 세션 생성 → `exec` → job 폴링 (async) |
 | 속도(실측) | GRPO ~213 s/it | **GRPO ~16–27 s/it (스모크)** |
 | 상태 | 원본 데이터·검증본 보유 | **✅ pmcvqa 스모크 완주(2026-08-14)** |
@@ -115,7 +115,7 @@ bash b200/release_session.sh                        # 세션 조회 / --all-gpu 
 ---
 
 ## 2. KISTI K-BDS (원본)
-- `ssh k266a01@kbds.kisti.re.kr`(PW+OTP, 대화형). 최초 1회 후 ControlMaster 8h 재사용.
+- `ssh -p 22022 k266a01@kbds.kisti.re.kr`(PW+OTP, 대화형. **2026-11-16 부터 포트 22 → 22022**, `~/.ssh/config` 의 `kbds266` 별칭에 반영). 최초 1회 후 ControlMaster 8h 재사용.
 - `~/kbds_project`, 데이터 `work/`(~305G, git 제외). 상세 [`HANDOFF.md`](HANDOFF.md)·[`README.md`](README.md).
 - **계산 노드는 외부망이 전혀 없다**(DNS 도 실패, job 82390). 외부 judge API(KHDP)는 KISTI 학습에서 못 쓴다.
 - 원격 셸은 `/bin/sh`, curl 은 7.29 → 스크립트는 `ssh … bash -s` 로, 헤더는 `-K <config>` 로 넘긴다(`-H @file`·프로세스 치환 불가).
@@ -144,3 +144,9 @@ judge 는 KHDP `deepseek-v4-1-flash-ax`(`JUDGE_API_KEY=$KHDP_PAT` 를 pod env �
 | 학습 프레임워크 | ms-swift 4.1.3 · `loss_type=dr_grpo` + `scale_rewards=gdpo` + `async_generate=true` · num_gen 16 (B200. KISTI/kgpu 는 8) |
 | off-policy 보정 | `rollout_importance_sampling_mode=token_truncate` (threshold 2.0) · `beta=0` · `temperature=1.0` |
 | 버전 | 최신은 4.5.0 이지만 **mismatch 관련 인자가 4.1.3 과 동일** → 업그레이드 이득 없음(인자 diff 확인) |
+
+## 4. 로컬 대시보드 기록 (`dashboard/` 는 gitignore — 이 PC 에만 있다)
+작업을 끝내거나 결과를 읽을 때마다 달력에 한 줄 남긴다. 같은 제목은 갱신된다(진행 중 → 끝남).
+`python3 dashboard/note.py "제목" 끝남 "한 일" "결과" "해석" [--key "그날 핵심 한 줄"]` — 쉬운 문장 규칙(한 문장 80자, 줄임말 풀어 쓰기) 위반이면 쓰지 않는다.
+새 pod·작업 이름을 쓰면 `dashboard/index.html` 의 `PURPOSE` 에 목적 한 줄을 더한다(이름 앞부분으로 찾아서, 이름을 재사용하면 옛 설명이 붙는다).
+숫자·상태·커밋·결정 기록은 `dashboard/live_refresh.py` 가 입력 변화를 보고 `data.js` 를 다시 만들고 열린 화면이 스스로 새로고침한다(꺼져 있으면 `python3 dashboard/build_data.py`).

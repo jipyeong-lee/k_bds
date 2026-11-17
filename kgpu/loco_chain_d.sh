@@ -4,8 +4,9 @@
 # 각 조각은 결과 파일 loco/rollouts_dN.jsonl 이 생길 때까지 최대 3번 시도한다(시작 실패 시 pod 가 바로 반납되기 때문).
 cd "$(dirname "$0")/.." || exit 1
 have() { curl -s -H "Authorization: Bearer $KGPU_API_TOKEN" https://api.kgpu.net/v1/files/kbds/loco | grep -q "rollouts_d$1.jsonl"; }
-echo "[$(date +%H:%M)] d2 끝나길 기다림"; until have 2; do sleep 120; done; echo "[$(date +%H:%M)] d2 완료"
-for n in 3 4 5 6 7 8; do
+W=${WAIT:-2}; FROM=${FROM:-3}   # 다시 띄울 때: 이미 도는 조각 W 가 끝나길 기다린 뒤 FROM 부터 이어 돌린다
+echo "[$(date +%H:%M)] d$W 끝나길 기다림"; until have $W; do sleep 120; done; echo "[$(date +%H:%M)] d$W 완료"
+for n in $(seq $FROM 8); do
   for try in 1 2 3; do
     have $n && break
     echo "[$(date +%H:%M)] d$n 시작(시도 $try)"

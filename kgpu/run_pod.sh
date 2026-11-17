@@ -30,7 +30,7 @@ echo "[$(date +%T)] pod $POD"
 ex(){ python3 -c 'import json,sys;print(json.dumps({"cmd":["bash","-c",sys.argv[1]],"timeout_seconds":120}))' "$1" |
       api -X POST $B/pods/$POD/exec -H 'Content-Type: application/json' -d @- | python3 -c 'import json,sys;d=json.load(sys.stdin);print(d.get("stdout",d),end="")'; }
 
-for i in $(seq 60); do
+for i in $(seq ${READY_WAIT:-240}); do   # 10초×N. 60(10분)은 자리가 없을 때 Pending 으로 실패했다(2026-11-12)
   [ "$(api $B/pods/$POD | python3 -c 'import json,sys;print(json.load(sys.stdin).get("ready"))')" = True ] && break; sleep 10
 done
 # ~/files 에서 바로 실행하면 Errno 121 → pod 로컬로 복사해서 실행

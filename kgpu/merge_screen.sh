@@ -14,7 +14,7 @@ export HF_HOME=$W/hf UV_CACHE_DIR=$W/uv UV_HTTP_TIMEOUT=180 PIP_DISABLE_PIP_VERS
 SYS="You are a multimodal reasoning assistant. Carefully examine the image(s) and reason step by step INSIDE <think> </think>, keeping the reasoning concise. Then give ONLY the final answer INSIDE <answer> </answer>. For multiple-choice, put only the letter, e.g. <answer>A</answer>."
 nvidia-smi -L
 # 병합이 필요 없는 기준선(base·sft)만 돌릴 때는 전문가 병합·mergekit 설치를 건너뛴다
-NEED_MERGE=$(printf "%s\n" $CANDS | grep -vxE "base|sft" | head -1)
+NEED_MERGE=$(printf "%s\n" $CANDS | grep -vxE "base|sft|loco[0-9_]+" | head -1)
 
 stamp "1) code·base·data·ckpt → pod 로컬"
 tar xzf "$F/code.tgz" -C "$W" --no-same-owner || { echo "❌ code.tgz"; exit 1; }
@@ -75,6 +75,14 @@ for c in ${CANDS:?CANDS}; do
              || { echo "❌ download base"; continue; }
            serve_eval "$c" "$W/qwen" ;;
     exp_*) stamp "4) [$c] 기준선"; serve_eval "$c" "$W/$c" ;;
+    loco[0-9]*)  # 풀이 줄이기 N차 = 공개 Qwen3.5-9B(base 와 같은 revision) + loco/adapter_vN 병합
+           stamp "4) [$c] 공개 Qwen3.5-9B + loco/adapter_v${c#loco}"
+           [ -d "$W/qwen" ] || "$PY" -c "from huggingface_hub import snapshot_download as d; d('Qwen/Qwen3.5-9B', revision='c202236235762e1c871ad0ccb60c8ee5ba337b9a', local_dir='$W/qwen')" \
+             || { echo "❌ download base"; continue; }
+           rm -rf "$W/qwen/.cache"   # 내려받기 캐시 폴더 — merge_experts.py 가 base 의 파일을 복사하다 IsADirectoryError 로 멈춘다(2026-11-10)
+           rm -rf "$W/ad" "$W/m"; cp -r "$F/loco/adapter_v${c#loco}" "$W/ad" || { echo "❌ adapter $c"; continue; }   # ~/files 에서 바로 읽으면 Errno 121
+           "$PY" "$W/merge_experts.py" --base "$W/qwen" --adapters "$W/ad" --weights 1.0 --out "$W/m" || { echo "❌ merge $c"; continue; }
+           serve_eval "$c" "$W/m" ;;
     *)
       stamp "4) [$c] mergekit"
       rm -rf "$W/m"

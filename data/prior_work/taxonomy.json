@@ -1,0 +1,290 @@
+{
+ "title": "K-BDS Prior Work",
+ "description": "RL 에서 답 길이 한도를 키우는 일, 길이 벌점과 DPO, 긴 시퀀스 메모리, 어려운 문항 선별, 멀티모달·의료 RL, 루브릭·judge 보상에 관한 선행연구다. 초록이나 본문 일부를 읽고 정리했다.",
+ "asOf": "2026-11-23",
+ "defaultField": "length-scaling",
+ "families": [
+  {
+   "id": "length",
+   "name": "답 길이",
+   "description": "RL 중 답 길이를 한도, 벌점, 중단으로 다루는 방법"
+  },
+  {
+   "id": "system",
+   "name": "시스템·메모리",
+   "description": "긴 시퀀스를 GPU 에 올리는 메모리 기법"
+  },
+  {
+   "id": "data",
+   "name": "데이터·난이도",
+   "description": "어떤 문항으로 RL 하는가"
+  },
+  {
+   "id": "vlm",
+   "name": "멀티모달·의료 RL",
+   "description": "VLM 에 RL 을 얹는 레시피와 데이터"
+  },
+  {
+   "id": "reward",
+   "name": "보상·judge",
+   "description": "정답이 하나로 정해지지 않는 영역의 보상 설계와 judge 의 신뢰"
+  }
+ ],
+ "fields": [
+  {
+   "id": "length-scaling",
+   "family": "length",
+   "name": "길이 한도 키우기",
+   "question": "RL 중 답 길이 한도를 6k 에서 8k 이상으로 어떻게 올리는가?",
+   "overview": "선행연구는 한도를 단계적으로 올리거나(Magistral 16k→24k→32k, FastCuRL, MiniMax-M1 40K→80K), 큰 고정 한도에서 안정화 기법을 쓴다(ScaleRL).",
+   "flow": [
+    "현재 한도(6,144)와 잘림 비율",
+    "단계별 한도 확장 또는 고정 한도 + 안정화",
+    "더 긴 풀이를 허용한 정책"
+   ],
+   "use": "우리 6,144 한도는 8차 모델에 맞는지 검증하지 않았다. 올리려면 메모리 분야의 방법과 함께 본다.",
+   "approaches": [
+    {
+     "id": "staged",
+     "name": "단계적 한도 확장",
+     "text": "학습 중 한도를 단계로 올린다."
+    },
+    {
+     "id": "fixed-budget",
+     "name": "고정 한도 + 안정화",
+     "text": "한도를 고정하고 손실·필터링·중단으로 안정시킨다."
+    }
+   ]
+  },
+  {
+   "id": "length-penalty",
+   "family": "length",
+   "name": "길이 벌점과 중단",
+   "question": "잘린 답과 긴 답에 벌점이나 중단을 어떻게 걸어야 하는가?",
+   "overview": "DAPO 는 완충 구간 벌점과 loss 마스크를 쓴다. ScaleRL 은 강제 중단을 쓴다. DLER 는 단순 절단에 최적화 보정을 더한다. Dr. GRPO 는 길이 편향 자체를 고친다.",
+   "flow": [
+    "잘림 비율과 SoftOverlong 보상",
+    "벌점 식, 마스크, 강제 중단",
+    "길이와 정확도의 균형"
+   ],
+   "use": "우리는 soft_cache 2,048 과 overlong_filter=false 를 쓴다. 끈 이유가 beta 0 에서도 성립하는지는 시험하지 않았다.",
+   "approaches": [
+    {
+     "id": "overlong-filter",
+     "name": "잘린 답 마스크",
+     "text": "잘린 답의 loss 를 학습에서 뺀다."
+    },
+    {
+     "id": "soft-overlong",
+     "name": "완충 구간 벌점",
+     "text": "한도 앞 구간에서 길이에 따라 벌점을 준다."
+    },
+    {
+     "id": "interrupt",
+     "name": "강제 중단",
+     "text": "긴 생성 끝에 종료 문구를 붙여 멈춘다."
+    },
+    {
+     "id": "reward-shaping",
+     "name": "길이 보상 설계",
+     "text": "길이를 보상 식에 넣는다."
+    },
+    {
+     "id": "truncation",
+     "name": "절단 벌점",
+     "text": "한도 초과를 실패로 처리한다."
+    },
+    {
+     "id": "loss-bias",
+     "name": "길이 편향 교정",
+     "text": "손실 정규화로 생기는 길이 편향을 고친다."
+    }
+   ]
+  },
+  {
+   "id": "memory",
+   "family": "system",
+   "name": "긴 시퀀스 메모리",
+   "question": "긴 시퀀스 RL 의 GPU 메모리를 어떻게 줄이는가?",
+   "overview": "logits, activation, 파라미터·옵티마이저 상태, KV cache 네 곳이 길이에 따라 큰다. 각각 CCE·Liger, checkpointing, ZeRO·Ulysses, PagedAttention 이 다룬다.",
+   "flow": [
+    "GPU 메모리 최고점",
+    "logits·activation·shard·KV cache 별 절감",
+    "더 긴 시퀀스와 같은 GPU"
+   ],
+   "use": "우리는 DDP, gradient checkpointing, vLLM colocate(0.4)를 쓴다. ZeRO-3 는 NVLink 없는 환경에서 느리다고 기록돼 있다.",
+   "approaches": [
+    {
+     "id": "loss-logits",
+     "name": "logits 메모리 절감",
+     "text": "전체 logits 행렬을 만들지 않고 손실을 계산한다."
+    },
+    {
+     "id": "activation",
+     "name": "activation 재계산",
+     "text": "계산을 메모리와 맞바꾼다."
+    },
+    {
+     "id": "sharding",
+     "name": "상태·시퀀스 분할",
+     "text": "파라미터·옵티마이저 상태나 시퀀스를 GPU 에 나눈다."
+    },
+    {
+     "id": "kv-cache",
+     "name": "KV cache 관리",
+     "text": "KV cache 의 단편화와 중복을 줄인다."
+    }
+   ]
+  },
+  {
+   "id": "length-dpo",
+   "family": "length",
+   "name": "DPO·RPO 로 길이 다루기",
+   "question": "선호 최적화(DPO·RPO)로 풀이 길이를 어떻게 다루는가?",
+   "overview": "Iterative RPO 는 DPO 에 NLL 항을 더해 정답 추론을 높인다. R-DPO 는 DPO 의 길이 악용을 정규화로 막는다. 우리 풀이 줄이기는 짧은 답을 chosen 으로 하는 쌍을 쓴다.",
+   "flow": [
+    "선호 쌍(chosen·rejected)",
+    "DPO 손실 + NLL 항 또는 길이 정규화",
+    "길이와 정확도가 바뀐 모델"
+   ],
+   "use": "우리 8차는 RPO(rpo_alpha 1.0)로 엄격 형식 통과율을 올렸다. 이 정의가 논문과 같은지는 확인하지 않았다.",
+   "approaches": [
+    {
+     "id": "nll",
+     "name": "DPO + NLL 항",
+     "text": "chosen 답의 log-likelihood 항을 DPO 손실에 더한다."
+    },
+    {
+     "id": "length-reg",
+     "name": "길이 정규화",
+     "text": "DPO 가 긴 답을 선호로 악용하지 못하게 정규화한다."
+    }
+   ]
+  },
+  {
+   "id": "hard-data",
+   "family": "data",
+   "name": "어려운 문항 선별",
+   "question": "어려운 문항을 어떻게 고르고, 풀 수 없는 문항은 어떻게 다루는가?",
+   "overview": "ThinkLite-VL 은 어렵지만 풀 수 있는 표본을 고른다. Concise Reasoning 은 풀 수 없는 문항이 학습을 지배하면 답이 길어진다고 보인다. VL-Rethinker 는 vanishing advantages 를 표본 replay 로 푼다.",
+   "flow": [
+    "문항별 정답률 또는 난이도",
+    "난이도 선별, 풀 수 있는 부분집합, replay",
+    "더 효율적으로 학습하는 RL 데이터"
+   ],
+   "use": "우리 hard pool 은 5차 원본 rollout 의 1/4·2/4 문항 2,010개다. 0/4 는 뺐다. 8차 모델 기준 난이도는 다시 재지 않았다.",
+   "approaches": [
+    {
+     "id": "difficulty-select",
+     "name": "난이도 선별",
+     "text": "난이도 지표로 어려운 표본만 남긴다."
+    },
+    {
+     "id": "solvable-subset",
+     "name": "풀 수 있는 부분집합",
+     "text": "풀 수 없는 문항을 빼거나 풀 수 있는 문항으로 보정 단계를 둔다."
+    },
+    {
+     "id": "replay",
+     "name": "표본 재사용",
+     "text": "advantage 가 사라진 그룹 대신 이전 유효 표본을 다시 쓴다."
+    }
+   ]
+  },
+  {
+   "id": "vlm-rl",
+   "family": "vlm",
+   "name": "멀티모달·의료 VLM 의 RL",
+   "question": "멀티모달·의료 VLM 에 RL 을 어떻게 얹는가?",
+   "overview": "Vision-R1 과 Patho-R1 은 CoT 데이터로 시작한 뒤 GRPO 를 한다. MedVLM-R1 과 VL-Rethinker 는 증류 없이 RL 만 쓴다. DeepVision-103K 는 RLVR 용 데이터를 준다.",
+   "flow": [
+    "시작 모델과 RL 데이터",
+    "콜드스타트 후 RL 또는 RL 만",
+    "추론하는 VLM"
+   ],
+   "use": "우리 Stage-2 는 8차 75 step 에서 시작해 deepvision 으로 GRPO 한다. 이 선행연구들은 대부분 2B~7B 모델이다. 9B 비교는 없다.",
+   "approaches": [
+    {
+     "id": "cold-start",
+     "name": "콜드스타트 후 RL",
+     "text": "CoT 데이터로 먼저 SFT 한 뒤 RL 을 한다."
+    },
+    {
+     "id": "rl-only",
+     "name": "RL 만",
+     "text": "SFT·증류 없이 RL 로 추론을 끌어낸다."
+    },
+    {
+     "id": "rl-data",
+     "name": "RL 용 데이터",
+     "text": "RLVR 학습용 멀티모달 데이터셋을 만든다."
+    }
+   ]
+  },
+  {
+   "id": "rubric-reward",
+   "family": "reward",
+   "name": "루브릭 보상",
+   "question": "정답이 하나가 아닌 의료 문항에서 루브릭으로 어떻게 보상을 만드는가?",
+   "overview": "RaR 은 문항별 루브릭을 항목별 0/1 로 채점해 가중 평균을 보상으로 쓴다. RLCF 는 지시문에서 체크리스트를 뽑고, Rubicon 은 루브릭을 닻으로 쓰고, OpenRubrics 는 루브릭을 자동으로 만든다. HealthBench 는 의사가 만든 루브릭으로 채점하는 평가다.",
+   "flow": [
+    "문항과 응답",
+    "기준 목록(루브릭·체크리스트)의 항목별 채점과 가중 합",
+    "RL 보상 또는 평가 점수"
+   ],
+   "use": "우리 Stage-3 는 RaR 정적 4항목 루브릭(c1 정답, c2 시각 근거, c3 수치, c4 환각)을 쓴다. 문항별 루브릭 대신 정적 루브릭을 고른 이유는 docs/2026-1차/30_stage3_medical_rl.html 에 있다.",
+   "approaches": [
+    {
+     "id": "instance-rubric",
+     "name": "문항별 루브릭",
+     "text": "문항마다 기준 목록을 만든다."
+    },
+    {
+     "id": "checklist",
+     "name": "체크리스트 피드백",
+     "text": "지시문에서 항목을 뽑고 judge 와 검증 프로그램으로 채점한다."
+    },
+    {
+     "id": "rubric-anchor",
+     "name": "루브릭 닻",
+     "text": "루브릭을 보상과 문체 제어의 기준점으로 쓴다."
+    },
+    {
+     "id": "rubric-gen",
+     "name": "루브릭 자동 생성",
+     "text": "선호·거부 응답을 대조해 루브릭을 만든다."
+    }
+   ]
+  },
+  {
+   "id": "judge-reliability",
+   "family": "reward",
+   "name": "judge 신뢰와 과최적화",
+   "question": "judge 가 주는 보상을 얼마나 믿을 수 있고, 과하게 최적화하면 어떻게 되는가?",
+   "overview": "LLM-as-a-judge 는 장황함·위치·자기 선호 편향이 있다. d-RLAIF 는 RL 중에 judge 가 보상을 직접 준다. 대리 보상을 과하게 최적화하면 진짜 성능이 떨어진다. 생성형 보상 모델은 추론과 병렬 샘플링으로 정확도를 키운다.",
+   "flow": [
+    "judge 와 응답",
+    "편향 측정, 생성형 채점, 최적화 강도 조절",
+    "믿을 수 있는 보상 신호"
+   ],
+   "use": "우리 judge 는 외부 API deepseek-v4-1-flash-ax 이고 beta 0 이다. 장황함 편향과 과최적화는 아직 재지 않았다.",
+   "approaches": [
+    {
+     "id": "llm-judge",
+     "name": "LLM judge 의 편향과 일치도",
+     "text": "judge 편향과 사람과의 일치를 측정한다."
+    },
+    {
+     "id": "generative-rm",
+     "name": "생성형 보상 모델",
+     "text": "추론을 쓰는 judge 와 병렬 샘플링으로 정확도를 키운다."
+    },
+    {
+     "id": "overopt",
+     "name": "보상 과최적화",
+     "text": "대리 보상을 과하게 올릴 때의 진짜 성능 하락을 본다."
+    }
+   ]
+  }
+ ]
+}

@@ -1,0 +1,53 @@
+# KBDS · 이 프로젝트의 판 설정. 플랫폼은 여기 적힌 값만 안다.
+name = "KBDS"
+lang = "ko"          # ko · en
+slug = "kbds"          # 주소와 등록부에 쓰는 짧은 이름. a-z 0-9 - _
+
+# 돌보는 폴더. 이 아래에서 연 에이전트 세션에만 /now 가 붙는다. 프로젝트 뿌리는 늘 든다.
+watch = []
+
+[paths]
+logs = "board"           # 기록. 앞머리의 status 가 서랍을 정한다
+repos = "repos"          # 저장소 정션 · 심볼릭 링크를 두는 자리
+design = "design"      # 판의 자료(data.json)와 그림(SVG). 생성기: scripts/board_design.py
+figures = "scripts/figures"   # 상자를 누르면 뜨는 그림을 만드는 스크립트
+cache = ".cache"
+
+[presentations]
+enabled = true
+dir = "presentations"
+max_mib = 64
+
+[server]
+deny_extra = []          # 내보내지 않을 이름을 더한다. 예: ["vault", ".beads"]
+figure_python = ""       # numpy 와 matplotlib 이 있는 파이썬. 비우면 찾아 쓴다
+
+[prior_work]
+catalog = "data/prior_work/papers.csv"        # CSV 논문 목록. taxonomy와 함께 지정하면 Research Atlas를 쓴다
+taxonomy = "data/prior_work/taxonomy.json"   # 분야·접근법 정의 JSON. 경로는 프로젝트 안에 둔다
+
+[plan]
+deep = 3                 # 이만큼 내려가면 뿌리를 되새긴다
+title_max = 45           # 단계 제목의 상한. /now 한 줄 폭에서 나왔다
+
+[brief]
+exclude_labels = []      # 브리핑과 /now 에서 뺄 라벨. 예: ["area:platform"]
+
+[diagrams]
+browser = ""             # `focus diagram --out x.png` 이 쓰는 headless Chromium (Edge · Chrome). 비우면 찾아 쓴다
+
+
+# 브리핑의 「저장소」 절. 이름 · 자리 · 한 줄 설명.
+# [[repos]]
+# name = "core"
+# path = "repos/core"
+# note = "측정. packages/…"
+
+# 기록 화면의 서랍 줄 끝(Design 옆)에 붙는 링크. href 는 이 판의 주소(/ 로 시작)만 받는다.
+# [[tab_links]]
+# title = "달력"
+# href = "/repos/core/board/rounds.md#달력"
+
+[[tab_links]]
+title = "실험 결과"
+href = "/results.md"

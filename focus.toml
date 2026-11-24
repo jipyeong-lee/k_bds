@@ -48,14 +48,17 @@ browser = ""             # `focus diagram --out x.png` 이 쓰는 headless Chrom
 # title = "달력"
 # href = "/repos/core/board/rounds.md#달력"
 
-[[tab_links]]
+[[tabs]]
+key = "calendar"
 title = "달력"
 href = "/calendar.md"
 
-[[tab_links]]
+[[tabs]]
+key = "results"
 title = "실험 결과"
 href = "/results.md"
 
-[[tab_links]]
+[[tabs]]
+key = "monitor"
 title = "학습 모니터"
 href = "/training.html"

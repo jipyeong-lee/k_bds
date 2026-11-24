@@ -1,7 +1,7 @@
 {
  "title": "K-BDS Prior Work",
  "description": "RL 에서 답 길이 한도를 키우는 일, 길이 벌점과 DPO, 긴 시퀀스 메모리, 어려운 문항 선별, 멀티모달·의료 RL, 루브릭·judge 보상에 관한 선행연구다. 초록이나 본문 일부를 읽고 정리했다.",
- "asOf": "2026-11-23",
+ "asOf": "2026-11-24",
  "defaultField": "length-scaling",
  "families": [
   {
@@ -158,6 +158,11 @@
      "id": "length-reg",
      "name": "길이 정규화",
      "text": "DPO 가 긴 답을 선호로 악용하지 못하게 정규화한다."
+    },
+    {
+     "id": "local-pair",
+     "name": "지점 단위 짝",
+     "text": "풀이 중간의 overthinking 지점에서 같은 접두부로 이어 쓴 짧은 정답과 원래 연속을 짝으로 DPO 한다."
     }
    ]
   },

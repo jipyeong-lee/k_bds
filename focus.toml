@@ -49,5 +49,9 @@ browser = ""             # `focus diagram --out x.png` 이 쓰는 headless Chrom
 # href = "/repos/core/board/rounds.md#달력"
 
 [[tab_links]]
+title = "달력"
+href = "/calendar.md"
+
+[[tab_links]]
 title = "실험 결과"
 href = "/results.md"

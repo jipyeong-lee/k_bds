@@ -84,7 +84,7 @@ max_completion 8192 (KISTI 6144 는 잘림 기록) · clipped_ratio 1.3~1.8% 로
    `r_opd = clip( sg( log[π_teacher/π_student] ), −R_max, R_max )` — 토큰별 밀집 보상.
    같은 리포트가 **top-k 증류는 수렴·성능 어느 쪽도 이점 없었다**고 보고하므로 그 탐색은 건너뛸 것.
 
-> ⚠️ KISTI 원본(`k266a01:~/kbds_project/work`, ~305G)과 검증본은 그대로 보존. B200은 사본이므로
+> ⚠️ KISTI 원본(`<KISTI_ACCOUNT>:~/kbds_project/work`, ~305G)과 검증본은 그대로 보존. B200은 사본이므로
 > KISTI 결과 재현이 목표 — 그래서 스택을 KISTI 버전으로 핀했다.
 
 ---
@@ -131,14 +131,14 @@ max_completion 8192 (KISTI 6144 는 잘림 기록) · clipped_ratio 1.3~1.8% 로
 
 ## 2. 🚨 다른 계정으로 옮길 때 — 반드시 먼저 (경로/토큰/컨테이너)
 
-이 레포는 현재 `/home01/k266a01/kbds_project` 를 가정한다. **이관은 이미 두 번 있었다**(k252a01 → k252a02 → k266a01).
+이 레포는 현재 `/home01/<KISTI_ACCOUNT>/kbds_project` 를 가정한다. **이관은 이미 두 번 있었다**(<이전 계정 1> → <이전 계정 2> → <KISTI_ACCOUNT>).
 새 계정에선 아래를 **먼저** 처리:
 
 ```bash
 # (A) 경로 일괄 치환 — PROJ_DIR 은 env 로 되지만, *.slurm 의 #SBATCH --output 은 지시어라 치환 필요
 NEW=/home01/<새계정>/kbds_project
-grep -rl "/home01/k266a01/kbds_project" scripts/ | \
-  xargs sed -i "s#/home01/k266a01/kbds_project#$NEW#g"
+grep -rl "/home01/<KISTI_ACCOUNT>/kbds_project" scripts/ | \
+  xargs sed -i "s#/home01/<KISTI_ACCOUNT>/kbds_project#$NEW#g"
 #   → 스크립트의 하드코딩 경로 + slurm 의 --output 을 한 번에 교체.
 #   00_common.sh 의 PROJ_DIR 도 이 값으로 바뀜(파생 WORK_DIR/HF_HOME/CKPT_DIR 자동 추종).
 #   ⚠️ 이 sed 는 무차별이다. 아래 두 곳은 치환하면 안 되니 끝나고 반드시 확인:
@@ -163,7 +163,7 @@ export BUILD_PY=/home01/<새계정>/.conda/envs/<env>/bin/python   # pyarrow+PIL
 
 ### 2-A. 직접 전송 (같은 클러스터·같은 그룹 — 권장)
 
-`work/` 데이터를 재생성하지 말고 소스 계정에서 **당겨온다**. 확인된 사실(2026-07-24): 같은 그룹(`kbds0754`) 계정끼리
+`work/` 데이터를 재생성하지 말고 소스 계정에서 **당겨온다**. 확인된 사실(2026-07-24): 같은 그룹(`<KISTI_GROUP>`) 계정끼리
 소스 홈이 group-readable(`drwxr-x---`)·파일 644 → **받는 계정이 pull 가능**(소스는 남의 홈에 push 불가).
 
 **⚠️ 순서가 있다. 코드·문서는 이 스크립트로 옮기지 말 것 — git 이 정본이다.**
@@ -182,8 +182,8 @@ SRC=... WITH_LOGS=0   bash scripts/transfer_pull.sh    # 학습 로그 제외(�
 - **⚠️ 핵심**: jsonl 의 이미지 경로가 **절대경로** → 전송 후 반드시 치환. 스크립트가 `scripts/` + `work/data/` **전체**를 sed 처리한다(예전엔 `work/data/*.jsonl` 만 훑어 `domains/` 하위가 통째로 빠졌다 — 학습이 이미지를 못 찾고 죽는다).
 - **`WITH_CKPT=1` 을 빠뜨리지 말 것**: ck-850 은 구 실행 최고점이고 **재생성 불가**다. 전문가 3분할에서 E1 을 빼고 이걸 일반 교사로 쓰는 선택지가 여기 달려 있다.
 - **`logs/` 는 기본 포함**(142M). 사후분석·붕괴 진단·감시자 임계값이 전부 이 로그에서 나왔고 `watch_format_collapse.py --simulate` 가 이걸 먹는다.
-- SRC 를 안 주면 직전 계정(k252a02)이 기본값이고, **SRC==DST 면 스크립트가 즉시 중단**한다.
-- **⚠️ 다른 클러스터로 나갈 땐 이 스크립트를 쓸 수 없다**(홈 직접 read 전제). 데이터전송노드 `kbds-dm.kisti.re.kr`(FTP 21 / Aspera 33001) 경유.
+- SRC 를 안 주면 직전 계정(<이전 계정 2>)이 기본값이고, **SRC==DST 면 스크립트가 즉시 중단**한다.
+- **⚠️ 다른 클러스터로 나갈 땐 이 스크립트를 쓸 수 없다**(홈 직접 read 전제). 데이터전송노드 `<KISTI_DATA_HOST>`(FTP 21 / Aspera 33001) 경유.
 
 ---
 
@@ -268,6 +268,8 @@ bash scripts/watch_train.sh          # 라이브 대시보드 (tmux)
 ## 5. 남은 일 (우선순위)
 
 (2026-11-05 갱신. 전문가 학습·평가·통합(ta_w07)·OPD100 평가는 끝났다. 전문가 단계의 붕괴: mmk12 450 step 부근 3연속, deepvision 이어학습 3,428 step(job 82476))
+
+(2026-11-20 추가. **Stage-2 를 다시 한다.** 시작 모델을 SFT 에서 풀이 줄이기 6차 75 step 으로 바꿨다(결정 2026-11-11, learning `.trail/learnings/2026-11-11-sft-6-75-step-stage-2-jipyeong.md`). 2026-11-23 에 시작 모델을 다시 8차 75 step 으로 바꿨다. 6차 75 의 엄격 형식 통과가 낮았기 때문이다. 6차 75 에서 시작한 job 85634 는 취소했다. 그래서 아래 2 의 Stage-3 init 은 ta_w07 이 아니라 다시 한 전문가 3종의 병합 모델이 된다. 진행과 계획은 판 기록 `board/2026-11-20_Stage-2_다시_하기.md` 가 소유한다.)
 
 1. **Stage-3 실행 위치 결정** — 현재 계획은 kgpu + KHDP judge(위 표 ③)다. KISTI 8gpu 로 돌리려면 계산 노드에 외부망이 없어 로컬 judge(Qwen3.8-27B)가 필요하고, 3.8 은 judge 로 검증된 적이 없다.
    KISTI 쪽을 열어 두려고 judge 스모크 `84534`(1gpu, 3.8 서버 기동·채점 1건 파싱)만 유지했다(결과 `logs/judge_smoke_84534.log`). 같이 냈던 루브릭 비교 `84535` 는 judge 검증이 아니라 루브릭 설계 실험이라 취소했다.

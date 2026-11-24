@@ -1,3 +1,5 @@
+@AGENTS.md
+
 # CLAUDE.md — 실행 환경 가이드 (KISTI + Jukyung-Yadok B200)
 
 Stage-2 도메인 전문가 3종 RLVR 학습. 두 클러스터에서 실행 가능.
@@ -20,12 +22,12 @@ Stage-2 도메인 전문가 3종 RLVR 학습. 두 클러스터에서 실행 가�
 | | **KISTI K-BDS** | **Jukyung-Yadok (NHN B200)** |
 |---|---|---|
 | GPU | **`8gpu` 파티션 = A100 80GB PCIe × 8**(2026-08-21 실측 81,920 MiB), NVLink 없음. `1gpu`·`debug-1gpu` 노드만 A100-40GB 다 — 학습을 거기 넣으면 OOM | **8× B200 180GB, NVLink** |
-| 접속 | `ssh -p 22022 k266a01@kbds.kisti.re.kr` (OTP+PW) | HTTP API (PAT), 대화형 셸 없음 |
+| 접속 | `ssh -p 22022 <KISTI_ACCOUNT>@<KISTI_LOGIN_HOST>` (OTP+PW) | HTTP API (PAT), 대화형 셸 없음 |
 | 실행 | Slurm `sbatch` | 세션 생성 → `exec` → job 폴링 (async) |
 | 속도(실측) | GRPO ~213 s/it | **GRPO ~16–27 s/it (스모크)** |
 | 상태 | 원본 데이터·검증본 보유 | **✅ pmcvqa 스모크 완주(2026-08-14)** |
 
-원본 데이터(`work/`, ~305G)·검증본은 KISTI `k266a01:~/kbds_project`, tar는 `/scratch/migrate_k266_to_gpu/`.
+원본 데이터(`work/`, ~305G)·검증본은 KISTI `<KISTI_ACCOUNT>:~/kbds_project`, tar는 `/scratch/migrate_<KISTI_ACCOUNT>_to_gpu/`.
 
 ---
 
@@ -115,7 +117,7 @@ bash b200/release_session.sh                        # 세션 조회 / --all-gpu 
 ---
 
 ## 2. KISTI K-BDS (원본)
-- `ssh -p 22022 k266a01@kbds.kisti.re.kr`(PW+OTP, 대화형. **2026-11-16 부터 포트 22 → 22022**, `~/.ssh/config` 의 `kbds266` 별칭에 반영). 최초 1회 후 ControlMaster 8h 재사용.
+- `ssh -p 22022 <KISTI_ACCOUNT>@<KISTI_LOGIN_HOST>`(PW+OTP, 대화형. **2026-11-16 부터 포트 22 → 22022**, `~/.ssh/config` 의 `kbds266` 별칭에 반영). 최초 1회 후 ControlMaster 8h 재사용.
 - `~/kbds_project`, 데이터 `work/`(~305G, git 제외). 상세 [`HANDOFF.md`](HANDOFF.md)·[`README.md`](README.md).
 - **계산 노드는 외부망이 전혀 없다**(DNS 도 실패, job 82390). 외부 judge API(KHDP)는 KISTI 학습에서 못 쓴다.
 - 원격 셸은 `/bin/sh`, curl 은 7.29 → 스크립트는 `ssh … bash -s` 로, 헤더는 `-K <config>` 로 넘긴다(`-H @file`·프로세스 치환 불가).

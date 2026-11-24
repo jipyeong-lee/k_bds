@@ -55,3 +55,7 @@ href = "/calendar.md"
 [[tab_links]]
 title = "실험 결과"
 href = "/results.md"
+
+[[tab_links]]
+title = "학습 모니터"
+href = "/training.html"

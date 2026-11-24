@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>학습 모니터</title>
+<style>
+:root { --bg:#fbfaf7; --ink:#1d1d1b; --mute:#6b6a65; --rule:#dcd9d0; --ok:#1f7a4d; --bad:#b3261e; --warn:#a15c00; --line:#2f5d8a; --card:#fff; }
+@media (prefers-color-scheme: dark) { :root { --bg:#161614; --ink:#ecebe6; --mute:#9a998f; --rule:#34332e; --ok:#5fc08b; --bad:#f2837b; --warn:#e0a54a; --line:#7fb0e0; --card:#1d1d1b; } }
+html, body { overflow-x: clip; }
+body { margin:0; background:var(--bg); color:var(--ink); font:16px/1.55 system-ui, -apple-system, "Apple SD Gothic Neo", sans-serif; }
+main { max-width:960px; margin:0 auto; padding:24px 16px 64px; }
+h1 { font-size:1.5rem; margin:0 0 4px; } h2 { font-size:1.05rem; margin:28px 0 8px; }
+.mute { color:var(--mute); font-size:.9rem; }
+.badge { display:inline-block; padding:1px 8px; border-radius:10px; font-size:.82rem; border:1px solid currentColor; }
+.ok { color:var(--ok); } .no { color:var(--bad); }
+.cards { display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:10px; margin:12px 0; }
+.card { background:var(--card); border:1px solid var(--rule); border-radius:8px; padding:10px 12px; min-width:0; }
+.card b { display:block; font-size:1.35rem; } .card span { font-size:.85rem; color:var(--mute); }
+.bar { height:8px; background:var(--rule); border-radius:4px; overflow:hidden; } .bar i { display:block; height:100%; background:var(--line); }
+.charts { display:grid; grid-template-columns:repeat(auto-fit, minmax(min(100%, 420px), 1fr)); gap:12px; }
+svg { width:100%; height:auto; display:block; } svg text { fill:var(--mute); font-size:10px; } svg .ax { stroke:var(--rule); }
+a:focus-visible, button:focus-visible, svg:focus-visible { outline:2px solid var(--line); outline-offset:2px; }
+</style>
+</head>
+<body>
+<main>
+<h1>학습 모니터</h1>
+<p class="mute" id="stat">불러오는 중…</p>
+<div id="out"></div>
+<noscript><p>이 화면은 스크립트가 있어야 값을 보인다.</p></noscript>
+</main>
+<script>
+const el = (t, a = {}, ...k) => { const e = document.createElement(t); for (const [n, v] of Object.entries(a)) e.setAttribute(n, v); e.append(...k.flat().filter(x => x != null && x !== false)); return e; };
+const svg = (t, a = {}, ...k) => { const e = document.createElementNS('http://www.w3.org/2000/svg', t); for (const [n, v] of Object.entries(a)) e.setAttribute(n, v); e.append(...k.flat().filter(Boolean)); return e; };
+const SMOOTH = 10;  // 이동 평균 창(step). 점 하나는 4문항 × 8답이라 흔들림이 크다
+const avg = (xs) => xs.reduce((a, b) => a + b, 0) / xs.length;
+const smooth = (ys) => ys.map((_, i) => avg(ys.slice(Math.max(0, i - SMOOTH + 1), i + 1)));
+function chart(title, steps, ys, total, fmt, opt = {}) {
+  const W = 420, H = 190, m = { l: 46, r: 10, t: 22, b: 22 }, sm = smooth(ys), all = ys.concat(opt.ref ? [opt.ref.y] : []);
+  const lo = opt.min ?? Math.min(...all), hi = opt.max ?? Math.max(...all), pad = (hi - lo) * 0.08 || 0.05, y0 = opt.min ?? lo - pad, y1 = opt.max ?? hi + pad;
+  const X = s => m.l + s / total * (W - m.l - m.r), Y = v => H - m.b - (v - y0) / (y1 - y0) * (H - m.t - m.b);
+  const pts = (a) => steps.map((s, i) => `${X(s).toFixed(1)},${Y(a[i]).toFixed(1)}`).join(' ');
+  const last = ys.at(-1), lastSm = sm.at(-1);
+  return el('div', { class: 'card' }, svg('svg', { viewBox: `0 0 ${W} ${H}`, role: 'img', 'aria-label': `${title}: 최근 ${fmt(last)}, 최근 ${SMOOTH} step 평균 ${fmt(lastSm)}` },
+    svg('text', { x: m.l, y: 12, style: 'fill:var(--ink);font-size:12px' }, `${title}  ${fmt(last)} (평균 ${fmt(lastSm)})`),
+    [0, 1, 2, 3].map(i => { const v = y0 + (y1 - y0) * i / 3; return svg('g', {}, svg('line', { class: 'ax', x1: m.l, x2: W - m.r, y1: Y(v), y2: Y(v) }), svg('text', { x: m.l - 5, y: Y(v) + 3.5, 'text-anchor': 'end' }, fmt(v))); }),
+    [0, 0.25, 0.5, 0.75, 1].map(f => svg('text', { x: X(total * f), y: H - 7, 'text-anchor': f === 1 ? 'end' : f === 0 ? 'start' : 'middle' }, String(Math.round(total * f)))),
+    opt.ref && svg('g', {}, svg('line', { x1: m.l, x2: W - m.r, y1: Y(opt.ref.y), y2: Y(opt.ref.y), stroke: 'var(--bad)', 'stroke-dasharray': '4 3' }), svg('text', { x: W - m.r, y: Y(opt.ref.y) - 3, 'text-anchor': 'end', style: 'fill:var(--bad)' }, opt.ref.label)),
+    svg('polyline', { points: pts(ys), fill: 'none', stroke: 'var(--line)', 'stroke-width': 1, opacity: 0.35 }),
+    svg('polyline', { points: pts(sm), fill: 'none', stroke: 'var(--line)', 'stroke-width': 2, 'stroke-linejoin': 'round' })));
+}
+const f = { pct: v => (v * 100).toFixed(0) + '%', pct1: v => (v * 100).toFixed(1) + '%', n0: v => Math.round(v).toLocaleString(), s: v => v.toFixed(0) + 's', g: v => v.toFixed(1), r: v => v.toFixed(2) };
+function job(j) {
+  const c = Object.fromEntries(j.cols.map((n, i) => [n, j.rows.map(r => r[i])])), n = j.rows.length, step = c.step.at(-1), tail = (k, w = SMOOTH) => avg(c[k].slice(-w));
+  const maxMem = Math.max(...c.mem), pctDone = step / j.total;
+  const card = (v, l) => el('div', { class: 'card' }, el('b', {}, v), el('span', {}, l));
+  const warn = [];
+  if (tail('fmt') < 0.5) warn.push('형식 점수가 낮다(0.5 미만).'); if (tail('clip') > 0.3) warn.push('잘림 비율이 높다(0.3 초과).'); if (tail('time') > 420) warn.push('step 시간이 7분을 넘는다.');
+  return el('section', {},
+    el('h2', {}, `job ${j.id} · ${j.name} `, el('span', { class: 'badge ok' }, '실행 중')),
+    el('p', { class: 'mute' }, `노드 ${j.node} · 경과 ${j.elapsed} · 시간 한도까지 ${j.left} · swift 예상 잔여 ${j.swift_remaining || '—'}`),
+    el('div', { class: 'bar', role: 'progressbar', 'aria-valuenow': step, 'aria-valuemax': j.total, 'aria-label': '진행' }, el('i', { style: `width:${(pctDone * 100).toFixed(1)}%` })),
+    el('p', {}, `step ${step} / ${j.total} (${(pctDone * 100).toFixed(1)}%) · 체크포인트 ${j.checkpoints.length ? j.checkpoints.join(', ') : '아직 없다'}`),
+    warn.length ? el('p', { class: 'no' }, warn.join(' ')) : null,
+    el('div', { class: 'cards' }, card(f.pct(tail('fmt')), `형식 점수(최근 ${SMOOTH} step 평균)`), card(f.pct1(tail('clip')), '잘림 비율'), card(f.r(tail('acc')), '정확도 보상(rollout)'),
+      card(f.n0(tail('len')), '평균 완성 길이(토큰)'), card(f.s(tail('time')), 'step 시간'), card(f.g(maxMem) + ' GiB', '메모리 최고점(실행 중 최대값)')),
+    el('div', { class: 'charts' },
+      chart('형식 점수', c.step, c.fmt, j.total, f.r, { min: 0, max: 1, ref: { y: 0.3, label: '감시 기준 0.3' } }),
+      chart('잘림 비율', c.step, c.clip, j.total, f.pct, { min: 0, max: 1 }),
+      chart('정확도 보상(rollout)', c.step, c.acc, j.total, f.r, { min: 0, max: 1 }),
+      chart('평균 완성 길이', c.step, c.len, j.total, f.n0),
+      chart('step 시간', c.step, c.time, j.total, f.s, { ref: { y: 420, label: '7분' } }),
+      chart('메모리(GiB)', c.step, c.mem, j.total, f.g),
+      chart('엔트로피', c.step, c.ent, j.total, f.r)),
+    el('p', { class: 'mute' }, '옅은 선은 step 값, 짙은 선은 최근 10 step 이동 평균이다. 정확도는 학습 중 rollout 값이며 홀드아웃 평가가 아니다.'));
+}
+let lastKey = '';
+async function tick() {
+  if (document.hidden) return;
+  const stat = document.getElementById('stat'), out = document.getElementById('out');
+  try {
+    const r = await fetch('training.json?t=' + Date.now(), { cache: 'no-store' }); if (!r.ok) throw new Error(r.status);
+    const d = await r.json(), age = Math.round(Date.now() / 1000 - d.updated), stale = age > d.interval * 3 + 120;
+    stat.replaceChildren(el('span', { class: 'badge ' + (stale || !d.ok ? 'no' : 'ok') }, stale ? '갱신 중단?' : d.ok ? '실시간' : '연결 없음'), ` 마지막 갱신 ${d.updated_text} (${age}초 전)`,
+      stale ? '. scripts/board_training.py 가 멈췄을 수 있다.' : '', d.ok ? '' : ` ${d.error}`);
+    const key = JSON.stringify(d.jobs.map(j => [j.id, j.rows.length, j.rows.at(-1)])) + d.ok;
+    if (key !== lastKey) { lastKey = key; out.replaceChildren(...(d.jobs.length ? d.jobs.map(job) : [el('p', {}, '실행 중인 학습 job 이 없다.')])); }
+  } catch (e) { stat.replaceChildren(el('span', { class: 'badge no' }, '읽지 못함'), ' training.json 이 없다. `python3 scripts/board_training.py` 를 실행한다.'); }
+}
+tick(); setInterval(tick, 30000);
+</script>
+</body>
+</html>

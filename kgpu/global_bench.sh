@@ -16,7 +16,7 @@ tar xzf "$F/code.tgz" -C "$W" --no-same-owner || { echo "❌ code.tgz"; exit 1; 
 [ -d "$W/base" ] || cp -r "$F/sft_mixed_merged" "$W/base" || { echo "❌ base copy"; exit 1; }
 mkdir -p "$W/gb" "$W/ckpt"
 tar xf "$F/global_bench.tar" -C "$W/gb" --no-same-owner || { echo "❌ global_bench"; exit 1; }
-sed -i "s#/home01/k266a01/kbds_project/work/data/global_bench/images#$W/gb/images#g" "$W/gb/global_bench.jsonl"
+sed -i "s#${SRC_HOME:?SRC_HOME 필요}/kbds_project/work/data/global_bench/images#$W/gb/images#g" "$W/gb/global_bench.jsonl"
 tar xf "$F/ckpt_$TAG.tar" -C "$W/ckpt" --no-same-owner || { echo "❌ ckpt"; exit 1; }
 CKPT=$(ls -d "$W"/ckpt/checkpoint-* | head -1)
 

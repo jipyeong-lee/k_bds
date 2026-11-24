@@ -17,7 +17,7 @@ stamp "1) code·data"
 tar xzf "$F/code.tgz" -C "$W" --no-same-owner || { echo "❌ code.tgz"; exit 1; }
 cp "$F/diag_visual_dependence.py" "$W/scripts/" || { echo "❌ diag py"; exit 1; }
 mkdir -p "$W/hold"; tar xf "$F/holdout.tar" -C "$W/hold" --no-same-owner || { echo "❌ holdout"; exit 1; }
-sed -i "s#/home01/k266a01/kbds_project/work/data/images#$W/hold/images#g" "$W/hold/stage2_expanded_holdout.jsonl"
+sed -i "s#${SRC_HOME:?SRC_HOME 필요}/kbds_project/work/data/images#$W/hold/images#g" "$W/hold/stage2_expanded_holdout.jsonl"
 
 stamp "2) venv"
 . "$F/setup_venv.sh"

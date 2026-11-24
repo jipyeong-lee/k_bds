@@ -17,7 +17,7 @@ tar xzf "$F/code.tgz" -C "$W" --no-same-owner || { echo "❌ code.tgz"; exit 1; 
 cp "$F/eval_compare.py" "$W/scripts/eval_compare.py" || { echo "❌ eval_compare"; exit 1; }   # 지연·토큰 기록판
 cp "$F/merge_experts.py" "$W/merge_experts.py"     # ~/files 에서 바로 실행하면 Errno 121
 mkdir -p "$W/hold"; tar xf "$F/holdout.tar" -C "$W/hold" --no-same-owner || { echo "❌ holdout"; exit 1; }
-sed -i "s#/home01/k266a01/kbds_project/work/data/images#$W/hold/images#g" "$W/hold/stage2_expanded_holdout.jsonl"
+sed -i "s#${SRC_HOME:?SRC_HOME 필요}/kbds_project/work/data/images#$W/hold/images#g" "$W/hold/stage2_expanded_holdout.jsonl"
 
 stamp "2) venv"
 . "$F/setup_venv.sh"

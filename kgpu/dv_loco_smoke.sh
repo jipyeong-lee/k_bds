@@ -19,7 +19,7 @@ tar xzf "$F/code.tgz" -C "$W" --no-same-owner || { echo "❌ code.tgz"; exit 1; 
 mkdir -p "$W/data/images"
 tar xf "$F/opd_dv/dv_images.tar" -C "$W/data/images" --no-same-owner || { echo "❌ dv_images.tar"; exit 1; }
 cp "$F/opd_dv/stage2_deepvision.jsonl" "$W/data/dv.jsonl" || { echo "❌ data"; exit 1; }
-sed -i "s#/home01/k266a01/kbds_project/work/data/images/deepvision#$W/data/images#g" "$W/data/dv.jsonl"
+sed -i "s#${SRC_HOME:?SRC_HOME 필요}/kbds_project/work/data/images/deepvision#$W/data/images#g" "$W/data/dv.jsonl"
 
 stamp "2) venv"
 . "$F/setup_venv.sh"

@@ -20,7 +20,7 @@ tar xzf "$F/code.tgz" -C "$W" --no-same-owner || { echo "❌ code.tgz"; exit 1; 
 mkdir -p "$W/data" "$W/ckpt"
 [ -f "$W/data/domains/stage2_mmk12.jsonl" ] || tar xf "$F/mmk12_data.tar" -C "$W/data" --no-same-owner || { echo "❌ data"; exit 1; }
 [ -d "$W/ckpt/checkpoint-${CKPT:=350}" ] || tar xf "$F/mmk12_ckpt$CKPT.tar" -C "$W/ckpt" --no-same-owner || { echo "❌ ckpt"; exit 1; }
-sed -i "s#/home01/k266a01/kbds_project/work/data/images#$W/data/images#g" "$W/data/domains/stage2_mmk12.jsonl"
+sed -i "s#${SRC_HOME:?SRC_HOME 필요}/kbds_project/work/data/images#$W/data/images#g" "$W/data/domains/stage2_mmk12.jsonl"
 head -c 300 "$W/data/domains/stage2_mmk12.jsonl"; echo
 
 stamp "2) venv"

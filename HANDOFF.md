@@ -132,6 +132,7 @@ max_completion 8192 (KISTI 6144 는 잘림 기록) · clipped_ratio 1.3~1.8% 로
 ## 2. 🚨 다른 계정으로 옮길 때 — 반드시 먼저 (경로/토큰/컨테이너)
 
 이 레포는 현재 `/home01/<KISTI_ACCOUNT>/kbds_project` 를 가정한다. **이관은 이미 두 번 있었다**(<이전 계정 1> → <이전 계정 2> → <KISTI_ACCOUNT>).
+`b200/`·`kgpu/` 스크립트가 jsonl 의 원본 절대경로를 치환할 때는 환경변수 `SRC_HOME`(그 jsonl 에 들어 있는 경로의 홈, 지금은 `/home01/<KISTI_ACCOUNT>`)이 필요하다. 없으면 멈춘다. 호출 예: `SRC_HOME=/home01/<KISTI_ACCOUNT> bash b200/drive_node.sh <payload> …`, `bash kgpu/run_pod.sh <script> … SRC_HOME`.
 새 계정에선 아래를 **먼저** 처리:
 
 ```bash

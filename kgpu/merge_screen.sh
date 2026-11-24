@@ -23,8 +23,8 @@ mkdir -p "$W/hold" "$W/gb" "$W/ckpt" "$W/mcfg"
 for t in holdout:hold global_bench:gb merge_configs:mcfg; do
   tar xf "$F/${t%%:*}.tar" -C "$W/${t##*:}" --no-same-owner || { echo "❌ ${t%%:*}"; exit 1; }
 done
-sed -i "s#/home01/k266a01/kbds_project/work/data/images#$W/hold/images#g" "$W/hold/stage2_expanded_holdout.jsonl"
-sed -i "s#/home01/k266a01/kbds_project/work/data/global_bench/images#$W/gb/images#g" "$W/gb/global_bench.jsonl"
+sed -i "s#${SRC_HOME:?SRC_HOME 필요}/kbds_project/work/data/images#$W/hold/images#g" "$W/hold/stage2_expanded_holdout.jsonl"
+sed -i "s#${SRC_HOME:?SRC_HOME 필요}/kbds_project/work/data/global_bench/images#$W/gb/images#g" "$W/gb/global_bench.jsonl"
 cp "$F/merge_experts.py" "$W/merge_experts.py"     # ~/files 에서 바로 실행하면 Errno 121
 
 stamp "2) venv (+ mergekit 별도 venv — vLLM 핀을 건드리지 않게)"

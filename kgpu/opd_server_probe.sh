@@ -34,7 +34,7 @@ wait $P1 || { echo "❌ student download"; exit 1; }; wait $P2 || { echo "❌ te
 
 stamp "4) deepvision 프롬프트 ${SMOKE_ROWS}행"
 DATASET=$W/data/dv.jsonl; IMG=$W/data/images/deepvision; mkdir -p "$IMG"
-head -n "$SMOKE_ROWS" "$F/opd_dv/stage2_deepvision.jsonl" | sed "s#/home01/k266a01/kbds_project/work/data/images/deepvision/#$IMG/#g" > "$DATASET"
+head -n "$SMOKE_ROWS" "$F/opd_dv/stage2_deepvision.jsonl" | sed "s#${SRC_HOME:?SRC_HOME 필요}/kbds_project/work/data/images/deepvision/#$IMG/#g" > "$DATASET"
 grep -oE "$IMG/[^\"]+" "$DATASET" | sed "s#^$IMG/##" > "$W/dv_need.txt"
 [ -s "$W/dv_need.txt" ] || { echo "❌ 이미지 목록이 비었다"; exit 1; }
 tar xf "$F/opd_dv/dv_images.tar" -C "$IMG" -T "$W/dv_need.txt" --no-same-owner || { echo "❌ dv_images.tar"; exit 1; }

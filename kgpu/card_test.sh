@@ -16,12 +16,12 @@ stamp "2) venv"
 stamp "1) holdout 3문항(도메인별 첫 문항)"
 mkdir -p "$W/hold"; tar xf "$F/holdout.tar" -C "$W/hold" --no-same-owner || { echo "❌ holdout"; exit 1; }
 "$PY" - "$W" <<'EOF'
-import json, sys
-W = sys.argv[1]; seen = {}
+import json, os, sys
+W = sys.argv[1]; seen = {}; SRC = os.environ['SRC_HOME']
 for l in open(f'{W}/hold/stage2_expanded_holdout.jsonl'):
     d = json.loads(l); s = d['_source']
     if s not in seen:
-        seen[s] = {'src': s, 'image': d['images'][0].replace('/home01/k266a01/kbds_project/work/data/images', f'{W}/hold/images'),
+        seen[s] = {'src': s, 'image': d['images'][0].replace(SRC + '/kbds_project/work/data/images', f'{W}/hold/images'),
                    'question': d['messages'][0]['content'].replace('<image>\n', ''), 'solution': d['solution']}
 json.dump(list(seen.values()), open(f'{W}/items.json', 'w'), ensure_ascii=False, indent=1)
 print(len(seen), 'items')

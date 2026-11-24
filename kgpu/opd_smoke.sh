@@ -77,7 +77,7 @@ stamp "3) $PROMPTS 프롬프트 ${SMOKE_ROWS:=200}행"
 DATASET=$W/data/medix.jsonl
 if [ "$PROMPTS" = dv ]; then
   DATASET=$W/data/dv.jsonl; IMG=$W/data/images/deepvision; mkdir -p "$IMG"
-  head -n "$SMOKE_ROWS" "$F/opd_dv/stage2_deepvision.jsonl" | sed "s#/home01/k266a01/kbds_project/work/data/images/deepvision/#$IMG/#g" > "$DATASET"
+  head -n "$SMOKE_ROWS" "$F/opd_dv/stage2_deepvision.jsonl" | sed "s#${SRC_HOME:?SRC_HOME 필요}/kbds_project/work/data/images/deepvision/#$IMG/#g" > "$DATASET"
   grep -oE "$IMG/[^\"]+" "$DATASET" | sed "s#^$IMG/##" > "$W/dv_need.txt"
   [ -s "$W/dv_need.txt" ] || { echo "❌ dv 프롬프트가 참조하는 이미지가 없다(jsonl 이 비었거나 경로 접두사가 다르다). 빈 목록이면 tar 가 전부 푼다"; exit 1; }
   tar xf "$F/opd_dv/dv_images.tar" -C "$IMG" -T "$W/dv_need.txt" --no-same-owner || { echo "❌ dv_images.tar"; exit 1; }

@@ -79,11 +79,13 @@ math_verify==0.9.0 latex2sympy2_extended==1.11.0 word2number==1.1  # 보상 플�
 ### 1.5 학습 실행
 ```
 # 스모크 1회 (pmcvqa 3 step) — 환경 검증용
-ORCH_PAT=… ORCH_BASE_URL=… bash b200/drive_node.sh b200/node_setup_and_smoke.sh 8 2400
+SRC_HOME=/home01/<KISTI_ACCOUNT> ORCH_PAT=… ORCH_BASE_URL=… bash b200/drive_node.sh b200/node_setup_and_smoke.sh 8 2400
 # 본실행: job 이 timeout 마다 끊기므로 체크포인트 재개 체인으로 돈다
 nohup bash b200/chain_epoch.sh deepvision 7200 &   # 내부에서 run_epoch.sh 를 반복 투입
 bash b200/release_session.sh                        # 세션 조회 / --all-gpu 로 강제 반납
 ```
+`SRC_HOME` 은 치환할 jsonl 에 들어 있는 원본 절대경로의 홈(`/home01/<KISTI_ACCOUNT>`)이다. `b200/node_setup_and_smoke.sh`·`b200/make_tars.sh`·`kgpu/` 의 경로 치환 스크립트가 쓰고, 없으면 멈춘다. `drive_node.sh` 는 로컬에 `SRC_HOME` 이 있으면 payload 앞에 `export` 로 붙여 노드로 넘긴다. kgpu 는 `bash kgpu/run_pod.sh <script> … SRC_HOME` 처럼 이름을 인자에 적으면 로컬 값이 pod env 로 넘어간다.
+
 스모크 통과 실측(2026-08-14, pmcvqa 3 step, 1 GPU): `SWIFT_EXIT=0`, reward 1.2→0.575, ~40 s/it.
 
 **플랫폼 운영 함정 (2026-08-15 실측, 전부 겪은 것):**

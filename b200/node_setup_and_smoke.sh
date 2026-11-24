@@ -64,7 +64,7 @@ else
 fi
 
 stamp "2) path-fix jsonl (KISTI -> node) + image sanity"
-find "$PROJ/work/data" -name '*.jsonl' -print0 | xargs -0 sed -i "s#/home01/k266a01/kbds_project#$PROJ#g"
+find "$PROJ/work/data" -name '*.jsonl' -print0 | xargs -0 sed -i "s#${SRC_HOME:?SRC_HOME 필요}/kbds_project#$PROJ#g"
 IMG=$(head -1 "$PROJ/work/data/domains/stage2_pmcvqa.jsonl" | grep -o "$PROJ[^\"]*\.png" | head -1)
 [ -f "$IMG" ] && echo "  IMG_OK $IMG" || { echo "  IMG_MISSING $IMG"; exit 1; }
 

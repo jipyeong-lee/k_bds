@@ -10,7 +10,7 @@ sleep "${WAIT:-700}"   # 앞 pod 가 자기 반납(GRACE 600초)을 끝낼 때�
 for try in 1 2 3; do
   have full_${C}_gb.jsonl && break
   echo "[$(date +%H:%M)] merge_screen $C 시작(시도 $try)"
-  CANDS=$C HOLD_N=all GB_N=all RES_PREFIX=full MAX_SEC=36000 bash kgpu/run_pod.sh merge_screen.sh HF_TOKEN CANDS HOLD_N GB_N RES_PREFIX > logs/merge_screen_$C.out 2>&1
+  CANDS=$C HOLD_N=all GB_N=all RES_PREFIX=full MAX_SEC=36000 bash kgpu/run_pod.sh merge_screen.sh HF_TOKEN SRC_HOME CANDS HOLD_N GB_N RES_PREFIX > logs/merge_screen_$C.out 2>&1
   sleep 30
 done
 have full_${C}_gb.jsonl && echo "[$(date +%H:%M)] ALL_DONE" || echo "[$(date +%H:%M)] ❌ 3번 실패"
